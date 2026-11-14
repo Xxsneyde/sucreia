@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.next-dev
+package-lock.json
+playwright-report
+test-results
+.sites-runtime
+.openai

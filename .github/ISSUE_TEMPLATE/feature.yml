@@ -1,0 +1,28 @@
+name: Funcionalidad
+description: Proponer una tarea concreta para el equipo
+title: '[Módulo] '
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Módulo y carpeta
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: Qué podrá hacer el usuario al terminar esta tarea.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      placeholder: '- [ ] ...'
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencias y cambios compartidos
