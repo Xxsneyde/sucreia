@@ -4,20 +4,28 @@ import Link from 'next/link';
 import { PageTitle } from '@/components/ui';
 import { useDemo } from '@/lib/demo-store';
 export function Account() {
-  const { reset, favorites, orders } = useDemo();
+  const { reset, favorites, orders, profileName, setProfileName } = useDemo();
   const [confirm, setConfirm] = useState(false);
   return (
     <>
       <PageTitle
         eyebrow="TU ESPACIO"
-        title="Hola, explorador."
+        title={`Hola, ${profileName}.`}
         description="Estás navegando con un perfil de demostración."
       />
       <div className="two-columns">
         <section className="card">
           <div className="profile-avatar">S</div>
           <h2>Comunidad SucreIA</h2>
-          <p className="muted">Sin sesión real iniciada.</p>
+          <p className="muted">Tu perfil local, sin contraseña ni conexión a servicios externos.</p>
+          <label className="local-name-field">
+            ¿Cómo te llamas?
+            <input
+              maxLength={50}
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+            />
+          </label>
           <div className="profile-stats">
             <Link href="/pedidos">
               <strong>{orders.length}</strong> pedidos
@@ -34,7 +42,7 @@ export function Account() {
           <h2>Explora cada espacio</h2>
           <div className="link-list">
             <Link href="/panel">Mi negocio →</Link>
-            <Link href="/registro/negocio">Configurar un emprendimiento →</Link>
+            <Link href="/estudio">Mi estudio visual →</Link>
             <Link href="/domiciliario">Entregas →</Link>
             <Link href="/equipo">Guía del equipo →</Link>
           </div>
@@ -43,7 +51,10 @@ export function Account() {
           </button>
           {confirm && (
             <div className="notice">
-              <p>Se borrarán el carrito, las solicitudes, los favoritos y el borrador local.</p>
+              <p>
+                Se restablecerán pedidos, carrito, puntos, lecciones y favoritos. Tus tiendas del
+                estudio se conservan.
+              </p>
               <button
                 className="button secondary"
                 onClick={() => {

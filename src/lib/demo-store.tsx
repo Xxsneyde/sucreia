@@ -3,14 +3,23 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { BusinessDraft, CartLine, Order, ServiceRequest } from '@/domain/types';
 import { addToCart, cartTotal, nextStatus } from '@/domain/rules';
 import { businesses, demoOrders } from '@/data/demo';
+import { useLocalBusinesses } from './studio-store';
 interface State {
   cart: CartLine[];
   orders: Order[];
   requests: ServiceRequest[];
   favorites: string[];
   draft: BusinessDraft;
+  points: number;
+  coupon: boolean;
+  completedLessons: string[];
+  profileName: string;
 }
 const initial: State = {
+  points: 2850,
+  coupon: false,
+  completedLessons: [],
+  profileName: 'Explorador',
   cart: [],
   orders: demoOrders,
   requests: [],
@@ -26,6 +35,11 @@ interface Store extends State {
   remove: (id: string) => void;
   clear: () => void;
   checkout: () => string;
+  setQuantity: (id: string, quantity: number) => void;
+  updateRequest: (id: string, status: ServiceRequest['status'], amount?: number) => void;
+  redeem: () => void;
+  completeLesson: (id: string) => void;
+  setProfileName: (name: string) => void;
   advance: (id: string) => void;
   request: (request: Omit<ServiceRequest, 'id' | 'status'>) => void;
   toggleFavorite: (id: string) => void;
@@ -64,6 +78,8 @@ function validState(value: unknown): value is State {
   );
 }
 export function DemoProvider({ children }: { children: ReactNode }) {
+  const localBusinesses = useLocalBusinesses();
+  const catalog = [...businesses, ...localBusinesses];
   const [state, setState] = useState<State>(initial);
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
@@ -72,7 +88,15 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(key);
       if (raw) {
         const saved: unknown = JSON.parse(raw);
-        if (validState(saved)) setState(saved);
+        if (validState(saved))
+          setState({
+            ...initial,
+            ...saved,
+            points: Number.isFinite(saved.points) ? saved.points : 2850,
+            coupon: saved.coupon === true,
+            completedLessons: Array.isArray(saved.completedLessons) ? saved.completedLessons : [],
+            profileName: typeof saved.profileName === 'string' ? saved.profileName : 'Explorador',
+          });
         else setStorageError(true);
       }
     } catch {
@@ -105,23 +129,42 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     checkout() {
       if (!state.cart.length) throw new Error('Agrega un producto para continuar.');
       const id = `SC-${crypto.randomUUID().slice(0, 8)}`;
-      const business = businesses.find((b) => b.id === state.cart[0].businessId)!;
+      const business = catalog.find((b) => b.id === state.cart[0].businessId);
+      if (!business)
+        throw new Error('Este negocio retiró su publicación. Vacía el carrito para continuar.');
+      for (const line of state.cart) {
+        const offer = business.products.find((p) => p.id === line.productId);
+        if (!offer || offer.price !== line.price)
+          throw new Error(
+            'El catálogo cambió. Vacía el carrito y agrega los productos actualizados.',
+          );
+      }
       const order: Order = {
         id,
         businessId: business.id,
         businessName: business.name,
         lines: state.cart,
-        total: cartTotal(state.cart),
+        total: Math.round(cartTotal(state.cart) * (state.coupon ? 0.9 : 1)),
+        discount: state.coupon ? Math.round(cartTotal(state.cart) * 0.1) : 0,
         status: 'received',
         createdAt: new Date().toISOString(),
       };
-      setState((s) => ({ ...s, cart: [], orders: [order, ...s.orders] }));
+      setState((s) => ({ ...s, cart: [], coupon: false, orders: [order, ...s.orders] }));
       return id;
     },
     advance(id) {
       setState((s) => ({
         ...s,
-        orders: s.orders.map((o) => (o.id === id ? { ...o, status: nextStatus(o.status) } : o)),
+        points: s.points + (s.orders.find((o) => o.id === id)?.status === 'dispatched' ? 100 : 0),
+        orders: s.orders.map((o) =>
+          o.id === id
+            ? {
+                ...o,
+                status: nextStatus(o.status),
+                ...(o.status === 'dispatched' ? { deliveredAt: new Date().toISOString() } : {}),
+              }
+            : o,
+        ),
       }));
     },
     request(request) {
@@ -140,6 +183,40 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     },
     saveDraft(draft) {
       setState((s) => ({ ...s, draft }));
+    },
+    setQuantity(id, quantity) {
+      setState((s) => ({
+        ...s,
+        cart: s.cart.map((x) =>
+          x.productId === id ? { ...x, quantity: Math.max(1, Math.min(99, quantity)) } : x,
+        ),
+      }));
+    },
+    updateRequest(id, status, amount) {
+      setState((s) => ({
+        ...s,
+        requests: s.requests.map((r) =>
+          r.id === id
+            ? { ...r, status, ...(amount !== undefined ? { quoteAmount: amount } : {}) }
+            : r,
+        ),
+      }));
+    },
+    redeem() {
+      if (state.coupon) throw new Error('Ya tienes un bono disponible.');
+      if (state.points < 500) throw new Error('Necesitas 500 puntos.');
+      setState((s) => ({ ...s, points: s.points - 500, coupon: true }));
+    },
+    completeLesson(id) {
+      setState((s) => ({
+        ...s,
+        completedLessons: s.completedLessons.includes(id)
+          ? s.completedLessons
+          : [...s.completedLessons, id],
+      }));
+    },
+    setProfileName(profileName) {
+      setState((s) => ({ ...s, profileName }));
     },
     reset() {
       setState(initial);

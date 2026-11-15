@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   Leaf,
 } from 'lucide-react';
+import { StudioProvider } from '@/lib/studio-store';
 import { DemoProvider, useDemo } from '@/lib/demo-store';
 const customer = [
   { href: '/', label: 'Descubrir', icon: Compass },
@@ -31,6 +32,7 @@ const customer = [
 ];
 const merchant = [
   { href: '/panel', label: 'Resumen', icon: LayoutDashboard },
+  { href: '/estudio', label: 'Estudio visual', icon: Store },
   { href: '/panel/pedidos', label: 'Pedidos y solicitudes', icon: ShoppingBag },
   { href: '/panel/productos', label: 'Productos y servicios', icon: Package },
   { href: '/panel/perfil', label: 'Mi negocio', icon: Store },
@@ -39,9 +41,15 @@ const merchant = [
 ];
 function Layout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const business = path.startsWith('/panel');
+  const business = path.startsWith('/panel') || path.startsWith('/estudio');
   const demo = useDemo();
   const active = (href: string) => path === href;
+  if (
+    path.startsWith('/estudio/editor') ||
+    path.startsWith('/estudio/vista-previa') ||
+    path.startsWith('/tienda')
+  )
+    return <>{children}</>;
   return (
     <div className="app">
       <a className="skip-link" href="#contenido">
@@ -74,8 +82,8 @@ function Layout({ children }: { children: React.ReactNode }) {
           </span>
           <h3>Tu idea merece crecer.</h3>
           <p>Haz parte de la comunidad de emprendedores de Sucre.</p>
-          <Link href="/registro/negocio">
-            Crear mi negocio <ArrowUpRight size={16} />
+          <Link href="/estudio">
+            Diseñar mi tienda <ArrowUpRight size={16} />
           </Link>
         </div>
         <div className="sidebar-bottom">
@@ -123,7 +131,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         </main>
         <footer className="footer">
           SucreIA <span>Conectamos talento local con nuevas oportunidades.</span>
-          <Link href="/equipo">Versión 0.1.0</Link>
+          <Link href="/equipo">Versión 0.2.0</Link>
         </footer>
       </div>
       <nav className="bottom-nav" aria-label="Navegación móvil">
@@ -144,8 +152,10 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <DemoProvider>
-      <Layout>{children}</Layout>
-    </DemoProvider>
+    <StudioProvider>
+      <DemoProvider>
+        <Layout>{children}</Layout>
+      </DemoProvider>
+    </StudioProvider>
   );
 }

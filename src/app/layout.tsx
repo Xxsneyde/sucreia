@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Shell } from '@/components/shell';
 import './globals.css';
+import '@/features/studio/studio.css';
 export const metadata: Metadata = {
   title: { default: 'SucreIA · Descubre lo nuestro', template: '%s · SucreIA' },
   description:

@@ -19,6 +19,8 @@ export interface Business {
   rating: number;
   whatsapp: string | null;
   products: Product[];
+  local?: boolean;
+  cover?: string;
 }
 export interface CartLine {
   businessId: string;
@@ -35,6 +37,8 @@ export interface Order {
   lines: CartLine[];
   status: OrderStatus;
   createdAt: string;
+  discount?: number;
+  deliveredAt?: string;
 }
 export interface ServiceRequest {
   id: string;
@@ -43,7 +47,8 @@ export interface ServiceRequest {
   mode: 'booking' | 'quote';
   detail: string;
   date: string;
-  status: 'pending';
+  status: 'pending' | 'confirmed' | 'quoted' | 'accepted' | 'completed' | 'cancelled';
+  quoteAmount?: number;
 }
 export interface BusinessDraft {
   name: string;

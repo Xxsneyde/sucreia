@@ -2,16 +2,26 @@
 import Link from 'next/link';
 import { ArrowUpRight, CircleDollarSign, ShoppingBag, Package, Truck, Eye } from 'lucide-react';
 import { useDemo } from '@/lib/demo-store';
+import { useStudio } from '@/lib/studio-store';
+import {
+  StoreSelector,
+  RequestManager,
+  LocalCatalog,
+  LocalBusinessProfile,
+} from './local-management';
 import { businesses } from '@/data/demo';
 import { currency, orderSteps } from '@/domain/rules';
 import { PageTitle, FeaturePlaceholder } from '@/components/ui';
 export function Dashboard() {
-  const { orders } = useDemo();
+  const { orders: allOrders } = useDemo();
+  const studio = useStudio();
+  const orders = allOrders.filter((o) => !studio.selectedId || o.businessId === studio.selectedId);
   const today = new Date().toLocaleDateString('es-CO');
   const sales = orders
     .filter(
       (o) =>
-        new Date(o.createdAt).toLocaleDateString('es-CO') === today && o.status === 'delivered',
+        new Date(o.deliveredAt ?? o.createdAt).toLocaleDateString('es-CO') === today &&
+        o.status === 'delivered',
     )
     .reduce((n, o) => n + o.total, 0);
   const stats = [
@@ -52,9 +62,20 @@ export function Dashboard() {
           </Link>
         }
       />
+      <StoreSelector />
+      <div className="studio-dashboard-shortcut">
+        <div>
+          <span className="studio-eyebrow">TU MARCA, TU ESPACIO</span>
+          <h2>Diseña algo que se sienta tuyo.</h2>
+          <p>Tu editor visual y tus tiendas, en un solo lugar.</p>
+        </div>
+        <Link className="studio-primary" href="/estudio">
+          Abrir mi estudio →
+        </Link>
+      </div>
       <div className="notice">
-        Panel de demostración: muestra las operaciones locales de todos los negocios de ejemplo. El
-        aislamiento por empresa se implementará con autenticación.
+        Panel de demostración: filtra las operaciones locales por negocio. Las cuentas y permisos
+        reales se implementarán al conectar el servidor.
       </div>
       <div className="stats-grid">
         {stats.map(({ label, value, icon: Icon, note }) => (
@@ -116,8 +137,8 @@ export function Dashboard() {
           <h2>Dale personalidad a tu vitrina.</h2>
           <p>Comienza con la configuración de tu negocio.</p>
         </div>
-        <Link className="button secondary" href="/registro/negocio">
-          Configurar mi negocio →
+        <Link className="button secondary" href="/estudio">
+          Abrir editor visual →
         </Link>
       </section>
     </>
@@ -125,6 +146,7 @@ export function Dashboard() {
 }
 export function BusinessOrders() {
   const store = useDemo();
+  const studio = useStudio();
   return (
     <>
       <PageTitle
@@ -132,117 +154,60 @@ export function BusinessOrders() {
         title="Pedidos y solicitudes"
         description="Prueba el recorrido de un pedido dentro de la demo."
       />
-      {store.orders.map((o) => (
-        <section className="card list-row" key={o.id}>
-          <div className="grow">
-            <h2>{o.id}</h2>
-            <p>
-              {o.businessName} · {currency(o.total)}
-            </p>
-            <span className="tag">{orderSteps.find((s) => s.status === o.status)?.label}</span>
-          </div>
-          <button
-            className="button secondary"
-            disabled={o.status === 'delivered'}
-            onClick={() => store.advance(o.id)}
-          >
-            {o.status === 'delivered' ? 'Entregado' : 'Avanzar estado de demo →'}
-          </button>
-        </section>
-      ))}
-      <FeaturePlaceholder
-        title="Citas y cotizaciones"
-        description={`${store.requests.length} solicitudes locales registradas. La gestión de disponibilidad y las propuestas se conectarán en esta área.`}
-        items={[
-          'Confirmar o reprogramar reservas',
-          'Preparar y enviar una cotización',
-          'Registrar aceptación del cliente',
-        ]}
-      />
+      <StoreSelector />
+      {store.orders
+        .filter((o) => !studio.selectedId || o.businessId === studio.selectedId)
+        .map((o) => (
+          <section className="card list-row" key={o.id}>
+            <div className="grow">
+              <h2>{o.id}</h2>
+              <p>
+                {o.businessName} · {currency(o.total)}
+              </p>
+              <span className="tag">{orderSteps.find((s) => s.status === o.status)?.label}</span>
+            </div>
+            <button
+              className="button secondary"
+              disabled={o.status === 'delivered'}
+              onClick={() => store.advance(o.id)}
+            >
+              {o.status === 'delivered' ? 'Entregado' : 'Avanzar estado de demo →'}
+            </button>
+          </section>
+        ))}
+      <RequestManager />
     </>
   );
 }
 export function ProductManagement() {
-  return (
-    <>
-      <PageTitle
-        eyebrow="TU CATÁLOGO"
-        title="Productos y servicios"
-        description="Base del módulo de catálogo. Edición e inventario pendientes de implementar."
-      />
-      <section className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Negocio</th>
-                <th>Precio</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {businesses.flatMap((b) =>
-                b.products.map((p) => (
-                  <tr key={`${b.id}-${p.id}`}>
-                    <td>{p.name}</td>
-                    <td>{b.name}</td>
-                    <td>{currency(p.price)}</td>
-                    <td>
-                      <span className="tag">Ejemplo</span>
-                    </td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
-  );
+  return <LocalCatalog />;
 }
 export function BusinessSettings({
   section,
 }: {
   section: 'perfil' | 'descuentos' | 'configuracion';
 }) {
-  const { draft } = useDemo();
-  const content = {
-    perfil: {
-      title: 'La identidad de tu negocio',
-      description: draft.name
-        ? `Borrador guardado: ${draft.name}`
-        : 'Completa el asistente para preparar tu primera vitrina.',
-      items: [
-        'Logo, portada y descripción',
-        'Municipio, horarios y WhatsApp',
-        'Verificación y actividad de los últimos 365 días',
-      ],
-    },
-    descuentos: {
-      title: 'Promociones que acercan clientes',
-      description: 'Espacio reservado para crear y administrar promociones.',
-      items: ['Vigencia y condiciones', 'Productos participantes', 'Bonos y SucrePuntos'],
-    },
-    configuracion: {
-      title: 'Todo en su lugar',
-      description: 'Configuración operativa del emprendimiento.',
-      items: [
-        'Datos de contacto y miembros del equipo',
-        'Métodos de pago y datos bancarios',
-        'Cobertura, entregas y notificaciones',
-      ],
-    },
-  }[section];
+  if (section === 'perfil' || section === 'configuracion') return <LocalBusinessProfile />;
   return (
     <>
-      <PageTitle eyebrow="GESTIÓN DEL NEGOCIO" title={content.title} />
-      <FeaturePlaceholder {...content} />
-      {section === 'perfil' && (
-        <Link className="button" href="/registro/negocio">
-          Continuar configuración →
+      <PageTitle
+        eyebrow="BENEFICIOS LOCALES"
+        title="Promociones que acercan"
+        description="Prueba el canje de puntos y el descuento aplicado en el carrito."
+      />
+      <section className="card">
+        <h2>Bono de bienvenida · 10%</h2>
+        <p>
+          La plataforma local permite canjear 500 puntos por un bono de un solo uso. Los clientes
+          reciben 100 puntos al completar un pedido.
+        </p>
+        <Link className="button" href="/puntos">
+          Probar SucrePuntos →
         </Link>
-      )}
+        <p className="muted small">
+          La creación de campañas propias por negocio se implementará con sus reglas comerciales.
+        </p>
+      </section>
     </>
   );
 }

@@ -12,7 +12,8 @@ import {
   Shapes,
   Heart,
 } from 'lucide-react';
-import { businesses } from '@/data/demo';
+import { businesses as examples } from '@/data/demo';
+import { useLocalBusinesses } from '@/lib/studio-store';
 import { BusinessCard, EmptyState, PageTitle } from '@/components/ui';
 import { useDemo } from '@/lib/demo-store';
 const categories = [
@@ -29,6 +30,7 @@ export function Marketplace({
   searchOnly?: boolean;
   favoritesOnly?: boolean;
 }) {
+  const businesses = [...useLocalBusinesses(), ...examples];
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [municipality, setMunicipality] = useState('Todos');
@@ -109,7 +111,7 @@ export function Marketplace({
             <h2>{favoritesOnly ? 'Guardados para después' : 'Encuentra tu próximo favorito'}</h2>
             <p className="muted">Cada compra local hace crecer una historia.</p>
           </div>
-          <span className="count-label">{filtered.length} negocios de ejemplo</span>
+          <span className="count-label">{filtered.length} negocios</span>
         </div>
         <div className="search-row">
           <label className="search-field">
@@ -130,8 +132,9 @@ export function Marketplace({
               onChange={(e) => setMunicipality(e.target.value)}
             >
               <option value="Todos">Todo Sucre</option>
-              <option>Sincelejo</option>
-              <option>Corozal</option>
+              {Array.from(new Set(businesses.map((b) => b.municipality))).map((name) => (
+                <option key={name}>{name}</option>
+              ))}
             </select>
           </label>
         </div>
@@ -169,7 +172,7 @@ export function Marketplace({
             <h2>Tu negocio, con todo su potencial.</h2>
             <p>Crea tu vitrina y abre la puerta a nuevas oportunidades.</p>
           </div>
-          <Link className="button secondary" href="/registro/negocio">
+          <Link className="button secondary" href="/estudio">
             Quiero ser parte <ArrowUpRightIcon />
           </Link>
         </section>

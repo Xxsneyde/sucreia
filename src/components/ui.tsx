@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, BadgeCheck, MapPin, Star } from 'lucide-react';
+import { businessHref } from '@/domain/studio';
 import type { Business } from '@/domain/types';
 export function PageTitle({
   eyebrow,
@@ -50,9 +51,9 @@ export function EmptyState({
 }
 export function BusinessCard({ business: b }: { business: Business }) {
   return (
-    <Link className="business-card" href={`/negocios/${b.id}`}>
+    <Link className="business-card" href={businessHref(b.id)}>
       <div className={`business-art ${b.theme}`}>
-        <img src={`/art/${b.theme}.svg`} alt="" />
+        <img src={b.cover || `/art/${b.theme}.svg`} alt="" />
         <span className="art-label">{b.category}</span>
         <span className="round-arrow">
           <ArrowUpRight size={19} />
@@ -70,8 +71,8 @@ export function BusinessCard({ business: b }: { business: Business }) {
         </p>
         <div className="card-bottom">
           <span>
-            <Star size={14} fill="currentColor" /> {b.rating}{' '}
-            <span className="muted">· Ejemplo</span>
+            <Star size={14} fill="currentColor" /> {b.local ? 'Nuevo' : b.rating}{' '}
+            <span className="muted">{b.local ? '· Local' : '· Ejemplo'}</span>
           </span>
           <span>
             {b.mode === 'products'
