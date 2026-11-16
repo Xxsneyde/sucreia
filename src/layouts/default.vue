@@ -19,6 +19,7 @@ import {
   Leaf,
 } from '@lucide/vue';
 import { useDemo } from '@/lib/demo-store';
+import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
 
 const customer = [
@@ -47,6 +48,8 @@ const mobile = [
 ];
 const path = usePath();
 const demo = useDemo();
+const session = useSession();
+const initial = computed(() => session.user?.name.trim().slice(0, 1).toUpperCase() || 'S');
 const business = computed(
   () => path.value.startsWith('/panel') || path.value.startsWith('/estudio'),
 );
@@ -98,7 +101,12 @@ const active = (href: string) => path.value === href;
           <NuxtLink :class="business ? 'view-switch selected' : 'view-switch'" to="/panel">
             <Store :size="15" /> Mi negocio
           </NuxtLink>
-          <NuxtLink class="avatar" to="/perfil" aria-label="Mi perfil">S</NuxtLink>
+          <NuxtLink
+            class="avatar"
+            :to="session.user ? '/perfil' : '/ingresar'"
+            :aria-label="session.user ? `Mi perfil: ${session.user.name}` : 'Ingresar'"
+            >{{ initial }}</NuxtLink
+          >
         </div>
       </header>
       <div class="demo-banner">

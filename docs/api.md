@@ -64,4 +64,6 @@ La sesión viaja en la cookie `sucreia_sesion` (httpOnly, SameSite=Lax, 30 días
 
 Contraseñas con scrypt y sal, comparación en tiempo constante, mismo mensaje si el correo no existe, token de sesión aleatorio guardado como hash, cookies httpOnly/SameSite (y Secure en producción), rechazo de peticiones de otro origen en métodos que modifican datos, cabeceras `nosniff`/`X-Frame-Options`, límite de 13 MB por petición y bloqueo de archivos ocultos al servir el sitio.
 
+El frontend usa la API desde `src/lib/api.ts`, `src/lib/session.ts` (cuenta) y `src/lib/studio-store.ts` (tiendas; guarda medio segundo después de la última tecla). Los pedidos, favoritos y puntos siguen en el navegador (`demo-store.ts`) hasta que sus módulos tengan rutas propias.
+
 Pendiente antes de datos reales: recuperación de contraseña, verificación de correo, almacenamiento de imágenes fuera de la base de datos y copias de seguridad.

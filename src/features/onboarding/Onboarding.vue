@@ -12,6 +12,7 @@ import {
 } from '@lucide/vue';
 import { useDemo } from '@/lib/demo-store';
 import { useStudio } from '@/lib/studio-store';
+import { useSession } from '@/lib/session';
 import {
   createDesign,
   generateContent,
@@ -29,6 +30,8 @@ import DesignPicker from '@/features/studio/DesignPicker.vue';
 import StorePage from '@/features/studio/StorePage.vue';
 
 const draftKey = 'sucreia:onboarding:v3';
+// Paso actual: se conserva si la persona sale a crear su cuenta y vuelve.
+const stepKey = 'sucreia:onboarding:paso';
 const steps = ['Tu negocio', 'Tu catálogo', 'Tu diseño', 'Listo'];
 const headings = [
   'Toda gran historia\nempieza contigo.',
@@ -49,6 +52,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: typeof Shopp
 ];
 
 const studio = useStudio();
+const session = useSession();
 const demo = useDemo();
 const router = useRouter();
 // shallowRef: el diseño se reemplaza completo en cada cambio (objetos planos, sin proxies).
@@ -72,6 +76,8 @@ watch(
         if (isDesign(saved)) {
           design.value = saved;
           exampleProducts.value = false;
+          const savedStep = Number(localStorage.getItem(stepKey));
+          if (savedStep >= 0 && savedStep <= 3) step.value = savedStep;
         }
       }
     } catch {
@@ -81,10 +87,11 @@ watch(
   },
   { immediate: true },
 );
-watch(design, (value) => {
+watch([design, step], ([value, current]) => {
   if (!ready.value) return;
   try {
     localStorage.setItem(draftKey, JSON.stringify(value));
+    localStorage.setItem(stepKey, String(current));
   } catch {
     storageError.value = true;
   }
@@ -118,7 +125,7 @@ function back() {
   step.value -= 1;
   error.value = '';
 }
-function next() {
+async function next() {
   const d = design.value;
   error.value = '';
   if (step.value === 0) {
@@ -142,11 +149,18 @@ function next() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
+  // Para guardar la tienda en el servidor hace falta una cuenta de emprendedor. El borrador y
+  // el paso quedan en este navegador, así que al volver se continúa aquí mismo.
+  if (!session.isMerchant.value) {
+    await router.push('/ingresar?cuenta=nueva&volver=/registro/negocio');
+    return;
+  }
   busy.value = true;
   try {
-    const id = studio.create(design.value);
+    const id = await studio.create(design.value);
     localStorage.removeItem(draftKey);
-    router.push(`/estudio/gestionar?id=${id}`);
+    localStorage.removeItem(stepKey);
+    await router.push(`/estudio/gestionar?id=${id}`);
   } catch (e) {
     error.value = (e as Error).message;
     busy.value = false;
@@ -307,6 +321,10 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
               Se crea como borrador. Desde «Mi tienda» la publicas y puedes cambiar el diseño cuando
               quieras.
             </p>
+            <p v-if="session.ready && !session.isMerchant.value" class="notice">
+              Para guardar tu tienda necesitas una cuenta de emprendedor. Lo que llevas no se
+              pierde: al crearla vuelves aquí mismo.
+            </p>
           </div>
         </div>
 
@@ -324,7 +342,9 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
               busy
                 ? 'Creando tu tienda…'
                 : step === 3
-                  ? 'Crear mi tienda'
+                  ? session.isMerchant.value
+                    ? 'Crear mi tienda'
+                    : 'Crear cuenta y guardar'
                   : step === 2
                     ? `Continuar con ${styles[design.style].name}`
                     : 'Continuar'

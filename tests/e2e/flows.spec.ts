@@ -34,6 +34,9 @@ test('reserva, favoritos y borrador sobreviven la navegación', async ({ page })
   await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Tejidos del Caribe');
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.reload();
+  // El configurador recuerda el paso (Tu catálogo) y los datos ya escritos.
+  await expect(page.locator('[aria-current="step"]')).toContainText('Tu catálogo');
+  await page.getByRole('button', { name: 'Atrás' }).click();
   await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(
     'Tejidos del Caribe',
   );

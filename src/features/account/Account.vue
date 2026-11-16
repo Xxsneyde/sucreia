@@ -2,7 +2,9 @@
 import { ref } from 'vue';
 import PageTitle from '@/components/PageTitle.vue';
 import { useDemo } from '@/lib/demo-store';
+import { useSession } from '@/lib/session';
 const store = useDemo();
+const session = useSession();
 const confirm = ref(false);
 function reset() {
   store.reset();
@@ -37,7 +39,16 @@ function reset() {
           ><strong>{{ store.favorites.length }}</strong> favoritos</NuxtLink
         >
       </div>
-      <NuxtLink class="button" to="/ingresar">Acceso a la plataforma →</NuxtLink>
+      <div v-if="session.user" class="account-session">
+        <p>
+          <strong>{{ session.user.name }}</strong> · {{ session.user.email }}
+          <span class="tag">{{ session.user.role }}</span>
+        </p>
+        <button class="button secondary" type="button" @click="session.logout()">
+          Cerrar sesión
+        </button>
+      </div>
+      <NuxtLink v-else class="button" to="/ingresar">Ingresar o crear cuenta →</NuxtLink>
     </section>
     <section class="card">
       <h2>Explora cada espacio</h2>

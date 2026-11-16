@@ -114,19 +114,29 @@ function regenerateTexts() {
   set({ content: generateContent(areaFor(d.category), d.name, d.municipality, d.description) });
   message.value = 'Textos sugeridos de nuevo según tu área.';
 }
-function publish() {
+const publishing = ref(false);
+const publishError = ref('');
+async function publish() {
+  publishing.value = true;
+  publishError.value = '';
   try {
-    studio.publish(id.value);
+    await studio.publish(id.value);
     publishOpen.value = false;
-    message.value = 'Tu tienda está publicada en la plataforma local.';
+    message.value = 'Tu tienda está publicada. Ya cualquiera puede visitarla.';
+  } catch (e) {
+    publishError.value = (e as Error).message;
+  } finally {
+    publishing.value = false;
+  }
+}
+async function unpublish() {
+  try {
+    await studio.unpublish(id.value);
+    message.value = 'Publicación retirada. Tu borrador está a salvo.';
   } catch (e) {
     message.value = (e as Error).message;
   }
-}
-function unpublish() {
-  studio.unpublish(id.value);
   unpublishOpen.value = false;
-  message.value = 'Publicación retirada. Tu borrador está a salvo.';
 }
 function restore(version: StoreDesign) {
   studio.update(id.value, structuredClone(version));
@@ -169,7 +179,7 @@ watch(message, (m) => {
                 studio.saveStatus === 'saving'
                   ? 'Guardando…'
                   : saved
-                    ? 'Cambios guardados en este navegador'
+                    ? 'Cambios guardados'
                     : studio.saveStatus === 'error'
                       ? 'Error al guardar'
                       : ''
@@ -368,14 +378,24 @@ watch(message, (m) => {
     </div>
 
     <EditorModal v-if="publishOpen" title="Publicar tu tienda" @close="publishOpen = false">
-      <p>Publicamos una copia de tu diseño. Puedes seguir haciendo cambios con tranquilidad.</p>
+      <p>
+        Publicamos una copia de tu diseño. Puedes seguir haciendo cambios con tranquilidad: no se
+        verán hasta que vuelvas a publicar.
+      </p>
       <ul v-if="errors.length" class="field-error">
         <li v-for="e in errors" :key="e">{{ e }}</li>
       </ul>
-      <button class="studio-primary full" :disabled="errors.length > 0 || !saved" @click="publish">
-        Publicar en mi plataforma local
+      <p v-if="publishError" role="alert" class="field-error">{{ publishError }}</p>
+      <button
+        class="studio-primary full"
+        :disabled="errors.length > 0 || studio.saveStatus === 'error' || publishing"
+        @click="publish"
+      >
+        {{ publishing ? 'Publicando…' : 'Publicar mi tienda' }}
       </button>
-      <p class="field-help">Sin pagos ni envíos reales. No se publica en internet.</p>
+      <p class="field-help">
+        Cualquier persona podrá verla en SucreIA. Los pedidos y pagos siguen siendo de demostración.
+      </p>
     </EditorModal>
     <EditorModal
       v-if="unpublishOpen"

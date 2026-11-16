@@ -30,7 +30,9 @@ export default defineNuxtConfig({
   router: { options: { strict: false } },
   nitro: {
     // En desarrollo, /api se reenvía al servidor Express (npm run dev:api).
-    devProxy: { '/api': { target: 'http://127.0.0.1:4000/api', changeOrigin: true } },
+    // changeOrigin: false conserva el Host original (:3000): la API compara Origin con Host
+    // para rechazar peticiones de otros sitios.
+    devProxy: { '/api': { target: 'http://127.0.0.1:4000/api', changeOrigin: false } },
     prerender: {
       crawlLinks: true,
       routes: ['/', '/estudio/gestionar/', '/estudio/vista-previa/', '/tienda/'],

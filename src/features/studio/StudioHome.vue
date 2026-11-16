@@ -24,9 +24,9 @@ const upload = ref<HTMLInputElement | null>(null);
 const message = ref('');
 const deleteId = ref('');
 
-function open(create: () => string) {
+async function open(create: () => Promise<string>) {
   try {
-    router.push(`/estudio/gestionar?id=${create()}`);
+    await router.push(`/estudio/gestionar?id=${await create()}`);
   } catch (e) {
     message.value = (e as Error).message;
   }
@@ -39,14 +39,30 @@ async function importFile(e: Event) {
   try {
     if (file.size > 12_000_000) throw new Error('El archivo supera los 12 MB.');
     const design = parseDesignFile(await file.text());
-    open(() => studio.create(design));
+    await open(() => studio.create(design));
   } catch (error) {
     message.value = (error as Error).message;
   }
 }
-function remove() {
-  studio.remove(deleteId.value);
+async function remove() {
+  try {
+    await studio.remove(deleteId.value);
+  } catch (e) {
+    message.value = (e as Error).message;
+  }
   deleteId.value = '';
+}
+const importing = ref(false);
+async function importLegacy() {
+  importing.value = true;
+  try {
+    const n = await studio.importLegacy();
+    message.value = `${n} ${n === 1 ? 'tienda subida' : 'tiendas subidas'} a tu cuenta.`;
+  } catch (e) {
+    message.value = (e as Error).message;
+  } finally {
+    importing.value = false;
+  }
 }
 // Muestra de cada estilo con la paleta de la primera área que lo usa.
 const showcase = styleIds.map((id) => {
@@ -120,6 +136,18 @@ const shortDate = (iso: string) =>
       <input ref="upload" type="file" accept=".json" hidden @change="importFile" />
     </div>
     <p v-if="message" role="status" class="notice">{{ message }}</p>
+    <div v-if="studio.legacyCount" class="notice legacy-notice">
+      <p>
+        Tienes {{ studio.legacyCount }}
+        {{ studio.legacyCount === 1 ? 'tienda guardada' : 'tiendas guardadas' }} solo en este
+        navegador, de una versión anterior. Súbelas a tu cuenta para no perderlas y poder
+        publicarlas.
+      </p>
+      <button class="studio-primary" :disabled="importing" @click="importLegacy">
+        {{ importing ? 'Subiendo…' : 'Subir a mi cuenta' }}
+      </button>
+      <button class="studio-text-button" @click="studio.discardLegacy()">Descartar</button>
+    </div>
     <p v-if="studio.error" class="field-error">
       {{ studio.error }} <button @click="studio.retry()">Reintentar</button>
     </p>
@@ -210,7 +238,7 @@ const shortDate = (iso: string) =>
         Se eliminarán su borrador, publicación y versiones. Los pedidos existentes se conservan.
         Puedes exportar una copia antes de continuar.
       </p>
-      <button class="studio-primary full" @click="remove">Eliminar tienda local</button>
+      <button class="studio-primary full" @click="remove">Eliminar tienda</button>
     </EditorModal>
   </div>
 </template>

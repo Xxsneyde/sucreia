@@ -1,157 +1,191 @@
-import { computed, ref, shallowRef } from 'vue';
+// Estado del estudio conectado a la API (server/routes/tiendas.ts).
+// - Mis tiendas: GET/POST/PUT/DELETE /api/mis-tiendas (requiere sesión de emprendedor).
+// - Catálogo público: GET /api/tiendas (lo ve cualquier persona).
+// Las ediciones se aplican al instante en pantalla y se guardan en el servidor medio segundo
+// después de la última tecla, para no enviar una petición por cada letra.
+import { computed, ref, shallowRef, watch } from 'vue';
 import {
-  createDesign,
   isWorkspace,
   upgradeWorkspace,
-  publishProject,
-  toBusiness,
   type StoreDesign,
-  type StudioWorkspace,
   type StoreProject,
 } from '@/domain/studio';
 import type { Business } from '@/domain/types';
+import { api, ApiError } from './api';
+import { useSession } from './session';
 
-// Estado del estudio guardado en IndexedDB de este navegador. Es un adaptador local: cuando
-// exista backend, reemplazarlo por llamadas a la API conservando la misma interfaz.
-/**
- * Copia profunda de un diseño. Los diseños son JSON puro (lo garantiza isDesign), así que
- * JSON sirve también cuando el llamador pasa un objeto reactivo de Vue (structuredClone falla
- * con proxies).
- */
+/** Copia profunda: los diseños son JSON puro (lo garantiza isDesign) y pueden venir de Vue. */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
-const empty: StudioWorkspace = { schema: 2, projects: [], selectedId: '', visits: {} };
 
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('sucreia-studio', 1);
-    request.onupgradeneeded = () => request.result.createObjectStore('workspace');
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    request.onblocked = () =>
-      reject(new Error('Cierra otras pestañas de SucreIA e inténtalo de nuevo.'));
-  });
-}
-async function readWorkspace() {
-  const db = await openDB();
-  try {
-    return await new Promise<unknown>((resolve, reject) => {
-      const tx = db.transaction('workspace', 'readonly');
-      const req = tx.objectStore('workspace').get('current');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  } finally {
-    db.close();
-  }
-}
-async function writeWorkspace(state: StudioWorkspace) {
-  const db = await openDB();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('workspace', 'readwrite');
-      tx.objectStore('workspace').put(state, 'current');
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error ?? new Error('No fue posible guardar.'));
-    });
-  } finally {
-    db.close();
-  }
-}
+const SELECTED_KEY = 'sucreia:tienda-activa';
+const SAVE_DELAY = 500;
 
-// shallowRef: el espacio se reemplaza completo en cada cambio (objetos planos, sin proxies),
-// así IndexedDB puede clonarlo y las versiones no comparten referencias.
-const state = shallowRef<StudioWorkspace>(empty);
+const projects = shallowRef<StoreProject[]>([]);
+const publicStores = shallowRef<Business[]>([]);
 const ready = ref(false);
 const saveStatus = ref<'loading' | 'saving' | 'saved' | 'error'>('loading');
 const error = ref('');
-let queue = Promise.resolve();
-let revision = 0;
-let loading: Promise<void> | null = null;
+const selectedId = ref('');
+const legacyCount = ref(0);
+const pending = new Map<string, ReturnType<typeof setTimeout>>();
+const inFlight = new Map<string, Promise<void>>();
+const session = useSession();
 
-function load() {
-  if (typeof window === 'undefined') return Promise.resolve();
-  loading ??= readWorkspace()
-    .then((raw) => {
-      // Los espacios guardados con el editor por bloques (esquema 1) se convierten al formato actual.
-      const data = raw === undefined ? undefined : upgradeWorkspace(raw);
-      if (data !== undefined && !isWorkspace(data))
-        throw new Error(
-          'No se pudo leer el espacio guardado. Exporta tus diseños antes de borrar datos del navegador.',
-        );
-      state.value = data ?? empty;
-      saveStatus.value = 'saved';
-    })
-    .catch((e: Error) => {
-      saveStatus.value = 'error';
-      error.value = e.message || 'No se puede acceder al almacenamiento local.';
-    })
-    .finally(() => {
-      ready.value = true;
-    });
-  return loading;
+function replace(project: StoreProject) {
+  projects.value = projects.value.map((p) => (p.id === project.id ? project : p));
 }
-function persist(next: StudioWorkspace) {
-  const rev = ++revision;
+async function loadPublic() {
+  try {
+    publicStores.value = (await api<{ stores: Business[] }>('GET', '/tiendas')).stores;
+  } catch {
+    publicStores.value = [];
+  }
+}
+async function loadMine() {
+  if (!session.isMerchant.value) {
+    projects.value = [];
+    return;
+  }
+  projects.value = (await api<{ stores: StoreProject[] }>('GET', '/mis-tiendas')).stores;
+  if (selectedId.value && !projects.value.some((p) => p.id === selectedId.value)) select('');
+}
+
+let started = false;
+/** Carga inicial (en onMounted de app.vue) y recarga al iniciar o cerrar sesión. */
+async function load() {
+  if (typeof window === 'undefined') return;
+  if (started) return;
+  started = true;
+  selectedId.value = localStorage.getItem(SELECTED_KEY) ?? '';
+  void countLegacy();
+  // Si se cierra o recarga la página con cambios sin enviar: avisar y tratar de enviarlos.
+  window.addEventListener('beforeunload', (e) => {
+    if (pending.size) e.preventDefault();
+  });
+  window.addEventListener('pagehide', () => {
+    for (const id of pending.keys()) {
+      const project = projects.value.find((p) => p.id === id);
+      const body = project && JSON.stringify({ design: project.draft });
+      // keepalive permite terminar el envío después de cerrar, con un máximo de 64 KB.
+      if (body && body.length < 60_000)
+        void fetch(`/api/mis-tiendas/${id}`, {
+          method: 'PUT',
+          keepalive: true,
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+    }
+  });
+  await session.load();
+  await refresh();
+  // Después de la primera carga: al iniciar o cerrar sesión se vuelven a pedir las tiendas.
+  watch(
+    () => session.user?.id,
+    () => {
+      ready.value = false;
+      void refresh();
+    },
+  );
+}
+async function refresh() {
+  saveStatus.value = 'loading';
+  error.value = '';
+  try {
+    await Promise.all([loadPublic(), loadMine()]);
+    saveStatus.value = 'saved';
+  } catch (e) {
+    saveStatus.value = 'error';
+    error.value = (e as Error).message;
+  } finally {
+    ready.value = true;
+  }
+}
+
+/** Envía al servidor el borrador que está en pantalla. */
+function save(id: string): Promise<void> {
+  pending.delete(id);
+  const project = projects.value.find((p) => p.id === id);
+  if (!project) return Promise.resolve();
   saveStatus.value = 'saving';
-  queue = queue
+  const previous = inFlight.get(id) ?? Promise.resolve();
+  const request = previous
     .catch(() => {})
-    .then(() => writeWorkspace(next))
+    .then(() =>
+      api<{ store: StoreProject }>('PUT', `/mis-tiendas/${id}`, { design: project.draft }),
+    )
     .then(() => {
-      if (rev === revision) {
+      if (!pending.size) {
         saveStatus.value = 'saved';
         error.value = '';
       }
     })
     .catch((e: Error) => {
-      if (rev === revision) {
-        saveStatus.value = 'error';
-        error.value = e?.message || 'No se pudo guardar. Exporta el diseño para conservarlo.';
-      }
+      saveStatus.value = 'error';
+      error.value = e.message || 'No se pudo guardar. Revisa tu conexión.';
+      throw e;
     });
+  inFlight.set(id, request);
+  return request;
 }
-function change(fn: (s: StudioWorkspace) => StudioWorkspace) {
-  if (!ready.value) throw new Error('Espera a que se carguen tus diseños.');
-  const next = fn(state.value);
-  state.value = next;
-  persist(next);
+/** Espera a que lo que se escribió en una tienda esté guardado en el servidor. */
+async function flush(id: string) {
+  if (pending.has(id)) {
+    clearTimeout(pending.get(id));
+    await save(id);
+  } else await inFlight.get(id);
 }
-function create(design: StoreDesign) {
-  if (state.value.projects.length >= 30)
-    throw new Error('Puedes guardar hasta 30 tiendas en este espacio local.');
-  const id = `local-${crypto.randomUUID()}`;
-  const now = new Date().toISOString();
-  const p: StoreProject = {
-    id,
-    createdAt: now,
-    updatedAt: now,
-    draft: clone(design),
-    published: null,
-    versions: [],
-  };
-  change((s) => ({ ...s, selectedId: id, projects: [p, ...s.projects] }));
-  return id;
+
+function select(id: string) {
+  selectedId.value = id;
+  try {
+    localStorage.setItem(SELECTED_KEY, id);
+  } catch {
+    /* sin almacenamiento: la selección dura hasta recargar */
+  }
 }
-function update(id: string, draft: StoreDesign) {
-  change((s) => ({
-    ...s,
-    projects: s.projects.map((p) =>
-      p.id === id ? { ...p, draft: clone(draft), updatedAt: new Date().toISOString() } : p,
-    ),
-  }));
+
+// --- Tiendas guardadas en este navegador con versiones anteriores (IndexedDB) -------------
+function readLegacy(): Promise<unknown> {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') return resolve(undefined);
+    const request = indexedDB.open('sucreia-studio', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+    request.onerror = () => resolve(undefined);
+    request.onsuccess = () => {
+      const db = request.result;
+      const get = db.transaction('workspace', 'readonly').objectStore('workspace').get('current');
+      get.onsuccess = () => {
+        db.close();
+        resolve(get.result);
+      };
+      get.onerror = () => {
+        db.close();
+        resolve(undefined);
+      };
+    };
+  });
+}
+async function legacyDesigns(): Promise<StoreDesign[]> {
+  const data = upgradeWorkspace(await readLegacy());
+  return isWorkspace(data) ? data.projects.map((p) => p.draft) : [];
+}
+async function countLegacy() {
+  legacyCount.value = (await legacyDesigns()).length;
+}
+function clearLegacy() {
+  indexedDB.deleteDatabase('sucreia-studio');
+  legacyCount.value = 0;
 }
 
 const store = {
   get projects() {
-    return state.value.projects;
+    return projects.value;
   },
   get selectedId() {
-    return state.value.selectedId;
-  },
-  get visits() {
-    return state.value.visits;
+    return selectedId.value;
   },
   get ready() {
     return ready.value;
@@ -162,63 +196,97 @@ const store = {
   get error() {
     return error.value;
   },
-  load,
-  create,
-  update,
-  publish(id: string) {
-    const target = state.value.projects.find((p) => p.id === id);
-    if (!target) throw new Error('No encontramos la tienda.');
-    const published = publishProject(target);
-    change((s) => ({ ...s, projects: s.projects.map((p) => (p.id === id ? published : p)) }));
+  /** Tiendas guardadas solo en este navegador (versión anterior) que se pueden subir. */
+  get legacyCount() {
+    return legacyCount.value;
   },
-  unpublish(id: string) {
-    change((s) => ({
-      ...s,
-      projects: s.projects.map((p) => (p.id === id ? { ...p, published: null } : p)),
-    }));
+  load,
+  refresh,
+  select,
+  async create(design: StoreDesign): Promise<string> {
+    const { store: created } = await api<{ store: StoreProject }>('POST', '/mis-tiendas', {
+      design: clone(design),
+    });
+    projects.value = [created, ...projects.value];
+    select(created.id);
+    return created.id;
+  },
+  /** Cambia el borrador en pantalla al instante y lo guarda en el servidor poco después. */
+  update(id: string, design: StoreDesign) {
+    const project = projects.value.find((p) => p.id === id);
+    if (!project) return;
+    replace({ ...project, draft: clone(design), updatedAt: new Date().toISOString() });
+    saveStatus.value = 'saving';
+    clearTimeout(pending.get(id));
+    pending.set(
+      id,
+      setTimeout(() => void save(id).catch(() => {}), SAVE_DELAY),
+    );
+  },
+  async publish(id: string) {
+    await flush(id);
+    const { store: published } = await api<{ store: StoreProject }>(
+      'POST',
+      `/mis-tiendas/${id}/publicar`,
+    );
+    replace(published);
+    await loadPublic();
+  },
+  async unpublish(id: string) {
+    const { store: updated } = await api<{ store: StoreProject }>(
+      'DELETE',
+      `/mis-tiendas/${id}/publicacion`,
+    );
+    replace(updated);
+    await loadPublic();
   },
   restore(id: string, versionId: string) {
-    const p = state.value.projects.find((p) => p.id === id);
-    const v = p?.versions.find((v) => v.id === versionId);
-    if (v) update(id, clone(v.design));
+    const v = projects.value.find((p) => p.id === id)?.versions.find((v) => v.id === versionId);
+    if (v) store.update(id, clone(v.design));
   },
-  duplicate(id: string) {
-    const p = state.value.projects.find((p) => p.id === id);
+  async duplicate(id: string): Promise<string> {
+    const p = projects.value.find((p) => p.id === id);
     if (!p) throw new Error('Tienda no encontrada.');
-    return create({ ...clone(p.draft), name: `${p.draft.name} · copia` });
+    await flush(id);
+    return store.create({ ...clone(p.draft), name: `${p.draft.name} · copia` });
   },
-  remove(id: string) {
-    change((s) => ({
-      ...s,
-      projects: s.projects.filter((p) => p.id !== id),
-      selectedId: s.selectedId === id ? '' : s.selectedId,
-    }));
+  async remove(id: string) {
+    clearTimeout(pending.get(id));
+    pending.delete(id);
+    await api('DELETE', `/mis-tiendas/${id}`);
+    projects.value = projects.value.filter((p) => p.id !== id);
+    if (selectedId.value === id) select('');
+    await loadPublic();
   },
-  select(id: string) {
-    change((s) => ({ ...s, selectedId: id }));
+  /** Reintenta guardar todo lo pendiente después de un error. */
+  async retry() {
+    await Promise.all(projects.value.map((p) => save(p.id).catch(() => {})));
   },
-  visit(id: string) {
-    change((s) => ({ ...s, visits: { ...s.visits, [id]: (s.visits[id] ?? 0) + 1 } }));
+  /** Sube a la cuenta las tiendas guardadas en este navegador y las borra de aquí. */
+  async importLegacy(): Promise<number> {
+    const designs = await legacyDesigns();
+    let imported = 0;
+    for (const design of designs) {
+      try {
+        await store.create(design);
+        imported++;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) break; // límite de tiendas
+        throw e;
+      }
+    }
+    if (imported === designs.length) clearLegacy();
+    else legacyCount.value = designs.length - imported;
+    return imported;
   },
-  retry() {
-    persist(state.value);
-  },
+  discardLegacy: clearLegacy,
 };
 export type StudioStore = typeof store;
 
 export function useStudio() {
   return store;
 }
-const localBusinesses = computed<Business[]>(() =>
-  state.value.projects.flatMap((p) => {
-    const b = toBusiness(p);
-    return b ? [b] : [];
-  }),
-);
-/** Tiendas publicadas en el estudio, con forma de negocio del catálogo. */
+/** Tiendas publicadas de todos los emprendedores, con forma de negocio del catálogo. */
 export function useLocalBusinesses() {
-  return localBusinesses;
-}
-export function defaultDesign() {
-  return createDesign();
+  return computed(() => publicStores.value);
 }
