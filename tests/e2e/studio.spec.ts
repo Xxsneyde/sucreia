@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 async function createStore(page: import('@playwright/test').Page) {
   await page.goto('/registro/negocio/');
-  await page.getByLabel('Nombre del negocio').fill('Tejidos del Caribe');
+  await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Tejidos del Caribe');
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
@@ -43,11 +43,13 @@ test('crear, editar, publicar, comprar y gestionar una tienda local', async ({ p
   await expect(page.getByRole('button', { name: 'Bono disponible' })).toBeDisabled();
   await page.goto(editorUrl);
   await page.getByRole('button', { name: 'Negocio', exact: true }).click();
-  await page.getByLabel('Nombre del negocio').fill('Cambio todavía privado');
+  await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Cambio todavía privado');
   await expect(page.locator('.save-indicator')).toContainText('Guardado');
   await page.reload();
   await page.getByRole('button', { name: 'Negocio', exact: true }).click();
-  await expect(page.getByLabel('Nombre del negocio')).toHaveValue('Cambio todavía privado');
+  await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(
+    'Cambio todavía privado',
+  );
   await page.goto('/buscar/');
   await page
     .getByRole('textbox', { name: 'Buscar negocios o productos' })
@@ -69,6 +71,9 @@ test('reordenar, ocultar y restaurar bloques sin perder el diseño', async ({ pa
   await page.getByRole('button', { name: 'Ocultar bloque', exact: true }).click();
   await expect(page.locator('[data-block-kind="hero"]')).toHaveClass(/is-hidden/);
   await page.getByRole('button', { name: 'Mostrar bloque', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar bloque', exact: true }).click();
+  await expect(page.locator('.editor-inspector .studio-form')).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar propiedades', exact: true }).click();
   await page.getByRole('button', { name: 'Vista de celular', exact: true }).click();
   await expect(page.locator('.canvas-scroll')).toHaveClass(/mobile-canvas/);
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();

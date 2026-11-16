@@ -3690,3 +3690,67 @@
     gap: 4px;
   }
 }
+
+/* Legibilidad mínima de los controles del editor (no afecta la vista de la tienda).
+   Va al final para ganar a las reglas anteriores con la misma especificidad. */
+.studio-editor .save-indicator,
+.studio-editor .editor-status,
+.studio-editor .panel-heading .studio-eyebrow,
+.studio-editor .panel-heading p,
+.studio-editor .block-tile > span,
+.studio-editor .block-tile > span:last-child,
+.studio-editor .panel-subheading span,
+.studio-editor .layer-name,
+.studio-editor .layer-name span,
+.studio-editor .studio-tip p,
+.studio-editor .canvas-path,
+.studio-editor .canvas-help,
+.studio-editor .canvas-add span,
+.studio-editor .canvas-add small,
+.studio-editor .canvas-bottom-note,
+.studio-editor .canvas-bottom-note > span,
+.studio-editor .inspector-empty p,
+.studio-editor .inspector-empty span,
+.studio-editor .inspector-footer,
+.studio-editor .inspector-footer span {
+  font-size: 11px;
+}
+.studio-editor .browser-chrome small,
+.studio-editor .browser-chrome span {
+  font-size: 10px;
+}
+/* Las cinco pestañas deben caber en la barra lateral de 245 px. */
+.studio-editor .editor-tabs {
+  padding: 0 4px;
+}
+.studio-editor .editor-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 0;
+}
+.studio-editor .editor-tabs button,
+.studio-editor .editor-tabs button span {
+  font-size: 10.5px;
+}
+@media (max-width: 650px) {
+  .studio-editor .save-indicator,
+  .studio-editor .editor-tabs button,
+  .studio-editor .editor-tabs button span,
+  .studio-editor .editor-top-actions .studio-primary span,
+  .studio-editor .editor-identity strong {
+    font-size: 12px;
+  }
+}
+
+/* Texto solo para lectores de pantalla (p. ej. el h1 del editor y de la tienda). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

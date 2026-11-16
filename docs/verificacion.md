@@ -1,18 +1,22 @@
-# Verificación de la base 0.1.0
+# Verificación de la base 0.2.0
 
-Comprobaciones realizadas durante la preparación:
+Última revisión: 16 de noviembre de 2026, Node 26 y Chromium de Playwright.
 
-- TypeScript estricto: `node node_modules/typescript/bin/tsc --noEmit`, sin errores.
-- Reglas de negocio: cuatro pruebas ejecutadas con `node tests/domain.test.ts`, todas aprobadas.
-- Playwright reconoce seis recorridos (tres en escritorio y tres en móvil). Preparados, todavía no ejecutados.
+| Comprobación                          | Resultado                                                                  |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| `npm run typecheck`                   | Sin errores                                                                |
+| `npm test` (dominio + estudio)        | 14/14                                                                      |
+| `npm run build` (exportación en out/) | 30 rutas generadas                                                         |
+| `npm run test:e2e` × 3 repeticiones   | 36/36 (escritorio y móvil)                                                 |
+| `npm run dev`                         | Arranca; sin errores de consola ni de hidratación en las rutas principales |
+| Recorrido de rutas                    | Sin desbordamiento horizontal en 1280 px ni en iPhone 13                   |
 
-## Limitaciones de este entorno
+## Notas para quien escribe pruebas
 
-- Compilación: Next.js intenta lanzar TypeScript en un subproceso y el entorno devuelve `EPERM`. La salida resultante de Next.js es `Could not parse output from TypeScript's --showConfig`. TypeScript ejecutado directamente sí funciona. No se desactivó la comprobación de tipos ni se modificaron dependencias para ocultar el problema.
-- Vista previa: abrir un socket local devuelve `PermissionError: Operation not permitted`. No fue posible iniciar servidor ni comprobar visualmente las pantallas en navegador.
-- Red: la terminal devuelve `Could not resolve host: api.github.com`. GitHub CLI no puede validar la sesión ni crear o subir el repositorio en esta sesión.
-- Publicación: existe un registro privado de Sites, pero no se ha publicado una versión ni hay URL de producción verificada.
+- Next.js inserta durante la carga una copia oculta de la página (`<div hidden id="S:0">`) mientras reemplaza `loading.tsx`. `getByLabel(...)` y `locator('h1')` también cuentan elementos ocultos y fallan en modo estricto de forma intermitente. Usa localizadores por rol: `getByRole('textbox', { name })`, `getByRole('heading', { level: 1 })`.
+- En pantallas de 980 px o menos, el panel de propiedades del editor flota sobre el lienzo. Al tocar un bloque ya no se abre solo; se abre con el botón «Editar bloque».
 
-## Antes de integrar la primera versión
+## Pendiente
 
-En una terminal normal con acceso a red, ejecutar `npm ci` y `npm run check`. Después instalar Chromium con `npx playwright install chromium` y ejecutar `npm run test:e2e`. Revisar visualmente escritorio y móvil. El workflow de GitHub automatiza estas comprobaciones al subir el repositorio.
+- Publicación real: no hay backend, autenticación ni dominio. Todo vive en el navegador.
+- Protección de `main` y CI en GitHub: activar después del primer push (ver `docs/github.md`).

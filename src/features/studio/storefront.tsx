@@ -131,6 +131,7 @@ export function Storefront({ preview = false }: { preview?: boolean }) {
           )}
         </div>
       </header>
+      <h1 className="visually-hidden">{preview ? `Vista previa de ${d.name}` : d.name}</h1>
       <div className={`storefront-frame ${device === 'mobile' ? 'mobile-frame' : ''}`}>
         <FullStore design={d} onProduct={productAction} onAction={action} />
       </div>

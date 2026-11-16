@@ -31,10 +31,12 @@ test('reserva, favoritos y borrador sobreviven la navegación', async ({ page })
   await page.goto('/favoritos/');
   await expect(page.locator('.business-card')).toHaveCount(1);
   await page.goto('/registro/negocio/');
-  await page.getByLabel('Nombre del negocio').fill('Tejidos del Caribe');
+  await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Tejidos del Caribe');
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.reload();
-  await expect(page.getByLabel('Nombre del negocio')).toHaveValue('Tejidos del Caribe');
+  await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(
+    'Tejidos del Caribe',
+  );
 });
 test('rutas principales y diseño sin desbordamiento', async ({ page }) => {
   for (const route of [
@@ -52,7 +54,7 @@ test('rutas principales y diseño sin desbordamiento', async ({ page }) => {
   ]) {
     const response = await page.goto(route);
     expect(response?.status()).toBe(200);
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

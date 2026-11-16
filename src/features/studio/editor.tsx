@@ -56,6 +56,8 @@ import { ImageField, downloadFile } from './assets';
 import { EditorModal } from './modal';
 import { ProductFields } from './product-fields';
 type Tab = 'blocks' | 'design' | 'products' | 'settings' | 'history';
+/** Debe coincidir con el @media de studio.css donde el inspector pasa a ser flotante. */
+const NARROW_EDITOR = '(max-width: 980px)';
 export function Editor() {
   const studio = useStudio();
   const params = useSearchParams();
@@ -238,6 +240,7 @@ export function Editor() {
             S<span>✦</span>
           </span>
           <div>
+            <h1 className="visually-hidden">Editor visual de {design.name || 'Mi tienda'}</h1>
             <strong>{design.name || 'Mi tienda'}</strong>
             <span className="save-indicator">
               <i className={studio.saveStatus} />
@@ -741,7 +744,9 @@ export function Editor() {
                     className={`canvas-block ${selected === b.id ? 'is-selected' : ''} ${!b.visible ? 'is-hidden' : ''} ${dropTarget === b.id ? 'is-drop-target' : ''}`}
                     onClick={() => {
                       setSelected(b.id);
-                      setInspector(true);
+                      // En pantallas angostas el panel flota sobre el lienzo y taparía las
+                      // herramientas del bloque; allí se abre con «Editar bloque».
+                      setInspector(!window.matchMedia(NARROW_EDITOR).matches);
                     }}
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -764,6 +769,9 @@ export function Editor() {
                           aria-label="Arrastrar bloque seleccionado"
                         >
                           <GripVertical size={16} />
+                        </button>
+                        <button aria-label="Editar bloque" onClick={() => setInspector(true)}>
+                          <Settings2 size={15} />
                         </button>
                         <button aria-label="Duplicar bloque" onClick={duplicate}>
                           <Copy size={15} />

@@ -1,6 +1,6 @@
 # SucreIA
 
-Base web del ecosistema de emprendimientos de Sucre. Versión **0.1.0**, esqueleto navegable para desarrollo colaborativo.
+Base web del ecosistema de emprendimientos de Sucre. Versión **0.2.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo.
 
 ## Iniciar
 
@@ -24,11 +24,12 @@ Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navega
 
 - Clientes: inicio, filtros de búsqueda, perfiles de negocios, favoritos, carrito, pedidos, solicitudes de cita/cotización y perfil.
 - Negocios: resumen de indicadores, avance de pedidos de demo, listado de productos, perfil, promociones y configuración.
-- Configurador: recorrido de cinco pasos con borrador local. **Todavía no genera ni publica plantillas.**
+- Configurador: recorrido por pasos que crea la tienda a partir de una plantilla y abre el editor.
+- Estudio visual (`/estudio`, `/estudio/editor`, `/estudio/vista-previa`): bloques arrastrables, diseño, catálogo, versiones, deshacer/rehacer, exportar e importar. Publica en `/tienda` **solo dentro de este navegador**; no hay servidor ni dominio real.
 - SucrePuntos, escuela, directorio territorial, entregas y administración: pantallas base con pendientes explícitos.
 - Diseño adaptable a celular; navegación inferior, acciones contextuales y estados de carga/error.
 
-Los perfiles, reseñas, sellos y métricas son ficticios. El carrito, favoritos, solicitudes y borrador se guardan únicamente en este navegador bajo `sucreia:demo:v1`. La demo no autentica usuarios, cobra dinero, envía mensajes ni asigna entregas. Las rutas de panel y administración son públicas dentro de la demo y no contienen datos privados. No usar como producción con información real.
+Los perfiles, reseñas, sellos y métricas son ficticios. El carrito, favoritos, solicitudes y borrador se guardan únicamente en este navegador bajo `sucreia:demo:v1`; las tiendas del estudio, en IndexedDB (`sucreia-studio`). La demo no autentica usuarios, cobra dinero, envía mensajes ni asigna entregas. Las rutas de panel y administración son públicas dentro de la demo y no contienen datos privados. No usar como producción con información real.
 
 ## Organización
 
