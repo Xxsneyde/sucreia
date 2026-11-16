@@ -1103,6 +1103,8 @@
   line-height: 1.8;
 }
 .studio-toast {
+  /* El aviso no bloquea lo que hay debajo (en celular tapaba botones); solo su botón cierra. */
+  pointer-events: none;
   position: fixed;
   bottom: 24px;
   left: 50%;
@@ -1121,6 +1123,7 @@
   max-width: min(600px, 90vw);
 }
 .studio-toast button {
+  pointer-events: auto;
   background: none;
   display: grid;
   place-items: center;

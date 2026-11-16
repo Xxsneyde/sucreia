@@ -5,7 +5,7 @@
 | Comprobación                            | Resultado                                                      |
 | --------------------------------------- | -------------------------------------------------------------- |
 | `npm run typecheck` (vue-tsc + pruebas) | Sin errores                                                    |
-| `npm test` (dominio, estudio y diseños) | 20/20, incluye contraste de las 24 paletas                     |
+| `npm test` (dominio, diseños y API)     | 28/28: contraste de las 24 paletas y 8 pruebas de la API       |
 | `npm run build` (`nuxt generate`)       | Todas las rutas generadas en `.output/public`, incluida la 404 |
 | `npm run test:e2e` × 3 repeticiones     | 36/36 (escritorio y móvil)                                     |
 | `npm run dev`                           | Sin errores de consola ni de hidratación en las rutas          |

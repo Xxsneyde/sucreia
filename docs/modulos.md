@@ -13,6 +13,7 @@ Los nombres de responsables se asignan cuando el propietario comparta las cuenta
 | SucrePuntos                       | src/features/rewards                                                                      | Saldo, bonos y canje                                    | Reglas comerciales, pedidos     |
 | Comunidad                         | src/features/community                                                                    | Escuela, directorio y entregas                          | Contenidos, mapas, logística    |
 | Administración                    | src/features/admin                                                                        | Verificación y moderación                               | Autorización y auditoría        |
+| API (backend)                     | server/                                                                                   | Express, cuentas, base de datos y rutas por módulo      | Todos los módulos               |
 | Base compartida                   | src/domain, src/components, src/lib                                                       | Contratos, diseño, repositorios                         | Acuerdo del equipo              |
 
 Para equipos más grandes, separar `community` en escuela, mapa y logística al asignar responsables. Evitar que dos tareas modifiquen simultáneamente el estado global o las mismas entidades sin coordinación.

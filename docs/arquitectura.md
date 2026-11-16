@@ -26,7 +26,9 @@ Los pedidos deberían guardar una copia del precio y nombre al comprar. Las mét
 
 Autenticación y autorización se implementarán en servidor. No publicar endpoints administrativos sin comprobación de rol. Solicitudes, productos y pedidos deben filtrarse por la membresía autenticada en cada operación.
 
-La generación estática actual (`nuxt generate`) no ejecuta API. Para el backend en Node.js hay dos caminos: rutas de servidor de Nuxt en `server/api` servidas con `nuxt build` y `node .output/server/index.mjs`, o una API Node independiente (por ejemplo Express o Fastify) y el frontend estático. Es una decisión pendiente del equipo.
+El backend es una API de **Node.js + Express** en `server/` (decisión del equipo). El frontend se compila estático con `nuxt generate` y, en producción, el mismo Express lo sirve junto con `/api`: un solo servidor y sin CORS. En desarrollo, Nuxt reenvía `/api` a Express (`devProxy`). La base de datos es SQLite (`node:sqlite`) detrás de repositorios en `server/`, para poder pasar a PostgreSQL sin cambiar las rutas. Las reglas de negocio se reutilizan desde `src/domain`. Ver [api.md](api.md).
+
+Nota: Nuxt usa `src/nuxt-server` como su carpeta de servidor (vacía) para no confundirse con `server/` de Express.
 
 ## Configurador y diseños por área
 

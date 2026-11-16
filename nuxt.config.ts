@@ -3,6 +3,8 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
   srcDir: 'src',
+  // La carpeta server/ es la API de Express (Node). Nuxt no debe tratarla como su servidor.
+  serverDir: 'src/nuxt-server',
   ssr: true,
   devtools: { enabled: false },
   telemetry: false,
@@ -27,6 +29,8 @@ export default defineNuxtConfig({
   },
   router: { options: { strict: false } },
   nitro: {
+    // En desarrollo, /api se reenvía al servidor Express (npm run dev:api).
+    devProxy: { '/api': { target: 'http://127.0.0.1:4000/api', changeOrigin: true } },
     prerender: {
       crawlLinks: true,
       routes: ['/', '/estudio/gestionar/', '/estudio/vista-previa/', '/tienda/'],
