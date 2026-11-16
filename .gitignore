@@ -11,7 +11,11 @@
 
 # Generated builds and framework state
 /dist/
+/dist
 /.next/
+/.nuxt/
+/.output/
+/.data/
 /.vinext/
 /out/
 next-env.d.ts

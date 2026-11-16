@@ -1,6 +1,6 @@
 # SucreIA
 
-Base web del ecosistema de emprendimientos de Sucre. Versión **0.2.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo.
+Base web del ecosistema de emprendimientos de Sucre. Versión **0.3.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo. Hecho con **Vue 3 + Nuxt 4 (Node.js) + TypeScript**.
 
 ## Iniciar
 
@@ -15,10 +15,10 @@ Abre http://127.0.0.1:3000. No necesitas claves ni servicios externos para esta 
 
 ```bash
 npm run check     # TypeScript + pruebas de dominio + compilación
-npm run test:e2e  # Con out/ generado y Chromium de Playwright instalado
+npm run test:e2e  # Con .output/public generado y Chromium de Playwright instalado
 ```
 
-Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador sirven `out/` mediante Python 3. `npm run build` genera una exportación estática en `out/`.
+Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador sirven `.output/public` mediante Python 3. `npm run build` (`nuxt generate`) genera el sitio estático en `.output/public`.
 
 ## Alcance
 
@@ -35,12 +35,16 @@ Los perfiles, reseñas, sellos y métricas son ficticios. El carrito, favoritos,
 
 ```text
 src/
-  app/         Rutas y layout de Next.js; mantener las páginas delgadas
+  pages/       Rutas de Nuxt (un archivo .vue por ruta); mantener las páginas delgadas
+  layouts/     Layout principal (barra lateral y navegación)
+  app.vue      Raíz de la app; carga los datos locales al montar
+  error.vue    Página 404 y de error
+  assets/css/  Estilos globales y del estudio
   components/  Navegación y piezas visuales compartidas
   features/    Funciones agrupadas por módulo y equipo responsable
-  domain/      Entidades y reglas de negocio independientes de React
+  domain/      Entidades y reglas de negocio en TypeScript puro (sin Vue)
   data/        Datos ficticios
-  lib/         Adaptadores y estado local de la demo
+  lib/         Stores (estado compartido) y adaptadores de almacenamiento local
 public/art/    Ilustraciones SVG propias, sin descargas externas
 tests/         Pruebas de reglas y recorridos de navegador
 docs/          Arquitectura, tareas y contratos para el equipo
@@ -55,6 +59,12 @@ Repositorio previsto: **Xxsneyde/sucreia**, público por indicación del propiet
 
 ## Decisiones de esta base
 
-React + TypeScript + Next.js App Router, CSS compartido y módulos por función. Se utiliza exportación estática para revisar el esqueleto sin backend. La instalación se resolvió desde la caché local porque la terminal no dispone de DNS externo. El starter Vinext no estaba disponible en esa caché; se adoptó Next.js con los paquetes disponibles. El lockfile fija las versiones reproducibles.
+Vue 3 + Nuxt 4 + TypeScript, CSS compartido y módulos por función. El equipo eligió Vue.js y Node.js; Nuxt corre sobre Node y agrega rutas por archivos y generación estática. Se usa `nuxt generate` para revisar el esqueleto sin backend; el mismo proyecto puede servirse con Node (`nuxt build`) cuando haya API. Iconos con `@lucide/vue`. El lockfile fija las versiones reproducibles.
+
+Migrado desde React/Next.js en la versión 0.3.0 conservando diseño, reglas de dominio y pruebas. Notas para el equipo:
+
+- Componentes con `<script setup lang="ts">`; estado compartido con `useDemo()` y `useStudio()` de `src/lib`.
+- Los diseños del estudio se guardan como objetos planos (`shallowRef`); no pasar objetos reactivos a `structuredClone` ni a IndexedDB.
+- Los datos del navegador se leen en `onMounted` de `app.vue` para que el HTML generado coincida con el primer render.
 
 Antes de incorporar backend, decidir proveedor, despliegue, autenticación, almacenamiento y permisos. No hay infraestructura de pago provisionada. Sites conserva un registro de vista previa en `.openai/hosting.json`; su existencia no significa que esté publicado.
