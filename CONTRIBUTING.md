@@ -19,7 +19,7 @@
 - La lógica de negocio vive en `src/domain`; los componentes en `src/features/<modulo>`.
 - Usar etiquetas visibles en formularios y mantener navegación por teclado.
 - No subir `.env`, claves, tokens, bases de datos ni información de clientes.
-- Ninguna credencial secreta puede tener prefijo `NEXT_PUBLIC_`.
+- Ninguna credencial secreta puede ir en `runtimeConfig.public` de Nuxt ni en código del navegador.
 - Datos reales requieren validación y permisos en servidor, aunque la UI oculte un botón.
 - Coordinar cambios a `package.json` y al lockfile; usar `npm ci` para instalaciones reproducibles.
 
