@@ -484,6 +484,32 @@ export function areaFor(category: string): AreaDefinition {
   return areas.find((a) => a.id === category) ?? areas[areas.length - 1];
 }
 
+export interface DesignOption extends DesignChoice {
+  /** true para los 3 estilos que mejor le quedan al área (se muestran primero). */
+  recommended: boolean;
+}
+/** Paleta de un estilo cuando el área no lo recomienda: la del primer área que sí lo usa. */
+function defaultColors(style: StyleId): Palette {
+  return { ...areas.flatMap((a) => a.choices).find((c) => c.style === style)!.colors };
+}
+/** Los 7 estilos para un área: primero los 3 recomendados, luego el resto. */
+export function designChoices(category: string): DesignOption[] {
+  const area = areaFor(category);
+  const recommended = area.choices.map((c) => ({
+    ...c,
+    colors: { ...c.colors },
+    recommended: true,
+  }));
+  const others = styleIds
+    .filter((id) => !area.choices.some((c) => c.style === id))
+    .map((id) => ({ style: id, colors: defaultColors(id), recommended: false }));
+  return [...recommended, ...others];
+}
+/** Paleta con la que se aplica un estilo en un área. */
+export function choiceFor(category: string, style: StyleId): DesignOption {
+  return designChoices(category).find((c) => c.style === style) ?? designChoices(category)[0];
+}
+
 /** Reemplaza {nombre} y {municipio} en los textos de un área. */
 export function fill(text: string, name: string, municipality: string) {
   return text

@@ -54,6 +54,6 @@ function set(change: Partial<StoreDesign>) {
     href="/registro/negocio"
     label="Configurar negocio"
   >
-    Cuéntanos a qué te dedicas y te proponemos tres diseños.
+    Cuéntanos a qué te dedicas y te mostramos tu página en siete estilos.
   </EmptyState>
 </template>

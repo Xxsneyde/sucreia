@@ -31,12 +31,12 @@ La generación estática actual (`nuxt generate`) no ejecuta API. Para el backen
 ## Configurador y diseños por área
 
 1. El emprendedor indica nombre, área, municipio, forma de atención e historia; luego su catálogo.
-2. `src/domain/designs.ts` define 7 estilos (minimalista, brutalista, editorial, orgánico, elegante, moderno y retro) y, para cada área, 3 propuestas: estilo + paleta + tipografía, además de textos sugeridos con el nombre y el municipio.
-3. `designOptions()` genera las 3 páginas con los datos reales del negocio; el emprendedor ve miniaturas y la vista completa (escritorio y celular) y elige una.
+2. `src/domain/designs.ts` define 7 estilos (minimalista, brutalista, editorial, orgánico, elegante, moderno y retro) y, para cada área, 3 estilos recomendados con su paleta; los otros 4 se ofrecen después con la paleta del área que los recomienda, además de textos sugeridos con el nombre y el municipio.
+3. `designOptions()` genera las 7 páginas con los datos reales del negocio (recomendadas primero); el emprendedor ve miniaturas y la vista completa (escritorio y celular) y elige una.
 4. La página tiene una estructura fija (portada, catálogo, historia, pasos para comprar, contacto) dibujada por `StorePage.vue`; cada estilo cambia composición y detalles en `plantillas.css`. No hay editor por bloques.
 5. «Mi tienda» permite cambiar de propuesta, editar datos, textos y catálogo, publicar y restaurar versiones.
 6. Los espacios guardados con el editor anterior (esquema 1) se convierten con `upgradeWorkspace()`.
 
-Para agregar un estilo: añadirlo en `styleIds`/`styles`, escribir su bloque `.sp--<estilo>` en `plantillas.css` y usarlo en las `choices` de alguna área. Las pruebas exigen que cada paleta tenga contraste 4,5 o más y que cada área ofrezca 3 estilos distintos.
+Para agregar un estilo: añadirlo en `styleIds`/`styles`, escribir su bloque `.sp--<estilo>` en `plantillas.css` y usarlo en las `choices` de alguna área. Las pruebas exigen que cada paleta tenga contraste 4,5 o más y que cada área ofrezca los 7 estilos con sus 3 recomendados primero.
 
 Los textos de confianza son compromisos que el propio negocio puede cumplir. No se generan reseñas, calificaciones ni sellos. La IA podrá sugerir textos más adelante, siempre con revisión del propietario y sin inventar precios, disponibilidad ni reputación.

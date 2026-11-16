@@ -78,8 +78,8 @@ const shortDate = (iso: string) =>
         <span class="studio-badge"><Sparkles :size="13" /> PRESENTAMOS ESTUDIO SUCREIA</span>
         <h2>Tu imaginación.<br />Tu próxima tienda.</h2>
         <p>
-          Cuéntanos a qué te dedicas y te mostramos tres páginas listas, cada una con su estilo y su
-          tipografía. Tú eliges la que más se parece a tu negocio.
+          Cuéntanos a qué te dedicas y te mostramos tu página lista en siete estilos, cada uno con
+          su tipografía. Tú eliges el que más se parece a tu negocio.
         </p>
         <NuxtLink to="/registro/negocio">Empieza a crear <ArrowUpRight :size="17" /></NuxtLink>
       </div>
@@ -187,8 +187,8 @@ const shortDate = (iso: string) =>
     </div>
     <div class="studio-section-title">
       <div>
-        <h2>Siete estilos, tres para ti</h2>
-        <p>Según tu área te proponemos los tres que mejor le quedan a tu negocio.</p>
+        <h2>Siete estilos para elegir</h2>
+        <p>Según tu área te recomendamos tres, pero puedes elegir cualquiera.</p>
       </div>
       <span class="studio-small-tag">Con tipografía propia</span>
     </div>

@@ -18,7 +18,14 @@ import {
   upgradeWorkspace,
   type StoreProject,
 } from '../src/domain/studio.ts';
-import { areas, areaFor, styles, styleIds } from '../src/domain/designs.ts';
+import {
+  areas,
+  areaFor,
+  choiceFor,
+  designChoices,
+  styles,
+  styleIds,
+} from '../src/domain/designs.ts';
 
 function project(): StoreProject {
   return {
@@ -44,16 +51,29 @@ test('cada área genera un documento válido, publicable y con su forma de atenc
   assert.equal(createDesign('Área inexistente').category, 'Otro');
 });
 
-test('cada área propone tres diseños con estilos distintos', () => {
+test('cada área ofrece los siete estilos, con sus tres recomendados primero', () => {
   for (const area of areas) {
     const options = designOptions(createDesign(area.id, 'Mi negocio'));
-    assert.equal(options.length, 3, area.id);
-    assert.equal(new Set(options.map((o) => o.style)).size, 3, area.id);
+    assert.equal(options.length, styleIds.length, area.id);
+    assert.equal(new Set(options.map((o) => o.style)).size, styleIds.length, area.id);
+    assert.deepEqual(
+      options.slice(0, 3).map((o) => o.style),
+      area.choices.map((c) => c.style),
+      area.id,
+    );
     for (const o of options) assert.ok(isDesign(o), `${area.id} · ${o.style}`);
+    const choices = designChoices(area.id);
+    assert.deepEqual(
+      choices.map((c) => c.recommended),
+      [true, true, true, false, false, false, false],
+    );
   }
-  // Entre todas las áreas se usan los siete estilos.
+  // Entre todas las áreas se recomiendan los siete estilos.
   const used = new Set(areas.flatMap((a) => a.choices.map((c) => c.style)));
   assert.deepEqual([...used].sort(), [...styleIds].sort());
+  // Un estilo no recomendado se aplica con una paleta válida.
+  assert.equal(choiceFor('Belleza', 'brutalista').style, 'brutalista');
+  assert.equal(choiceFor('Belleza', 'brutalista').recommended, false);
 });
 
 test('las propuestas conservan datos, catálogo y textos del emprendedor', () => {

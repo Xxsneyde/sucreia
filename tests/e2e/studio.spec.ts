@@ -8,9 +8,11 @@ async function createStore(page: Page, area = 'Gastronomía', choice = 1) {
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   const cards = page.locator('.dp-card');
-  await expect(cards).toHaveCount(3);
+  // Los siete estilos; los tres primeros, recomendados para el área.
+  await expect(cards).toHaveCount(7);
+  await expect(page.locator('.dp-group-recomendados .dp-card')).toHaveCount(3);
   const styles = await cards.evaluateAll((els) => els.map((e) => e.getAttribute('data-style')));
-  expect(new Set(styles).size).toBe(3);
+  expect(new Set(styles).size).toBe(7);
   const chosen = styles[choice]!;
   // La primera propuesta viene elegida por defecto.
   if (choice > 0) await cards.nth(choice).getByRole('button', { name: 'Elegir este' }).click();
@@ -45,7 +47,8 @@ test('crear con un diseño propuesto, publicar, comprar y gestionar la tienda', 
 
   // Cambiar a otra de las tres propuestas deja cambios sin publicar.
   await page.goto(manageUrl);
-  const other = styles.find((s) => s !== chosen)!;
+  // Un estilo fuera de los tres recomendados.
+  const other = styles[5]!;
   await page
     .locator(`.dp-card[data-style="${other}"]`)
     .getByRole('button', { name: 'Elegir este' })

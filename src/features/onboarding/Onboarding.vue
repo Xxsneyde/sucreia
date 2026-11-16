@@ -21,7 +21,7 @@ import {
   type StoreProduct,
   type StyleId,
 } from '@/domain/studio';
-import { areaFor, areaNames } from '@/domain/designs';
+import { areaFor, areaNames, choiceFor } from '@/domain/designs';
 import type { BusinessMode } from '@/domain/types';
 import ImageField from '@/features/studio/ImageField.vue';
 import ProductFields from '@/features/studio/ProductFields.vue';
@@ -33,13 +33,13 @@ const steps = ['Tu negocio', 'Tu catálogo', 'Tu diseño', 'Listo'];
 const headings = [
   'Toda gran historia\nempieza contigo.',
   'Dales el lugar\nque se merecen.',
-  'Tres páginas,\nhechas para ti.',
+  'Siete estilos,\nuna página para ti.',
   'Tu tienda está lista\npara abrir sus puertas.',
 ];
 const intros = [
   'Cuéntanos a qué te dedicas. Con eso preparamos tu página.',
   'Empieza con tus tres mejores productos o servicios. Puedes cambiarlos después.',
-  'Diseñamos tres propuestas según tu área. Elige la que más se parezca a tu negocio.',
+  'Tu página en los siete estilos. Los tres primeros son los que mejor le quedan a tu área; elige el que más te guste.',
   'Revisa el resultado. Podrás cambiar el diseño, los textos y el catálogo cuando quieras.',
 ];
 const modes: { id: BusinessMode; title: string; text: string; icon: typeof ShoppingBag }[] = [
@@ -109,7 +109,7 @@ function setProducts(products: StoreProduct[]) {
   set({ products });
 }
 function chooseStyle(style: StyleId) {
-  const option = areaFor(design.value.category).choices.find((c) => c.style === style);
+  const option = choiceFor(design.value.category, style);
   if (option) set({ style, colors: { ...option.colors } });
 }
 const area = computed(() => areaFor(design.value.category));

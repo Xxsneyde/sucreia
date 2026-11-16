@@ -59,7 +59,7 @@ const stepLabel = (status: string) => orderSteps.find((s) => s.status === status
     <div>
       <span class="studio-eyebrow">TU MARCA, TU ESPACIO</span>
       <h2>Diseña algo que se sienta tuyo.</h2>
-      <p>Tres diseños hechos para tu área. Tú eliges.</p>
+      <p>Siete estilos para tu página. Tú eliges.</p>
     </div>
     <NuxtLink class="studio-primary" to="/estudio">Abrir mi estudio →</NuxtLink>
   </div>

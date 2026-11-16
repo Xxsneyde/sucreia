@@ -1,6 +1,7 @@
 import type { Business, BusinessMode } from './types.ts';
 import {
   areaFor,
+  designChoices,
   fill,
   styleIds,
   styles,
@@ -125,11 +126,11 @@ export function createDesign(
 }
 
 /**
- * Las 3 propuestas de página para el área del negocio. Conservan datos, catálogo y textos
- * del diseño base; cambian estilo, paleta y tipografía.
+ * Las páginas propuestas para el negocio: los 7 estilos, primero los 3 recomendados para su
+ * área. Conservan datos, catálogo y textos del diseño base; cambian estilo, paleta y tipografía.
  */
 export function designOptions(base: StoreDesign): StoreDesign[] {
-  return areaFor(base.category).choices.map((c) => ({
+  return designChoices(base.category).map((c) => ({
     ...base,
     style: c.style,
     colors: { ...c.colors },

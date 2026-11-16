@@ -4,7 +4,11 @@ const modules = [
   ['Catálogo y búsqueda', 'Navegable con filtros', 'features/marketplace'],
   ['Carrito y pedidos', 'Flujo local de demostración', 'features/orders'],
   ['Panel del negocio', 'Indicadores y cambios de estado de demo', 'features/business'],
-  ['Configurador de negocios', 'Elección entre 3 diseños por área', 'features/onboarding'],
+  [
+    'Configurador de negocios',
+    'Elección entre 7 estilos (3 recomendados por área)',
+    'features/onboarding',
+  ],
   [
     'Estudio visual',
     'Mi tienda: diseños, textos, versiones y publicación local',

@@ -29,7 +29,7 @@ import {
   type StoreProduct,
   type StyleId,
 } from '@/domain/studio';
-import { areaFor, areaNames } from '@/domain/designs';
+import { areaFor, areaNames, choiceFor } from '@/domain/designs';
 import EmptyState from '@/components/EmptyState.vue';
 import StorePage from './StorePage.vue';
 import DesignPicker from './DesignPicker.vue';
@@ -99,7 +99,7 @@ function setPromise(i: number, value: string) {
   set({ content: { ...design.value.content, promises } });
 }
 function chooseStyle(style: StyleId) {
-  const option = areaFor(design.value!.category).choices.find((c) => c.style === style);
+  const option = choiceFor(design.value!.category, style);
   if (option) set({ style, colors: { ...option.colors } });
   message.value = `Diseño ${styles[style].name.toLowerCase()} aplicado al borrador.`;
 }
@@ -151,7 +151,7 @@ watch(message, (m) => {
     href="/registro/negocio"
     label="Crear mi tienda"
   >
-    Cuéntanos a qué te dedicas y te proponemos tres diseños.
+    Cuéntanos a qué te dedicas y te mostramos tu página en siete estilos.
   </EmptyState>
   <div v-else class="manage">
     <header class="manage-head">
@@ -242,8 +242,8 @@ watch(message, (m) => {
         <div v-if="tab === 'design'" class="manage-section">
           <h2>Elige otra propuesta</h2>
           <p class="field-help">
-            Tres diseños para {{ design.category.toLowerCase() }}. Tus textos y productos se
-            conservan.
+            Tu página en los siete estilos; los tres primeros son los recomendados para
+            {{ design.category.toLowerCase() }}. Tus textos y productos se conservan.
           </p>
           <DesignPicker
             class="dp-compact"
