@@ -45,4 +45,47 @@ export const lessons = [
     ],
     correct: 2,
   },
+  {
+    id: 'costos',
+    title: 'Conoce tus costos',
+    content:
+      'Registra materiales, tiempo de trabajo, empaques y gastos de entrega. Separa el costo de producir de los gastos de operar. Revisa el margen antes de ofrecer descuentos.',
+    exercise: 'Anota los costos de una oferta y comprueba si el precio cubre tus gastos.',
+    question: '¿Qué revisar antes de un descuento?',
+    answers: [
+      'Solo el precio de la competencia',
+      'Que el precio final cubra costos y margen',
+      'Que el descuento sea el más grande',
+    ],
+    correct: 1,
+  },
+  {
+    id: 'atencion',
+    title: 'Atiende y cumple lo que ofreces',
+    content:
+      'Confirma el alcance, precio y tiempo de cada pedido. Si hay un retraso, informa al cliente. Entrega solo cuando la persona confirme su PIN y registra el pago únicamente después de recibirlo.',
+    exercise: 'Revisa una operación y explica al cliente qué significa cada estado.',
+    question: '¿Cuándo confirmar el pago?',
+    answers: [
+      'Al crear el pedido',
+      'Cuando el cliente lo promete',
+      'Después de comprobar que fue recibido',
+    ],
+    correct: 2,
+  },
+  {
+    id: 'herramientas',
+    title: 'Herramientas digitales con criterio',
+    content:
+      'Las herramientas de IA pueden ayudar a proponer textos y organizar ideas. Comprueba precios, horarios y promesas antes de publicar. No introduzcas contraseñas o datos privados de clientes en conversaciones de terceros.',
+    exercise:
+      'Revisa la presentación de tu tienda y elimina cualquier afirmación que no puedas sostener.',
+    question: '¿Qué hacer con una sugerencia automática?',
+    answers: [
+      'Revisarla y adaptarla a datos reales',
+      'Publicarla sin leer',
+      'Usarla como prueba de reputación',
+    ],
+    correct: 0,
+  },
 ];

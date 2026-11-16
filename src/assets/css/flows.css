@@ -1,0 +1,151 @@
+.flow-list {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+}
+.flow-operation {
+  display: grid;
+  gap: 12px;
+}
+.flow-operation p {
+  margin: 0;
+}
+.flow-between,
+.flow-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.flow-toolbar {
+  margin-bottom: 24px;
+}
+.flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.flow-actions form {
+  width: min(100%, 340px);
+}
+.flow-grid,
+.flow-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 20px;
+  margin: 24px 0;
+}
+.flow-metrics article {
+  display: grid;
+  gap: 12px;
+}
+.flow-metrics strong {
+  font-size: 30px;
+  letter-spacing: -1px;
+}
+.flow-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: #47634e;
+}
+.flow-empty .button {
+  margin-top: 20px;
+}
+.flow-pin {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 16px;
+  background: #edf5e6;
+  border-radius: 12px;
+}
+.flow-pin strong {
+  font-size: 30px;
+  letter-spacing: 6px;
+}
+.flow-timeline {
+  list-style: none;
+  border-left: 2px solid #b4d3b9;
+  margin: 12px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+}
+.flow-timeline li {
+  display: grid;
+}
+.flow-timeline span {
+  font-size: 12px;
+  color: #526356;
+}
+.flow-balance strong {
+  display: block;
+  font-size: clamp(40px, 6vw, 68px);
+  letter-spacing: -2px;
+}
+.flow-pre {
+  white-space: pre-line;
+}
+.flow-map {
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+}
+.flow-map a:focus-visible {
+  outline: 3px solid #3c7945;
+}
+.form-stack fieldset {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.form-stack fieldset label {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin: 12px 0;
+}
+.form-stack input[type='radio'],
+.form-stack input[type='checkbox'] {
+  width: auto;
+  min-width: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+}
+.flow-operation a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.flow-review {
+  padding: 16px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 600px) {
+  .flow-operation .flow-between {
+    align-items: start;
+  }
+  .flow-actions > .button {
+    width: 100%;
+  }
+  .flow-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .flow-metrics article {
+    padding: 16px;
+  }
+  .flow-metrics strong {
+    font-size: 24px;
+  }
+  .flow-metrics span {
+    font-size: 12px;
+  }
+  .flow-operation .form-stack {
+    min-width: 0;
+  }
+  .flow-operation h2 {
+    overflow-wrap: anywhere;
+  }
+}

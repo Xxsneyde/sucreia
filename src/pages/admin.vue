@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import RequireMerchant from '@/components/RequireMerchant.vue';
-import Admin from '@/features/admin/Admin.vue';
-useHead({ title: 'Administración' });
+import Community from '@/features/commerce/Community.vue';
+useHead({ title: 'Admin' });
 </script>
-<template>
-  <RequireMerchant><Admin /></RequireMerchant>
-</template>
+<template><Community /></template>

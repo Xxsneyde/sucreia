@@ -54,3 +54,6 @@ yarn-error.log*
 
 # Base de datos local de la API
 /server/data/
+
+# Copias locales (contienen datos privados)
+/server/backups/

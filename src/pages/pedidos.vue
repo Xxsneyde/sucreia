@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Orders from '@/features/orders/Orders.vue';
-useHead({ title: 'Mis pedidos' });
+import Requests from '@/features/commerce/Requests.vue';
+useHead({ title: 'Pedidos' });
 </script>
-<template><Orders /></template>
+<template><Requests /></template>

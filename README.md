@@ -1,6 +1,6 @@
 # SucreIA
 
-Base web del ecosistema de emprendimientos de Sucre. Versión **0.3.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo. Frontend con **Vue 3 + Nuxt 4** y backend con **Node.js + Express**, todo en TypeScript.
+Base web del ecosistema de emprendimientos de Sucre. Versión **0.3.0**, plataforma local con recorridos persistentes para clientes, emprendedores, domiciliarios y administración. Frontend con **Vue 3 + Nuxt 4** y backend con **Node.js + Express**, todo en TypeScript.
 
 ## Iniciar
 
@@ -12,28 +12,46 @@ npm run dev:api   # Terminal 1: API de Node.js + Express en http://127.0.0.1:400
 npm run dev       # Terminal 2: sitio de Vue en http://127.0.0.1:3000 (reenvía /api a la API)
 ```
 
-Abre http://127.0.0.1:3000. No necesitas claves ni servicios externos: la base de datos es SQLite incluida en Node (`server/data/`). Producción: `npm run build && npm start` (API y sitio en el mismo servidor). Detalle de rutas en [docs/api.md](docs/api.md).
+Abre http://127.0.0.1:3000. Para desarrollo no necesitas claves ni servicios externos: la base de datos es SQLite incluida en Node (`server/data/`). Producción: `npm run build && npm start` (API y sitio en el mismo servidor). Detalle de rutas en [docs/api.md](docs/api.md).
 
 ```bash
 npm run check     # TypeScript + pruebas (dominio y API) + compilación
 npm run test:e2e  # Después de npm run build; usa Express con base de datos en memoria
 ```
 
-Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador arrancan el servidor real de Express (`npm start`) con una base de datos en memoria, así que primero hay que ejecutar `npm run build`.
+Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador arrancan Express con el sitio compilado, una base de datos en memoria y una bandeja de correo efímera (`tests/browser-server.ts`), así que primero hay que ejecutar `npm run build`.
 
-## Alcance
+## Recorridos disponibles
 
-- Cuentas: crear cuenta, ingresar y salir (`/ingresar`). El estudio y «Mi tienda» piden una cuenta de emprendedor; el configurador se puede llenar sin cuenta y la pide al final, sin perder lo escrito.
-- Las tiendas se guardan en el servidor: al publicarlas, **cualquier persona** las ve en el catálogo y en `/tienda?id=…`. Las tiendas guardadas solo en el navegador con versiones anteriores se pueden subir a la cuenta desde el estudio.
-- Clientes: inicio, filtros de búsqueda, perfiles de negocios, favoritos, carrito, pedidos, solicitudes de cita/cotización y perfil.
-- Negocios: resumen de indicadores, avance de pedidos de demo, listado de productos, perfil, promociones y configuración.
-- Configurador (`/registro/negocio`): datos del negocio → catálogo → **su página en los 7 estilos, con los 3 recomendados para su área primero** (artesanías, gastronomía, belleza, servicios, moda, turismo, salud u otro), cada una con su estilo y su tipografía → crear la tienda.
-- Mi tienda (`/estudio/gestionar`): vista previa en escritorio y celular, cambiar de estilo, datos, textos, catálogo, versiones y publicación. Publica en `/tienda` a través de la API.
-- Estilos disponibles: minimalista, brutalista, editorial, orgánico, elegante, moderno y retro (`src/domain/designs.ts`, CSS en `src/assets/css/plantillas.css`). Las tipografías se sirven desde el propio sitio con `@fontsource`.
-- SucrePuntos, escuela, directorio territorial, entregas y administración: pantallas base con pendientes explícitos.
-- Diseño adaptable a celular; navegación inferior, acciones contextuales y estados de carga/error.
+La [guía del recorrido completo](docs/recorrido-completo.md) explica cómo probarlo con cuentas diferentes.
 
-Los perfiles, reseñas, sellos y métricas son ficticios. El carrito, favoritos, solicitudes y borrador se guardan únicamente en este navegador bajo `sucreia:demo:v1`; las tiendas del estudio, en IndexedDB (`sucreia-studio`). La demo no autentica usuarios, cobra dinero, envía mensajes ni asigna entregas. Las rutas de panel y administración son públicas dentro de la demo y no contienen datos privados. No usar como producción con información real.
+- **Visitantes:** vitrina de negocios realmente publicados, filtros, catálogos y contacto por WhatsApp, sin menús de la plataforma ni negocios ficticios.
+- **Cuentas:** acceso independiente, recuperación/verificación, nombre editable, salida visible y activación del espacio de emprendedor sin crear otra cuenta.
+- **Emprendedores:** configurador con siete estilos, tres recomendados por área, imágenes propias, edición, vista previa móvil, versiones y publicación en servidor.
+- **Compras:** carrito por cuenta/navegador, cálculo del servidor, stock, reintentos idempotentes, recogida/domicilio y seguimiento persistente. No permite comprar al propio negocio.
+- **Servicios:** agenda sin solapamientos, citas con confirmación, solicitudes de cotización, propuesta del negocio y aceptación del cliente.
+- **Negocios:** pagos confirmados hoy, operaciones nuevas, pendientes por despachar/entregar, productos consultados, inventario, agenda, instrucciones de transferencia y promociones.
+- **Entregas:** solicitud y revisión de domiciliarios, foto, asignación, contacto, minutos estimados, efectivo recibido y confirmación con PIN privado del cliente.
+- **SucrePuntos:** saldo inicial cero, libro de movimientos, puntos por operaciones pagadas/completadas, canjes ligados al negocio, bonos de un uso y ajustes por devoluciones.
+- **Confianza:** reseñas por operaciones completadas, valoración del domiciliario y sello de verificación manual con operaciones de los últimos 365 días.
+- **Escuela:** seis lecciones, ejercicios y evaluación comprobada en servidor, progreso por cuenta, orden sugerido por actividad, tutor y constancia verificable para imprimir.
+- **Territorio y asistencia:** ubicaciones reales indicadas por los negocios; consulta de catálogo y tutor con guía local o IA de Ollama opcional, sin acciones automáticas ni afirmaciones de disponibilidad.
+- **Administración:** permisos de administrador, revisión y moderación, suspensión/reactivación de publicaciones y auditoría de decisiones. El primer administrador se habilita por terminal, con la API detenida.
+- **Avisos:** notificaciones persistentes por cuenta y consultas periódicas de estado cada 15 segundos. WhatsApp se abre por decisión del usuario; no hay mensajes automáticos.
+
+SQLite guarda operaciones y permisos; los archivos de imágenes están en disco. El carrito es local al navegador y a la cuenta. No se crean compras, reputación o saldos ficticios al iniciar. El código anterior de demostración se conserva como referencia, pero sus pantallas no son las rutas del producto.
+
+Los pagos y devoluciones se registran después de efectuarlos directamente con el negocio: SucreIA no mueve dinero ni verifica bancos automáticamente. No hay GPS en vivo ni aprovisionamiento automático de SMTP, modelos de IA o hosting. La validación de navegador real y la configuración operativa son necesarias antes del uso con clientes reales.
+
+## Correo, copias y Docker
+
+- `.env.example` documenta las variables; los comandos del servidor leen `.env` si existe.
+- `npm run mail:check`: comprueba el SMTP configurado sin enviar correos.
+- `npm run backup`: API detenida; copia SQLite e imágenes en una carpeta nueva.
+- `npm run restore -- <copia> <destino nuevo>`: verifica y restaura sin sobrescribir el original.
+- `docker compose up --build -d`: aplicación con volúmenes de datos y copias. Para HTTP local, configura `COOKIE_SECURE=false`; para HTTPS, `true`.
+
+Pasos, configuración, recuperación de bloqueos y límites en [docs/operacion.md](docs/operacion.md). El despliegue externo y la entrega real de correo requieren configuración y validación del equipo.
 
 ## Organización
 
@@ -56,7 +74,7 @@ docs/          Arquitectura, tareas y contratos para el equipo
 .github/       CI y plantillas de issues/pull requests
 ```
 
-Empieza por [CONTRIBUTING.md](CONTRIBUTING.md), [arquitectura](docs/arquitectura.md), [reparto de módulos](docs/modulos.md) y [backlog](docs/backlog.md).
+Empieza por [CONTRIBUTING.md](CONTRIBUTING.md), [arquitectura](docs/arquitectura.md), [reparto de módulos](docs/modulos.md), [vistas por rol](docs/roles.md) y [backlog](docs/backlog.md).
 
 ## Control de versiones
 
@@ -72,4 +90,4 @@ Migrado desde React/Next.js en la versión 0.3.0 conservando diseño, reglas de 
 - Los diseños del estudio se guardan como objetos planos (`shallowRef`); no pasar objetos reactivos a `structuredClone` ni a IndexedDB.
 - Los datos del navegador se leen en `onMounted` de `app.vue` para que el HTML generado coincida con el primer render.
 
-Antes de incorporar backend, decidir proveedor, despliegue, autenticación, almacenamiento y permisos. No hay infraestructura de pago provisionada. Sites conserva un registro de vista previa en `.openai/hosting.json`; su existencia no significa que esté publicado.
+La operación incluye SMTP opcional, copias/restauración y Docker con volúmenes persistentes. Consulta [la guía de operación](docs/operacion.md) para configurar y comprobar correo, copias y hosting; los recorridos reales y la revisión visual deben comprobarse antes de desplegar. No hay infraestructura de pago provisionada. Sites conserva un registro de vista previa en `.openai/hosting.json`; su existencia no significa que esté publicado.

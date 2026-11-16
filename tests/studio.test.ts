@@ -296,3 +296,12 @@ test('el color del texto de botones elige el mejor contraste', () => {
   assert.equal(onColor('#111111'), '#ffffff');
   assert.ok(contrast('#6c4de6', onColor('#6c4de6')) >= 4.5);
 });
+
+test('no se publican precios fraccionarios en COP ni productos con el mismo identificador', () => {
+  const design = createDesign();
+  design.products[0].price = 0.5;
+  assert.ok(publicationErrors(design).some((message) => message.includes('precios')));
+  design.products[0].price = 1000;
+  design.products[1].id = design.products[0].id;
+  assert.ok(publicationErrors(design).some((message) => message.includes('identificadores')));
+});

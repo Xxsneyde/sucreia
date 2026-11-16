@@ -34,6 +34,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import StorePage from './StorePage.vue';
 import DesignPicker from './DesignPicker.vue';
 import ProductFields from './ProductFields.vue';
+import { imageUploads } from '@/lib/images';
 import ImageField from './ImageField.vue';
 import EditorModal from './EditorModal.vue';
 import { downloadFile } from './files';
@@ -117,6 +118,7 @@ function regenerateTexts() {
 const publishing = ref(false);
 const publishError = ref('');
 async function publish() {
+  if (imageUploads.value) return;
   publishing.value = true;
   publishError.value = '';
   try {
@@ -196,7 +198,7 @@ watch(message, (m) => {
           </NuxtLink>
           <button
             class="studio-primary"
-            :disabled="!!project.published && !changed"
+            :disabled="imageUploads > 0 || (!!project.published && !changed)"
             @click="publishOpen = true"
           >
             <Upload :size="15" />
@@ -265,6 +267,16 @@ watch(message, (m) => {
 
         <div v-else-if="tab === 'data'" class="manage-section studio-form">
           <h2>Datos del negocio</h2>
+          <ImageField
+            label="Foto de portada"
+            :model-value="design.content.heroImage"
+            @update:model-value="(image: string) => setText('heroImage', image)"
+          />
+          <ImageField
+            label="Foto de tu historia"
+            :model-value="design.content.storyImage"
+            @update:model-value="(image: string) => setText('storyImage', image)"
+          />
           <ImageField
             label="Logo"
             :model-value="design.logo"
@@ -388,7 +400,9 @@ watch(message, (m) => {
       <p v-if="publishError" role="alert" class="field-error">{{ publishError }}</p>
       <button
         class="studio-primary full"
-        :disabled="errors.length > 0 || studio.saveStatus === 'error' || publishing"
+        :disabled="
+          errors.length > 0 || studio.saveStatus === 'error' || publishing || imageUploads > 0
+        "
         @click="publish"
       >
         {{ publishing ? 'Publicando…' : 'Publicar mi tienda' }}

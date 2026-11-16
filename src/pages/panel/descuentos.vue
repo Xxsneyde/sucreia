@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import Discounts from '@/features/business/Discounts.vue';
-useHead({ title: 'Descuentos' });
+import RequireMerchant from '@/components/RequireMerchant.vue';
+import Merchant from '@/features/commerce/Merchant.vue';
+useHead({ title: 'Mi negocio' });
 </script>
-<template><Discounts /></template>
+<template>
+  <RequireMerchant><Merchant /></RequireMerchant>
+</template>

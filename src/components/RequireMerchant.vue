@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { api } from '@/lib/api';
+import { useStudio } from '@/lib/studio-store';
+import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Store } from '@lucide/vue';
 import { useSession } from '@/lib/session';
@@ -7,7 +9,21 @@ import { useSession } from '@/lib/session';
 // Muestra el contenido solo a emprendedores (o administradores) con sesión iniciada.
 const session = useSession();
 const route = useRoute();
-const back = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPath)}`);
+const error = ref(''),
+  busy = ref(false);
+async function activate() {
+  busy.value = true;
+  try {
+    await api('POST', '/auth/emprender');
+    await session.refresh();
+    await useStudio().refresh();
+  } catch (e) {
+    error.value = (e as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+const back = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPath)}&cambiar=1`);
 </script>
 
 <template>
@@ -26,10 +42,13 @@ const back = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPat
     <template v-else>
       <h1>Esta sección es para emprendedores</h1>
       <p class="muted">
-        Iniciaste sesión como cliente ({{ session.user.email }}). Para vender en SucreIA crea una
-        cuenta de emprendedor.
+        Puedes activar el espacio de emprendedor en tu cuenta actual. Conservarás tus compras,
+        favoritos y puntos.
       </p>
-      <NuxtLink class="button" :to="back">Usar otra cuenta</NuxtLink>
+      <button class="button" :disabled="busy" @click="activate">
+        Activar mi cuenta de emprendedor
+      </button>
+      <p v-if="error" role="alert">{{ error }}</p>
     </template>
   </div>
 </template>

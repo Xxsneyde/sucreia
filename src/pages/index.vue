@@ -1,4 +1,6 @@
 <script setup lang="ts">
-import Marketplace from '@/features/marketplace/Marketplace.vue';
+import PublicDirectory from '@/features/directory/PublicDirectory.vue';
+definePageMeta({ layout: 'public' });
+useHead({ title: 'Negocios publicados' });
 </script>
-<template><Marketplace /></template>
+<template><PublicDirectory /></template>

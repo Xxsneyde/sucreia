@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import LogoutButton from '@/components/LogoutButton.vue';
 import PageTitle from '@/components/PageTitle.vue';
 import { useDemo } from '@/lib/demo-store';
 import { useSession } from '@/lib/session';
@@ -15,15 +16,25 @@ function reset() {
 <template>
   <PageTitle
     eyebrow="TU ESPACIO"
-    :title="`Hola, ${store.profileName}.`"
-    description="Estás navegando con un perfil de demostración."
+    :title="`Hola, ${session.user?.name || store.profileName}.`"
+    :description="
+      session.user
+        ? 'Tu cuenta y tus espacios en SucreIA.'
+        : 'Explora como visitante o ingresa para gestionar tu negocio.'
+    "
   />
   <div class="two-columns">
     <section class="card">
-      <div class="profile-avatar">S</div>
+      <div class="profile-avatar">{{ session.user?.name.slice(0, 1).toUpperCase() || 'S' }}</div>
       <h2>Comunidad SucreIA</h2>
-      <p class="muted">Tu perfil local, sin contraseña ni conexión a servicios externos.</p>
-      <label class="local-name-field">
+      <p class="muted">
+        {{
+          session.user
+            ? 'Gestiona tu cuenta, verifica tu correo y entra a tu tienda.'
+            : 'Tu perfil de demostración en este navegador.'
+        }}
+      </p>
+      <label v-if="!session.user" class="local-name-field">
         ¿Cómo te llamas?
         <input
           maxlength="50"
@@ -40,13 +51,18 @@ function reset() {
         >
       </div>
       <div v-if="session.user" class="account-session">
+        <p v-if="session.emailNotice && !session.user.emailVerifiedAt" class="notice" role="status">
+          {{ session.emailNotice }}
+        </p>
         <p>
           <strong>{{ session.user.name }}</strong> · {{ session.user.email }}
           <span class="tag">{{ session.user.role }}</span>
         </p>
-        <button class="button secondary" type="button" @click="session.logout()">
-          Cerrar sesión
-        </button>
+        <p v-if="session.user.emailVerifiedAt" class="tag">Correo verificado</p>
+        <NuxtLink v-else class="button secondary" to="/verificar-correo"
+          >Verificar mi correo →</NuxtLink
+        >
+        <LogoutButton />
       </div>
       <NuxtLink v-else class="button" to="/ingresar">Ingresar o crear cuenta →</NuxtLink>
     </section>

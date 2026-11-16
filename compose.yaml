@@ -1,0 +1,27 @@
+services:
+  web:
+    build: .
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
+    ports:
+      - '127.0.0.1:4000:4000'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '4000'
+      DATABASE_PATH: /data/sucreia.db
+      IMAGES_PATH: /data/images
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - sucreia-data:/data
+      - sucreia-backups:/backups
+volumes:
+  sucreia-data:
+  sucreia-backups:

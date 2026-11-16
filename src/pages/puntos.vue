@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Rewards from '@/features/rewards/Rewards.vue';
-useHead({ title: 'SucrePuntos' });
+import Community from '@/features/commerce/Community.vue';
+useHead({ title: 'Puntos' });
 </script>
-<template><Rewards /></template>
+<template><Community /></template>

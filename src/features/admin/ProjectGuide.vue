@@ -2,8 +2,12 @@
 import PageTitle from '@/components/PageTitle.vue';
 const modules = [
   ['Catálogo y búsqueda', 'Navegable con filtros', 'features/marketplace'],
-  ['Carrito y pedidos', 'Flujo local de demostración', 'features/orders'],
-  ['Panel del negocio', 'Indicadores y cambios de estado de demo', 'features/business'],
+  [
+    'Carrito y pedidos',
+    'Operaciones persistentes, inventario, agenda y cotizaciones',
+    'features/orders',
+  ],
+  ['Panel del negocio', 'Indicadores y gestión con datos del servidor', 'features/business'],
   [
     'Configurador de negocios',
     'Elección entre 7 estilos (3 recomendados por área)',
@@ -14,22 +18,22 @@ const modules = [
     'Mi tienda: diseños, textos, versiones y publicación local',
     'features/studio',
   ],
-  ['SucrePuntos', 'Pantalla base; reglas y canje pendientes', 'features/rewards'],
-  ['Autenticación y perfil', 'Accesos de demo; autenticación pendiente', 'features/account'],
+  ['SucrePuntos', 'Libro de puntos, promociones y canje persistente', 'features/rewards'],
+  ['Autenticación y perfil', 'Sesiones, recuperación y verificación de correo', 'features/account'],
   [
     'Escuela, territorio y entregas',
-    'Pantallas base; integraciones pendientes',
+    'Escuela, ubicaciones y entregas persistentes',
     'features/community',
   ],
-  ['Administración', 'Pantallas base; permisos pendientes', 'features/admin'],
+  ['Administración', 'Revisión y moderación con permisos y auditoría', 'features/admin'],
 ];
 </script>
 
 <template>
   <PageTitle
     eyebrow="CONSTRUIMOS EN EQUIPO"
-    title="Una base, muchas manos."
-    description="Mapa del esqueleto de SucreIA y del trabajo que viene."
+    title="El recorrido de SucreIA."
+    description="Módulos implementados y conexiones del producto local."
   />
   <section class="card">
     <div class="table-wrap">

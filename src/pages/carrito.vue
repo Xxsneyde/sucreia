@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Cart from '@/features/orders/Cart.vue';
+import Checkout from '@/features/commerce/Checkout.vue';
 useHead({ title: 'Carrito' });
 </script>
-<template><Cart /></template>
+<template><Checkout /></template>

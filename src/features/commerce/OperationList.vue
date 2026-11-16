@@ -1,0 +1,362 @@
+<script setup lang="ts">
+import { reactive, ref } from 'vue';
+import { usePlatform } from '@/lib/platform-store';
+import { statusNames, type Operation } from '@/domain/platform';
+import { currency, whatsappUrl } from '@/domain/rules';
+const props = defineProps<{ operations: Operation[]; role: 'customer' | 'merchant' | 'courier' }>();
+const platform = usePlatform(),
+  notice = ref('');
+const values = reactive<
+  Record<
+    string,
+    {
+      amount: number;
+      pin: string;
+      courierId: string;
+      etaMinutes: number;
+      rating: number;
+      courierRating: number;
+      note: string;
+      returned: boolean;
+      comment: string;
+    }
+  >
+>({});
+function form(id: string) {
+  return (values[id] ??= {
+    amount: 0,
+    pin: '',
+    courierId: '',
+    etaMinutes: 30,
+    rating: 5,
+    courierRating: 5,
+    note: '',
+    returned: false,
+    comment: '',
+  });
+}
+async function act(op: Operation, action: string) {
+  try {
+    await platform.run('POST', `/operaciones/${op.id}/${action}`, form(op.id));
+    notice.value = 'Operación actualizada.';
+  } catch (e) {
+    notice.value = (e as Error).message;
+  }
+}
+async function review(op: Operation) {
+  try {
+    await platform.run('POST', '/resenas', { operationId: op.id, ...form(op.id) });
+    notice.value = 'Tu reseña quedó publicada.';
+  } catch (e) {
+    notice.value = (e as Error).message;
+  }
+}
+const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+</script>
+<template>
+  <p v-if="notice" role="status" class="notice">{{ notice }}</p>
+  <p v-if="!operations.length" class="flow-empty">Todavía no hay operaciones en este espacio.</p>
+  <div class="flow-list">
+    <article v-for="op in operations" :key="op.id" class="card flow-operation">
+      <div class="flow-between">
+        <div>
+          <span class="eyebrow"
+            >{{
+              op.kind === 'products'
+                ? 'PEDIDO'
+                : op.kind === 'booking'
+                  ? 'CITA / RESERVA'
+                  : 'COTIZACIÓN'
+            }}
+            · {{ op.id.slice(0, 8) }}</span
+          >
+          <h2>{{ op.storeName }}</h2>
+        </div>
+        <span class="tag">{{ statusNames[op.status] }}</span>
+      </div>
+      <p>
+        {{ role === 'customer' ? 'Creado' : `Cliente: ${op.clientName} · creado` }}
+        {{ date(op.createdAt) }}
+      </p>
+      <NuxtLink :to="`/tienda?id=${op.storeId}`">Ver negocio y contacto →</NuxtLink>
+      <p v-if="role !== 'customer' && op.phone">
+        <a :href="whatsappUrl(op.phone, op.storeName) || undefined" target="_blank" rel="noopener"
+          >Contactar al cliente por WhatsApp ↗</a
+        >
+      </p>
+      <p v-if="op.detail">{{ op.detail }}</p>
+      <p v-if="op.slot"><strong>Cita:</strong> {{ date(op.slot) }} (hora de Colombia)</p>
+      <ul v-if="op.lines.length">
+        <li v-for="line in op.lines" :key="line.productId">
+          {{ line.quantity }} × {{ line.name }} · {{ currency(line.price * line.quantity) }}
+        </li>
+      </ul>
+      <p>
+        <strong>{{
+          op.kind === 'quote' && op.status === 'pending'
+            ? 'Precio por cotizar'
+            : currency(op.amount)
+        }}</strong>
+        <span v-if="op.discount"> · Descuento {{ currency(op.discount) }}</span
+        ><span v-if="op.fee"> · Incluye domicilio {{ currency(op.fee) }}</span>
+      </p>
+      <p>
+        Pago
+        {{
+          op.payment === 'confirmed'
+            ? 'confirmado'
+            : op.payment === 'refunded'
+              ? 'devuelto fuera de la plataforma'
+              : 'pendiente'
+        }}
+        ·
+        {{ op.paymentMethod === 'cash' ? 'efectivo' : 'transferencia' }}
+      </p>
+      <p
+        v-if="role === 'customer' && op.paymentInstructions && op.paymentMethod === 'transfer'"
+        class="notice"
+      >
+        Instrucciones del negocio: {{ op.paymentInstructions }}
+      </p>
+      <p v-if="op.kind === 'products'">
+        {{ op.fulfillment === 'delivery' ? `Domicilio: ${op.address}` : 'Recogida en el negocio' }}
+      </p>
+      <img
+        v-if="op.courierAvatar"
+        :src="op.courierAvatar"
+        :alt="`Foto de ${op.courierName}`"
+        width="64"
+        height="64"
+        style="border-radius: 50%; object-fit: cover"
+      />
+      <p v-if="op.courierRating">
+        Calificación del domiciliario al asignar: {{ op.courierRating.toFixed(1) }} / 5
+      </p>
+      <p v-if="op.courierId">
+        Domiciliario: <strong>{{ op.courierName }}</strong>
+        <a
+          v-if="op.courierPhone"
+          :href="whatsappUrl(op.courierPhone, op.storeName) || undefined"
+          target="_blank"
+          rel="noopener"
+          >Contactar por WhatsApp ↗</a
+        >
+      </p>
+      <p v-if="op.status === 'dispatched'">
+        Entrega estimada: {{ op.etaMinutes }} minutos desde el despacho. La hora es estimada; no es
+        un mapa GPS.
+      </p>
+      <div
+        v-if="
+          role === 'customer' &&
+          op.pin &&
+          !['completed', 'cancelled', 'refunded'].includes(op.status) &&
+          op.kind === 'products'
+        "
+        class="flow-pin"
+      >
+        <span>PIN de entrega</span><strong>{{ op.pin }}</strong
+        ><small>Compártelo solo al recibir tu pedido.</small>
+      </div>
+      <ol class="flow-timeline">
+        <li v-for="(event, index) in op.events" :key="index">
+          <strong>{{ statusNames[event.status] }}</strong
+          ><span
+            >{{ date(event.at)
+            }}<template v-if="event.note.includes('Pago confirmado')">
+              · Pago confirmado</template
+            ></span
+          >
+        </li>
+      </ol>
+      <div v-if="role === 'merchant'" class="flow-actions">
+        <button
+          v-if="op.kind === 'products' && op.status === 'pending'"
+          class="button"
+          :disabled="platform.busy.value"
+          @click="act(op, 'prepare')"
+        >
+          Tomar y preparar
+        </button>
+        <button
+          v-if="op.kind === 'products' && op.status === 'preparing'"
+          class="button"
+          :disabled="platform.busy.value"
+          @click="act(op, 'ready')"
+        >
+          Marcar listo
+        </button>
+        <button
+          v-if="op.kind === 'booking' && op.status === 'pending'"
+          class="button"
+          :disabled="platform.busy.value"
+          @click="act(op, 'confirm')"
+        >
+          Confirmar cita
+        </button>
+        <form
+          v-if="op.kind === 'quote' && ['pending', 'quoted'].includes(op.status)"
+          class="form-stack"
+          @submit.prevent="act(op, 'quote')"
+        >
+          <label
+            >Valor de la cotización (COP)<input
+              v-model.number="form(op.id).amount"
+              type="number"
+              min="1"
+              max="1000000000"
+              required /></label
+          ><button class="button" :disabled="platform.busy.value">Enviar cotización</button>
+        </form>
+        <button
+          v-if="
+            op.payment === 'pending' &&
+            !['completed', 'cancelled', 'refunded'].includes(op.status) &&
+            (op.kind !== 'quote' || op.status === 'accepted')
+          "
+          class="button secondary"
+          :disabled="platform.busy.value"
+          @click="act(op, 'payment')"
+        >
+          Confirmar pago recibido
+        </button>
+        <form
+          v-if="op.status === 'ready' && op.fulfillment === 'delivery'"
+          class="form-stack"
+          @submit.prevent="act(op, 'dispatch')"
+        >
+          <label
+            >Domiciliario<select v-model="form(op.id).courierId" required>
+              <option value="">Selecciona uno aprobado</option>
+              <option v-for="c in platform.data.value?.couriers" :key="c.id" :value="c.id">
+                {{ c.name }} · {{ c.municipality }}
+              </option>
+            </select></label
+          ><label
+            >Minutos estimados<input
+              v-model.number="form(op.id).etaMinutes"
+              type="number"
+              min="1"
+              max="240"
+              required /></label
+          ><button class="button" :disabled="platform.busy.value">Despachar pedido</button>
+        </form>
+        <button
+          v-if="
+            op.kind !== 'products' &&
+            op.status === 'accepted' &&
+            op.payment === 'confirmed' &&
+            (!op.slot || Date.parse(op.slot) <= Date.now())
+          "
+          class="button"
+          :disabled="platform.busy.value"
+          @click="act(op, 'complete')"
+        >
+          Completar servicio
+        </button>
+        <button
+          v-if="
+            !['dispatched', 'completed', 'cancelled'].includes(op.status) &&
+            op.payment === 'pending'
+          "
+          class="button subtle"
+          :disabled="platform.busy.value"
+          @click="act(op, 'cancel')"
+        >
+          Cancelar operación
+        </button>
+      </div>
+      <button
+        v-if="
+          role === 'courier' &&
+          op.status === 'dispatched' &&
+          op.payment === 'pending' &&
+          op.paymentMethod === 'cash'
+        "
+        class="button"
+        :disabled="platform.busy.value"
+        @click="act(op, 'payment')"
+      >
+        Confirmar efectivo recibido: {{ currency(op.amount) }}
+      </button>
+      <form
+        v-if="
+          ((role === 'merchant' && op.status === 'ready' && op.fulfillment === 'pickup') ||
+            (role === 'courier' && op.status === 'dispatched')) &&
+          op.payment === 'confirmed'
+        "
+        class="form-stack"
+        @submit.prevent="act(op, 'complete')"
+      >
+        <label
+          >PIN que te comparte el cliente<input
+            v-model="form(op.id).pin"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required /></label
+        ><button class="button" :disabled="platform.busy.value">Confirmar entrega con PIN</button>
+      </form>
+      <div v-if="role === 'customer'" class="flow-actions">
+        <button
+          v-if="op.status === 'quoted'"
+          class="button"
+          :disabled="platform.busy.value"
+          @click="act(op, 'accept')"
+        >
+          Aceptar cotización de {{ currency(op.amount) }}</button
+        ><button
+          v-if="['pending', 'quoted'].includes(op.status) && op.payment === 'pending'"
+          class="button secondary"
+          :disabled="platform.busy.value"
+          @click="act(op, 'cancel')"
+        >
+          Cancelar solicitud
+        </button>
+      </div>
+      <form
+        v-if="role === 'merchant' && op.payment === 'confirmed'"
+        class="form-stack"
+        @submit.prevent="act(op, 'refund')"
+      >
+        <h3>Registrar una devolución total</h3>
+        <p>
+          Utiliza esto después de devolver el dinero al cliente por el medio acordado. SucreIA no
+          envía dinero.
+        </p>
+        <label
+          >Motivo y referencia de devolución<textarea
+            v-model="form(op.id).note"
+            required
+            maxlength="500"
+          /></label
+        ><label v-if="op.kind === 'products' && ['completed', 'dispatched'].includes(op.status)"
+          ><input v-model="form(op.id).returned" type="checkbox" /> Los productos también regresaron
+          al inventario</label
+        ><button class="button secondary" :disabled="platform.busy.value">
+          Registrar devolución realizada
+        </button>
+      </form>
+      <form
+        v-if="
+          role === 'customer' && !!op.completedAt && ['completed', 'refunded'].includes(op.status)
+        "
+        class="form-stack"
+        @submit.prevent="review(op)"
+      >
+        <label
+          >Calificación<select v-model.number="form(op.id).rating">
+            <option v-for="n in 5" :key="n" :value="n">{{ n }} estrellas</option>
+          </select></label
+        ><label v-if="op.courierId"
+          >Calificación de la entrega<select v-model.number="form(op.id).courierRating">
+            <option v-for="n in 5" :key="n" :value="n">{{ n }} estrellas</option>
+          </select></label
+        ><label
+          >Tu experiencia<textarea v-model="form(op.id).comment" required maxlength="500" /></label
+        ><button class="button secondary" :disabled="platform.busy.value">Publicar reseña</button
+        ><small>Una reseña por operación completada.</small>
+      </form>
+    </article>
+  </div>
+</template>

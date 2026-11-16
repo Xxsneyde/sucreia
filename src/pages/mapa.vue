@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import MapDirectory from '@/features/community/MapDirectory.vue';
-useHead({ title: 'Explorar Sucre' });
+import Community from '@/features/commerce/Community.vue';
+useHead({ title: 'Mapa' });
 </script>
-<template><MapDirectory /></template>
+<template><Community /></template>

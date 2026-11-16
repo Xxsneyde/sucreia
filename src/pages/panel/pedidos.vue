@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import BusinessOrders from '@/features/business/BusinessOrders.vue';
-useHead({ title: 'Pedidos del negocio' });
+import RequireMerchant from '@/components/RequireMerchant.vue';
+import Merchant from '@/features/commerce/Merchant.vue';
+useHead({ title: 'Mi negocio' });
 </script>
-<template><BusinessOrders /></template>
+<template>
+  <RequireMerchant><Merchant /></RequireMerchant>
+</template>

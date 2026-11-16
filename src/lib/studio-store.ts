@@ -11,6 +11,7 @@ import {
   type StoreProject,
 } from '@/domain/studio';
 import type { Business } from '@/domain/types';
+import { prepareDesignImages } from './images';
 import { api, ApiError } from './api';
 import { useSession } from './session';
 
@@ -48,7 +49,11 @@ async function loadMine() {
     projects.value = [];
     return;
   }
-  projects.value = (await api<{ stores: StoreProject[] }>('GET', '/mis-tiendas')).stores;
+  const accountId = session.user?.id;
+  const result = await api<{ stores: StoreProject[] }>('GET', '/mis-tiendas');
+  // No reponer datos de una cuenta anterior si su respuesta llega después de salir/cambiar.
+  if (session.user?.id !== accountId) return;
+  projects.value = result.stores;
   if (selectedId.value && !projects.value.some((p) => p.id === selectedId.value)) select('');
 }
 
@@ -113,10 +118,16 @@ function save(id: string): Promise<void> {
   const previous = inFlight.get(id) ?? Promise.resolve();
   const request = previous
     .catch(() => {})
-    .then(() =>
-      api<{ store: StoreProject }>('PUT', `/mis-tiendas/${id}`, { design: project.draft }),
+    .then(async () =>
+      api<{ store: StoreProject }>('PUT', `/mis-tiendas/${id}`, {
+        design: await prepareDesignImages(project.draft),
+      }),
     )
-    .then(() => {
+    .then(({ store: saved }) => {
+      // El servidor cambia base64 por archivos. No sobrescribir ediciones más recientes.
+      const current = projects.value.find((p) => p.id === id);
+      if (current && JSON.stringify(current.draft) === JSON.stringify(project.draft))
+        replace(saved);
       if (!pending.size) {
         saveStatus.value = 'saved';
         error.value = '';
@@ -202,10 +213,24 @@ const store = {
   },
   load,
   refresh,
+  async saveBeforeLogout() {
+    await Promise.all([...new Set([...pending.keys(), ...inFlight.keys()])].map((id) => flush(id)));
+    if (saveStatus.value === 'error')
+      throw new Error('Hay cambios sin guardar. Reintenta guardarlos antes de salir.');
+  },
+  clearAccount() {
+    for (const timer of pending.values()) clearTimeout(timer);
+    pending.clear();
+    inFlight.clear();
+    projects.value = [];
+    select('');
+    error.value = '';
+    saveStatus.value = 'saved';
+  },
   select,
   async create(design: StoreDesign): Promise<string> {
     const { store: created } = await api<{ store: StoreProject }>('POST', '/mis-tiendas', {
-      design: clone(design),
+      design: await prepareDesignImages(clone(design)),
     });
     projects.value = [created, ...projects.value];
     select(created.id);
@@ -254,6 +279,7 @@ const store = {
     clearTimeout(pending.get(id));
     pending.delete(id);
     await api('DELETE', `/mis-tiendas/${id}`);
+    inFlight.delete(id);
     projects.value = projects.value.filter((p) => p.id !== id);
     if (selectedId.value === id) select('');
     await loadPublic();

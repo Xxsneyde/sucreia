@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import Dashboard from '@/features/business/Dashboard.vue';
+import RequireMerchant from '@/components/RequireMerchant.vue';
+import Merchant from '@/features/commerce/Merchant.vue';
 useHead({ title: 'Mi negocio' });
 </script>
-<template><Dashboard /></template>
+<template>
+  <RequireMerchant><Merchant /></RequireMerchant>
+</template>

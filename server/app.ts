@@ -1,18 +1,36 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { Db } from './db.ts';
-import { loadUser } from './auth.ts';
+import { ImageStorage } from './images.ts';
+import { imageRoutes } from './routes/images.ts';
+import type { MailTransport } from './mail.ts';
+import { localMailbox } from './account-tokens.ts';
+import { currentUser, loadUser } from './auth.ts';
+import { requiresSession } from '../src/domain/access.ts';
+import { returnTarget } from '../src/domain/navigation.ts';
+import { requiredRole, roleHome } from '../src/domain/roles.ts';
 import { HttpError, errorHandler } from './http.ts';
+import type { CatalogAI } from './catalog-ai.ts';
+import { platformRoutes } from './routes/platform.ts';
 import { authRoutes } from './routes/auth.ts';
 import { ownerStoreRoutes, publicStoreRoutes } from './routes/tiendas.ts';
 
 export interface AppOptions {
   db: Db;
+  imagesDir?: string;
+  assistant?: CatalogAI;
+  mail?: MailTransport;
+  /** Solo para desarrollo local; desactivada por defecto. */
+  localMail?: boolean;
   /** Cookies solo por HTTPS (activar en producción). */
   secureCookies?: boolean;
   /** Carpeta del sitio de Vue compilado (.output/public) para servirlo junto a la API. */
   staticDir?: string;
+  /** Registros permitidos por IP cada 15 minutos (60 por defecto; las pruebas usan más). */
+  registrationLimit?: number;
+  /** Envíos de correo y confirmaciones de enlaces cada 15 minutos (10 por defecto). */
+  linkLimit?: number;
 }
 
 /** Rechaza peticiones que modifican datos si vienen de otro sitio (protección CSRF). */
@@ -24,7 +42,18 @@ function sameOrigin(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-export function createApp({ db, secureCookies = false, staticDir }: AppOptions) {
+export function createApp({
+  db,
+  secureCookies = false,
+  staticDir,
+  localMail = false,
+  mail,
+  assistant,
+  imagesDir = resolve('server/data/images'),
+  registrationLimit,
+  linkLimit,
+}: AppOptions) {
+  if (localMail && mail) throw new Error('Elige correo local o SMTP, no ambos.');
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
@@ -47,9 +76,15 @@ export function createApp({ db, secureCookies = false, staticDir }: AppOptions) 
   api.get('/salud', (_req, res) => {
     res.json({ ok: true });
   });
-  api.use('/auth', authRoutes(db, secureCookies));
+  const mailbox = localMail ? localMailbox() : undefined;
+  if (mailbox)
+    api.get('/desarrollo/correos', (_req, res) => res.json({ messages: mailbox.list() }));
+  const images = new ImageStorage(db, imagesDir);
+  api.use('/plataforma', platformRoutes(db, images, assistant));
+  api.use('/auth', authRoutes(db, secureCookies, mail ?? mailbox, registrationLimit, linkLimit));
   api.use('/tiendas', publicStoreRoutes(db));
-  api.use('/mis-tiendas', ownerStoreRoutes(db));
+  api.use('/imagenes', imageRoutes(images));
+  api.use('/mis-tiendas', ownerStoreRoutes(db, images));
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta de la API no encontrada.')));
   api.use(errorHandler);
   app.use('/api', api);
@@ -61,6 +96,20 @@ export function createApp({ db, secureCookies = false, staticDir }: AppOptions) 
     app.use((req, res, next) => {
       if (req.path.split('/').some((part) => part.startsWith('.'))) res.status(404).end();
       else next();
+    });
+    // Páginas de la plataforma sin sesión: redirigir antes de enviar su HTML. Así el visitante
+    // no ve ni un instante de la página y no hay diferencias de hidratación en el navegador.
+    // Misma lista que el middleware del frontend (src/domain/access.ts).
+    app.use(loadUser(db), (req, res, next) => {
+      if (!['GET', 'HEAD'].includes(req.method) || !requiresSession(req.path)) return next();
+      const user = currentUser(res);
+      // Administración: los demás roles van a su propia vista (misma regla que el frontend).
+      if (user && requiredRole(req.path) === 'admin' && user.role !== 'admin')
+        return res.redirect(302, `${roleHome(user.role)}/`);
+      if (user) return next();
+      const url = new URL(req.originalUrl, 'http://sucreia.local');
+      const volver = returnTarget(url.pathname, url.pathname + url.search);
+      res.redirect(302, `/ingresar/?volver=${encodeURIComponent(volver)}`);
     });
     app.use(express.static(staticDir, { extensions: ['html'], dotfiles: 'allow' }));
     app.use((_req, res) => {
