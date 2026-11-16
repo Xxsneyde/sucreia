@@ -1,27 +1,14 @@
 import type { Business, BusinessMode } from './types.ts';
-export const blockKinds = [
-  'hero',
-  'catalog',
-  'story',
-  'benefits',
-  'gallery',
-  'banner',
-  'faq',
-  'contact',
-] as const;
-export type BlockKind = (typeof blockKinds)[number];
-export type FontName = 'editorial' | 'modern' | 'humanist' | 'classic';
-export interface StoreBlock {
-  id: string;
-  kind: BlockKind;
-  title: string;
-  text: string;
-  image: string;
-  visible: boolean;
-  layout: 'split' | 'center' | 'wide';
-  tone: 'paper' | 'soft' | 'brand';
-  padding: number;
-}
+import {
+  areaFor,
+  fill,
+  styleIds,
+  styles,
+  type AreaDefinition,
+  type Palette,
+  type StyleId,
+} from './designs.ts';
+
 export interface StoreProduct {
   id: string;
   name: string;
@@ -29,8 +16,23 @@ export interface StoreProduct {
   price: number;
   image: string;
 }
+/** Textos e imágenes de la página. Cada estilo los presenta a su manera. */
+export interface StoreContent {
+  heroTitle: string;
+  heroText: string;
+  heroImage: string;
+  catalogTitle: string;
+  catalogText: string;
+  storyTitle: string;
+  storyText: string;
+  storyImage: string;
+  promises: string[];
+  contactTitle: string;
+  contactText: string;
+}
 export interface StoreDesign {
   name: string;
+  /** Área del emprendimiento (ver areas en designs.ts). */
   category: string;
   municipality: string;
   description: string;
@@ -39,13 +41,10 @@ export interface StoreDesign {
   hours: string;
   logo: string;
   mode: BusinessMode;
-  template: string;
-  colors: { primary: string; background: string; text: string; accent: string };
-  font: FontName;
-  radius: number;
-  spacing: number;
+  style: StyleId;
+  colors: Palette;
   products: StoreProduct[];
-  blocks: StoreBlock[];
+  content: StoreContent;
 }
 export interface StoreVersion {
   id: string;
@@ -61,166 +60,82 @@ export interface StoreProject {
   versions: StoreVersion[];
 }
 export interface StudioWorkspace {
-  schema: 1;
+  schema: 2;
   projects: StoreProject[];
   selectedId: string;
   visits: Record<string, number>;
 }
-export const fonts: Record<FontName, { label: string; family: string }> = {
-  editorial: { label: 'Editorial · Georgia', family: 'Georgia, "Times New Roman", serif' },
-  modern: { label: 'Moderna · Arial', family: 'Arial, Helvetica, sans-serif' },
-  humanist: { label: 'Cercana · Trebuchet', family: '"Trebuchet MS", Arial, sans-serif' },
-  classic: { label: 'Clásica · Palatino', family: '"Palatino Linotype", Palatino, Georgia, serif' },
-};
-export const blockLabels: Record<BlockKind, string> = {
-  hero: 'Portada',
-  catalog: 'Catálogo',
-  story: 'Nuestra historia',
-  benefits: 'Beneficios',
-  gallery: 'Galería',
-  banner: 'Anuncio',
-  faq: 'Preguntas frecuentes',
-  contact: 'Contacto',
-};
-export const templates = [
-  {
-    id: 'raices',
-    name: 'Raíces',
-    category: 'Artesanías',
-    mode: 'products' as BusinessMode,
-    theme: 'craft',
-    description: 'Cálido, artesanal y lleno de historia.',
-    colors: { primary: '#385c40', background: '#faf7ef', text: '#2d382a', accent: '#e6dbbd' },
-    font: 'editorial' as FontName,
-  },
-  {
-    id: 'sabor',
-    name: 'A fuego lento',
-    category: 'Gastronomía',
-    mode: 'products' as BusinessMode,
-    theme: 'food',
-    description: 'El sabor entra por los ojos.',
-    colors: { primary: '#ab432f', background: '#fff9ef', text: '#412c23', accent: '#f4cf8b' },
-    font: 'classic' as FontName,
-  },
-  {
-    id: 'alma',
-    name: 'Alma',
-    category: 'Belleza',
-    mode: 'booking' as BusinessMode,
-    theme: 'beauty',
-    description: 'Un espacio delicado para cuidarse.',
-    colors: { primary: '#755063', background: '#fcf6f7', text: '#3f3039', accent: '#e8cbd6' },
-    font: 'editorial' as FontName,
-  },
-  {
-    id: 'pulso',
-    name: 'Pulso',
-    category: 'Servicios',
-    mode: 'quote' as BusinessMode,
-    theme: 'service',
-    description: 'Claro, profesional y al punto.',
-    colors: { primary: '#235c91', background: '#f5f8fc', text: '#203449', accent: '#c5dcf3' },
-    font: 'modern' as FontName,
-  },
-] as const;
-export function createBlock(kind: BlockKind, id = crypto.randomUUID()): StoreBlock {
-  const content: Record<BlockKind, [string, string]> = {
-    hero: [
-      'Hecho con corazón.\nPensado para ti.',
-      'Descubre una selección de nuestra tierra, creada con dedicación y mucho amor.',
-    ],
-    catalog: ['Encuentra tu favorito', 'Piezas especiales para tus días de siempre.'],
-    story: [
-      'Una historia que se teje contigo',
-      'Somos un emprendimiento de Sucre. Creemos en el talento local, en los detalles y en hacer las cosas con el corazón.',
-    ],
-    benefits: [
-      'Lo que nos hace especiales',
-      'Hecho en Sucre\nAtención cercana\nDetalles que importan',
-    ],
-    gallery: ['Así se ve lo que amamos', 'Un vistazo a nuestro universo.'],
-    banner: [
-      'Algo especial te espera',
-      'Conoce nuestras novedades y encuentra tu próximo favorito.',
-    ],
-    faq: [
-      '¿Tienes alguna pregunta?',
-      '¿Cómo puedo comprar?|Elige tus productos y finaliza el pedido en SucreIA.\n¿Dónde están ubicados?|Encuentra nuestra ubicación en la sección de contacto.',
-    ],
-    contact: ['Hablemos', 'Nos encantará ayudarte a encontrar lo que buscas.'],
-  };
+
+/** Textos iniciales de la página según el área, con el nombre y municipio del negocio. */
+export function generateContent(
+  area: AreaDefinition,
+  name: string,
+  municipality: string,
+  description = '',
+): StoreContent {
+  const c = area.copy;
+  const f = (t: string) => fill(t, name, municipality);
+  const art = `/art/${area.theme}.svg`;
   return {
-    id,
-    kind,
-    title: content[kind][0],
-    text: content[kind][1],
-    image: '',
-    visible: true,
-    layout: kind === 'hero' ? 'split' : 'center',
-    tone: kind === 'banner' ? 'brand' : kind === 'hero' || kind === 'story' ? 'soft' : 'paper',
-    padding: 48,
+    heroTitle: f(c.heroTitle),
+    heroText: f(c.heroText),
+    heroImage: art,
+    catalogTitle: f(c.catalogTitle),
+    catalogText: f(c.catalogText),
+    storyTitle: f(c.storyTitle),
+    // La historia propia del emprendedor tiene prioridad sobre el texto de ejemplo.
+    storyText: description.trim() || f(c.storyText),
+    storyImage: art,
+    promises: [...c.promises],
+    contactTitle: f(c.contactTitle),
+    contactText: f(c.contactText),
   };
 }
-export function createDesign(templateId = 'raices', name = 'Mi emprendimiento'): StoreDesign {
-  const t = templates.find((t) => t.id === templateId) ?? templates[0];
-  const names =
-    t.mode === 'booking'
-      ? ['Corte y estilo', 'Tratamiento especial', 'Peinado de ocasión']
-      : t.mode === 'quote'
-        ? ['Mantenimiento', 'Instalación', 'Diagnóstico']
-        : t.theme === 'food'
-          ? ['Torta artesanal', 'Caja de cupcakes', 'Pasabocas surtidos']
-          : ['Bolso de caña flecha', 'Sombrero artesanal', 'Canasto de iraca'];
-  const blocks = (['hero', 'catalog', 'story', 'benefits', 'contact'] as BlockKind[]).map((k) =>
-    createBlock(k),
-  );
-  blocks[0].image = `/art/${t.theme}.svg`;
-  blocks[2].image = `/art/${t.theme}.svg`;
-  if (t.mode === 'booking') {
-    blocks[0].title = 'Un momento\nsolo para ti.';
-    blocks[0].text = 'Bienestar, atención y pequeños rituales para sentirte bien.';
-    blocks[1].title = 'Elige cómo quieres cuidarte';
-  }
-  if (t.mode === 'quote') {
-    blocks[0].title = 'Tu tranquilidad,\nnuestro trabajo.';
-    blocks[0].text = 'Cuéntanos qué necesitas. Preparamos una solución a tu medida.';
-    blocks[1].title = 'Soluciones para tu día a día';
-  }
+
+/** Diseño inicial para un área: datos de ejemplo, primera opción de estilo y textos. */
+export function createDesign(
+  category = 'Artesanías',
+  name = 'Mi emprendimiento',
+  choice = 0,
+): StoreDesign {
+  const area = areaFor(category);
+  const option = area.choices[choice] ?? area.choices[0];
+  const municipality = 'Sincelejo';
   return {
     name,
-    category: t.category,
-    municipality: 'Sincelejo',
-    description: blocks[0].text,
+    category: area.id,
+    municipality,
+    description: '',
     whatsapp: '',
     address: '',
     hours: 'Lunes a sábado · 9:00 a. m. a 6:00 p. m.',
     logo: '',
-    mode: t.mode,
-    template: t.id,
-    colors: { ...t.colors },
-    font: t.font,
-    radius: 16,
-    spacing: 1,
-    products: names.map((n, i) => ({
+    mode: area.mode,
+    style: option.style,
+    colors: { ...option.colors },
+    products: area.products.map((p) => ({
       id: crypto.randomUUID(),
-      name: n,
-      description: 'Personaliza esta descripción y agrega tu propia fotografía.',
-      price: t.mode === 'quote' ? 0 : [85000, 45000, 35000][i],
-      image: `/art/${t.theme}.svg`,
+      name: p.name,
+      description: p.description,
+      price: area.mode === 'quote' ? 0 : p.price,
+      image: `/art/${area.theme}.svg`,
     })),
-    blocks,
+    content: generateContent(area, name, municipality),
   };
 }
-export function moveBlock(blocks: StoreBlock[], id: string, targetId: string): StoreBlock[] {
-  const from = blocks.findIndex((b) => b.id === id);
-  const to = blocks.findIndex((b) => b.id === targetId);
-  if (from < 0 || to < 0 || from === to) return blocks;
-  const result = [...blocks];
-  const [item] = result.splice(from, 1);
-  result.splice(to, 0, item);
-  return result;
+
+/**
+ * Las 3 propuestas de página para el área del negocio. Conservan datos, catálogo y textos
+ * del diseño base; cambian estilo, paleta y tipografía.
+ */
+export function designOptions(base: StoreDesign): StoreDesign[] {
+  return areaFor(base.category).choices.map((c) => ({
+    ...base,
+    style: c.style,
+    colors: { ...c.colors },
+  }));
 }
+
 export function publicationErrors(d: StoreDesign): string[] {
   const errors: string[] = [];
   if (!d.name.trim()) errors.push('Escribe el nombre de tu negocio.');
@@ -228,10 +143,7 @@ export function publicationErrors(d: StoreDesign): string[] {
   if (d.products.length < 3) errors.push('Agrega al menos tres productos o servicios.');
   if (d.products.some((p) => !p.name.trim() || !Number.isFinite(p.price) || p.price < 0))
     errors.push('Revisa los nombres y precios del catálogo.');
-  if (!d.blocks.some((b) => b.kind === 'hero' && b.visible))
-    errors.push('Incluye una portada visible.');
-  if (!d.blocks.some((b) => b.kind === 'catalog' && b.visible))
-    errors.push('Incluye un catálogo visible.');
+  if (!d.content.heroTitle.trim()) errors.push('Escribe el título principal de tu página.');
   if (d.whatsapp && !/^\+?[1-9]\d{9,14}$/.test(d.whatsapp))
     errors.push('El WhatsApp debe incluir código de país y solo números.');
   return errors;
@@ -259,16 +171,16 @@ export function toBusiness(p: StoreProject): Business | null {
     name: d.name,
     category: d.category,
     municipality: d.municipality,
-    description: d.description,
+    description: d.description || d.content.heroText,
     mode: d.mode,
-    theme: templates.find((t) => t.id === d.template)?.theme ?? 'craft',
+    theme: areaFor(d.category).theme,
     verified: false,
     completed365: 0,
     rating: 0,
     whatsapp: d.whatsapp || null,
     products: d.products,
     local: true,
-    cover: d.blocks.find((b) => b.kind === 'hero')?.image,
+    cover: d.content.heroImage,
   };
 }
 export function businessHref(id: string) {
@@ -303,25 +215,30 @@ function record(v: unknown): v is Record<string, unknown> {
 function short(v: unknown, max = 5000): v is string {
   return typeof v === 'string' && v.length <= max;
 }
+function isContent(v: unknown): v is StoreContent {
+  if (!record(v)) return false;
+  return (
+    ['heroTitle', 'catalogTitle', 'storyTitle', 'contactTitle'].every((k) => short(v[k], 300)) &&
+    ['heroText', 'catalogText', 'storyText', 'contactText'].every((k) => short(v[k])) &&
+    validImage(v.heroImage) &&
+    validImage(v.storyImage) &&
+    Array.isArray(v.promises) &&
+    v.promises.length <= 6 &&
+    v.promises.every((p) => short(p, 120))
+  );
+}
 export function isDesign(v: unknown): v is StoreDesign {
   if (
     !record(v) ||
     !['products', 'booking', 'quote'].includes(String(v.mode)) ||
-    !Object.keys(fonts).includes(String(v.font)) ||
+    !styleIds.includes(v.style as StyleId) ||
     !record(v.colors)
   )
     return false;
   if (
-    ![
-      'name',
-      'category',
-      'municipality',
-      'description',
-      'whatsapp',
-      'address',
-      'hours',
-      'template',
-    ].every((k) => short(v[k]))
+    !['name', 'category', 'municipality', 'description', 'whatsapp', 'address', 'hours'].every(
+      (k) => short(v[k]),
+    )
   )
     return false;
   if (
@@ -332,16 +249,7 @@ export function isDesign(v: unknown): v is StoreDesign {
     )
   )
     return false;
-  if (
-    !validImage(v.logo) ||
-    typeof v.radius !== 'number' ||
-    v.radius < 0 ||
-    v.radius > 40 ||
-    typeof v.spacing !== 'number' ||
-    v.spacing < 0.5 ||
-    v.spacing > 2
-  )
-    return false;
+  if (!validImage(v.logo) || !isContent(v.content)) return false;
   if (
     !Array.isArray(v.products) ||
     v.products.length > 60 ||
@@ -359,50 +267,92 @@ export function isDesign(v: unknown): v is StoreDesign {
     )
   )
     return false;
-  if (
-    !Array.isArray(v.blocks) ||
-    v.blocks.length > 40 ||
-    !v.blocks.every(
-      (b) =>
-        record(b) &&
-        short(b.id, 100) &&
-        blockKinds.includes(b.kind as BlockKind) &&
-        short(b.title, 300) &&
-        short(b.text) &&
-        validImage(b.image) &&
-        typeof b.visible === 'boolean' &&
-        ['split', 'center', 'wide'].includes(String(b.layout)) &&
-        ['paper', 'soft', 'brand'].includes(String(b.tone)) &&
-        typeof b.padding === 'number' &&
-        b.padding >= 16 &&
-        b.padding <= 100,
-    )
-  )
-    return false;
-  return (
-    new Set(v.blocks.map((b) => b.id)).size === v.blocks.length &&
-    new Set(v.products.map((p) => p.id)).size === v.products.length
-  );
+  return new Set(v.products.map((p) => p.id)).size === v.products.length;
 }
+
+// --- Migración del formato anterior (editor por bloques, esquema 1) -----------------------
+
+const legacyStyle: Record<string, StyleId> = {
+  raices: 'organico',
+  sabor: 'retro',
+  alma: 'elegante',
+  pulso: 'moderno',
+};
+/**
+ * Convierte un diseño del editor por bloques al formato actual. Si ya está en el formato
+ * actual o no se reconoce, lo devuelve sin cambios (isDesign decide si es válido).
+ */
+export function upgradeDesign(v: unknown): unknown {
+  if (!record(v) || 'content' in v || !Array.isArray(v.blocks)) return v;
+  const blocks = v.blocks.filter(record);
+  const block = (kind: string) => blocks.find((b) => b.kind === kind);
+  const area = areaFor(String(v.category ?? ''));
+  const base = generateContent(area, String(v.name ?? ''), String(v.municipality ?? ''));
+  const text = (b: Record<string, unknown> | undefined, key: string, fallback: string) =>
+    b && typeof b[key] === 'string' && b[key] ? (b[key] as string) : fallback;
+  const benefits = block('benefits');
+  const promises = benefits
+    ? String(benefits.text ?? '')
+        .split('\n')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  const { blocks: _blocks, template, font: _font, radius: _radius, spacing: _spacing, ...rest } = v;
+  return {
+    ...rest,
+    style: legacyStyle[String(template)] ?? area.choices[0].style,
+    content: {
+      heroTitle: text(block('hero'), 'title', base.heroTitle),
+      heroText: text(block('hero'), 'text', base.heroText),
+      heroImage: text(block('hero'), 'image', base.heroImage),
+      catalogTitle: text(block('catalog'), 'title', base.catalogTitle),
+      catalogText: text(block('catalog'), 'text', base.catalogText),
+      storyTitle: text(block('story'), 'title', base.storyTitle),
+      storyText: text(block('story'), 'text', base.storyText),
+      storyImage: text(block('story'), 'image', base.storyImage),
+      promises: promises.length === 3 ? promises : base.promises,
+      contactTitle: text(block('contact'), 'title', base.contactTitle),
+      contactText: text(block('contact'), 'text', base.contactText),
+    },
+  };
+}
+/** Actualiza un espacio guardado con el esquema 1 al esquema 2. */
+export function upgradeWorkspace(v: unknown): unknown {
+  if (!record(v) || v.schema !== 1 || !Array.isArray(v.projects)) return v;
+  const version = (x: unknown) => (record(x) ? { ...x, design: upgradeDesign(x.design) } : x);
+  return {
+    ...v,
+    schema: 2,
+    projects: v.projects.map((p) =>
+      record(p)
+        ? {
+            ...p,
+            draft: upgradeDesign(p.draft),
+            published: p.published === null ? null : version(p.published),
+            versions: Array.isArray(p.versions) ? p.versions.map(version) : p.versions,
+          }
+        : p,
+    ),
+  };
+}
+
 export function parseDesignFile(raw: string): StoreDesign {
   if (raw.length > 12_000_000) throw new Error('El archivo supera el tamaño permitido.');
   const data: unknown = JSON.parse(raw);
-  if (
-    !record(data) ||
-    data.format !== 'sucreia-design' ||
-    data.version !== 1 ||
-    !isDesign(data.design)
-  )
+  if (!record(data) || data.format !== 'sucreia-design' || ![1, 2].includes(Number(data.version)))
     throw new Error('Este archivo no es un diseño válido de SucreIA.');
-  return data.design;
+  const design = upgradeDesign(data.design);
+  if (!isDesign(design)) throw new Error('Este archivo no es un diseño válido de SucreIA.');
+  return design;
 }
 export function designFile(d: StoreDesign) {
-  return JSON.stringify({ format: 'sucreia-design', version: 1, design: d }, null, 2);
+  return JSON.stringify({ format: 'sucreia-design', version: 2, design: d }, null, 2);
 }
 export function isWorkspace(v: unknown): v is StudioWorkspace {
   if (
     !record(v) ||
-    v.schema !== 1 ||
+    v.schema !== 2 ||
     !short(v.selectedId) ||
     !record(v.visits) ||
     !Object.values(v.visits).every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0) ||
@@ -427,3 +377,5 @@ export function isWorkspace(v: unknown): v is StudioWorkspace {
 function isVersion(v: unknown): v is StoreVersion {
   return record(v) && short(v.id, 100) && short(v.at) && isDesign(v.design);
 }
+
+export { styles, type StyleId };

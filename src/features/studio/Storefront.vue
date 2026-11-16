@@ -8,7 +8,7 @@ import type { StoreProduct } from '@/domain/studio';
 import { currency, cartTotal, actionLabel } from '@/domain/rules';
 import EmptyState from '@/components/EmptyState.vue';
 import EditorModal from './EditorModal.vue';
-import FullStore from './FullStore.vue';
+import StorePage from './StorePage.vue';
 
 const props = withDefaults(defineProps<{ preview?: boolean }>(), { preview: false });
 const studio = useStudio();
@@ -43,7 +43,7 @@ const items = computed(() => demo.cart.filter((x) => x.businessId === id.value))
 const count = computed(() => items.value.reduce((n, x) => n + x.quantity, 0));
 const favorite = computed(() => demo.favorites.includes(id.value));
 const scrollToCatalog = () =>
-  document.getElementById('shop-catalog')?.scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('sp-catalogo')?.scrollIntoView({ behavior: 'smooth' });
 
 function productAction(product: StoreProduct) {
   const d = design.value;
@@ -108,9 +108,9 @@ function submit() {
   </EmptyState>
   <div v-else :class="['storefront-page', { 'preview-page': preview }]">
     <header class="storefront-top">
-      <NuxtLink :to="preview ? `/estudio/editor?id=${id}` : '/buscar'">
+      <NuxtLink :to="preview ? `/estudio/gestionar?id=${id}` : '/buscar'">
         <ArrowLeft :size="16" />
-        <span>{{ preview ? 'Volver al editor' : 'SucreIA' }}</span>
+        <span>{{ preview ? 'Volver a mi tienda' : 'SucreIA' }}</span>
       </NuxtLink>
       <span>{{ preview ? 'VISTA PREVIA · BORRADOR' : 'TIENDA LOCAL' }}</span>
       <div>
@@ -131,8 +131,8 @@ function submit() {
               <Smartphone :size="16" />
             </button>
           </div>
-          <NuxtLink :to="`/estudio/editor?id=${id}`">
-            <PenLine :size="16" /><span>Seguir diseñando</span>
+          <NuxtLink :to="`/estudio/gestionar?id=${id}`">
+            <PenLine :size="16" /><span>Editar mi tienda</span>
           </NuxtLink>
         </template>
         <template v-else>
@@ -149,7 +149,7 @@ function submit() {
     </header>
     <h1 class="visually-hidden">{{ preview ? `Vista previa de ${design.name}` : design.name }}</h1>
     <div :class="['storefront-frame', { 'mobile-frame': device === 'mobile' }]">
-      <FullStore :design="design" :on-product="productAction" :on-action="action" />
+      <StorePage :design="design" :on-product="productAction" :on-action="action" />
     </div>
     <div v-if="notice" class="storefront-notice" role="status">
       {{ notice }}

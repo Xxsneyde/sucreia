@@ -24,8 +24,9 @@ Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navega
 
 - Clientes: inicio, filtros de búsqueda, perfiles de negocios, favoritos, carrito, pedidos, solicitudes de cita/cotización y perfil.
 - Negocios: resumen de indicadores, avance de pedidos de demo, listado de productos, perfil, promociones y configuración.
-- Configurador: recorrido por pasos que crea la tienda a partir de una plantilla y abre el editor.
-- Estudio visual (`/estudio`, `/estudio/editor`, `/estudio/vista-previa`): bloques arrastrables, diseño, catálogo, versiones, deshacer/rehacer, exportar e importar. Publica en `/tienda` **solo dentro de este navegador**; no hay servidor ni dominio real.
+- Configurador (`/registro/negocio`): datos del negocio → catálogo → **tres páginas generadas según el área** (artesanías, gastronomía, belleza, servicios, moda, turismo, salud u otro), cada una con su estilo y su tipografía → crear la tienda.
+- Mi tienda (`/estudio/gestionar`): vista previa en escritorio y celular, cambiar entre las tres propuestas, datos, textos, catálogo, versiones y publicación. Publica en `/tienda` **solo dentro de este navegador**; no hay servidor ni dominio real.
+- Estilos disponibles: minimalista, brutalista, editorial, orgánico, elegante, moderno y retro (`src/domain/designs.ts`, CSS en `src/assets/css/plantillas.css`). Las tipografías se sirven desde el propio sitio con `@fontsource`.
 - SucrePuntos, escuela, directorio territorial, entregas y administración: pantallas base con pendientes explícitos.
 - Diseño adaptable a celular; navegación inferior, acciones contextuales y estados de carga/error.
 
@@ -39,7 +40,7 @@ src/
   layouts/     Layout principal (barra lateral y navegación)
   app.vue      Raíz de la app; carga los datos locales al montar
   error.vue    Página 404 y de error
-  assets/css/  Estilos globales y del estudio
+  assets/css/  Estilos globales, del estudio, de las plantillas y tipografías
   components/  Navegación y piezas visuales compartidas
   features/    Funciones agrupadas por módulo y equipo responsable
   domain/      Entidades y reglas de negocio en TypeScript puro (sin Vue)

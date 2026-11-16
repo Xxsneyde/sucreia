@@ -5,7 +5,7 @@
 | Comprobación                            | Resultado                                                      |
 | --------------------------------------- | -------------------------------------------------------------- |
 | `npm run typecheck` (vue-tsc + pruebas) | Sin errores                                                    |
-| `npm test` (dominio + estudio)          | 14/14                                                          |
+| `npm test` (dominio, estudio y diseños) | 20/20, incluye contraste de las 24 paletas                     |
 | `npm run build` (`nuxt generate`)       | Todas las rutas generadas en `.output/public`, incluida la 404 |
 | `npm run test:e2e` × 3 repeticiones     | 36/36 (escritorio y móvil)                                     |
 | `npm run dev`                           | Sin errores de consola ni de hidratación en las rutas          |
@@ -14,7 +14,7 @@
 ## Notas para quien escribe pruebas
 
 - Prefiere localizadores por rol: `getByRole('textbox', { name })`, `getByRole('heading', { level: 1 })`. Son más estables que `getByLabel` o `locator('h1')`.
-- En pantallas de 980 px o menos, el panel de propiedades del editor flota sobre el lienzo. Al tocar un bloque no se abre solo; se abre con el botón «Editar bloque».
+- Cada propuesta de diseño tiene `data-style` (en `.dp-card` y en `.sp`); úsalo para comprobar qué estilo se eligió.
 - El servidor de Python de las pruebas no usa `404.html`; un hosting real sí.
 
 ## Pendiente

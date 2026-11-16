@@ -2,6 +2,7 @@ import { computed, ref, shallowRef } from 'vue';
 import {
   createDesign,
   isWorkspace,
+  upgradeWorkspace,
   publishProject,
   toBusiness,
   type StoreDesign,
@@ -20,7 +21,7 @@ import type { Business } from '@/domain/types';
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
-const empty: StudioWorkspace = { schema: 1, projects: [], selectedId: '', visits: {} };
+const empty: StudioWorkspace = { schema: 2, projects: [], selectedId: '', visits: {} };
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -73,7 +74,9 @@ let loading: Promise<void> | null = null;
 function load() {
   if (typeof window === 'undefined') return Promise.resolve();
   loading ??= readWorkspace()
-    .then((data) => {
+    .then((raw) => {
+      // Los espacios guardados con el editor por bloques (esquema 1) se convierten al formato actual.
+      const data = raw === undefined ? undefined : upgradeWorkspace(raw);
       if (data !== undefined && !isWorkspace(data))
         throw new Error(
           'No se pudo leer el espacio guardado. Exporta tus diseños antes de borrar datos del navegador.',

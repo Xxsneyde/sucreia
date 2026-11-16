@@ -8,65 +8,59 @@ import {
   ShoppingBag,
   CalendarDays,
   MessageSquare,
-  Palette,
   Sparkles,
 } from '@lucide/vue';
 import { useDemo } from '@/lib/demo-store';
 import { useStudio } from '@/lib/studio-store';
 import {
   createDesign,
-  templates,
+  generateContent,
   isDesign,
-  fonts,
+  styles,
   type StoreDesign,
   type StoreProduct,
+  type StyleId,
 } from '@/domain/studio';
+import { areaFor, areaNames } from '@/domain/designs';
 import type { BusinessMode } from '@/domain/types';
 import ImageField from '@/features/studio/ImageField.vue';
 import ProductFields from '@/features/studio/ProductFields.vue';
+import DesignPicker from '@/features/studio/DesignPicker.vue';
+import StorePage from '@/features/studio/StorePage.vue';
 
-const draftKey = 'sucreia:onboarding:v2';
-const steps = ['Tu esencia', 'Tu estilo', 'Tu catálogo', 'Todo listo'];
+const draftKey = 'sucreia:onboarding:v3';
+const steps = ['Tu negocio', 'Tu catálogo', 'Tu diseño', 'Listo'];
 const headings = [
   'Toda gran historia\nempieza contigo.',
-  'Encuentra un estilo\nque hable de ti.',
   'Dales el lugar\nque se merecen.',
-  'Tu idea está lista\npara tomar forma.',
+  'Tres páginas,\nhechas para ti.',
+  'Tu tienda está lista\npara abrir sus puertas.',
 ];
 const intros = [
-  'Cuéntanos qué haces. Nosotros te ayudamos a darle forma.',
-  'Este es tu punto de partida. Podrás cambiar cada detalle en el editor.',
-  'Empieza con tus tres mejores productos o servicios.',
-  'Ahora viene la mejor parte: diseñar tu tienda a tu manera.',
-];
-const categories = [
-  'Artesanías',
-  'Gastronomía',
-  'Belleza',
-  'Servicios',
-  'Moda',
-  'Turismo',
-  'Salud',
-  'Otro',
+  'Cuéntanos a qué te dedicas. Con eso preparamos tu página.',
+  'Empieza con tus tres mejores productos o servicios. Puedes cambiarlos después.',
+  'Diseñamos tres propuestas según tu área. Elige la que más se parezca a tu negocio.',
+  'Revisa el resultado. Podrás cambiar el diseño, los textos y el catálogo cuando quieras.',
 ];
 const modes: { id: BusinessMode; title: string; text: string; icon: typeof ShoppingBag }[] = [
   { id: 'products', title: 'Vendo productos', text: 'Catálogo y pedidos', icon: ShoppingBag },
   { id: 'booking', title: 'Atiendo con citas', text: 'Agenda y reservas', icon: CalendarDays },
-  { id: 'quote', title: 'Hago cotizaciones', text: 'Proyectos a medida', icon: MessageSquare },
+  { id: 'quote', title: 'Hago cotizaciones', text: 'Trabajos a medida', icon: MessageSquare },
 ];
 
 const studio = useStudio();
 const demo = useDemo();
 const router = useRouter();
 // shallowRef: el diseño se reemplaza completo en cada cambio (objetos planos, sin proxies).
-const design = shallowRef<StoreDesign>(createDesign('raices', ''));
+const design = shallowRef<StoreDesign>(createDesign('Artesanías', ''));
 const step = ref(0);
 const ready = ref(false);
 const error = ref('');
 const busy = ref(false);
 const storageError = ref(false);
+// Mientras el catálogo siga siendo el de ejemplo, cambiar de área lo reemplaza.
+const exampleProducts = ref(true);
 
-// Recupera el borrador del configurador cuando la demo ya cargó el navegador.
 watch(
   () => demo.ready,
   (isReady) => {
@@ -75,15 +69,11 @@ watch(
       const raw = localStorage.getItem(draftKey);
       if (raw) {
         const saved: unknown = JSON.parse(raw);
-        if (isDesign(saved)) design.value = saved;
-      } else if (demo.draft.name)
-        design.value = {
-          ...design.value,
-          name: demo.draft.name,
-          description: demo.draft.description,
-          category: demo.draft.category,
-          mode: demo.draft.mode,
-        };
+        if (isDesign(saved)) {
+          design.value = saved;
+          exampleProducts.value = false;
+        }
+      }
     } catch {
       storageError.value = true;
     }
@@ -100,16 +90,30 @@ watch(design, (value) => {
   }
 });
 
-const template = computed(
-  () => templates.find((t) => t.id === design.value.template) ?? templates[0],
-);
 function set(change: Partial<StoreDesign>) {
   design.value = { ...design.value, ...change };
 }
-function chooseTemplate(t: (typeof templates)[number]) {
-  const fresh = createDesign(t.id, design.value.name);
-  set({ template: t.id, colors: { ...t.colors }, font: t.font, blocks: fresh.blocks });
+function setArea(category: string) {
+  const area = areaFor(category);
+  const fresh = createDesign(area.id, design.value.name);
+  set({
+    category: area.id,
+    mode: area.mode,
+    style: fresh.style,
+    colors: fresh.colors,
+    ...(exampleProducts.value ? { products: fresh.products } : {}),
+  });
 }
+function setProducts(products: StoreProduct[]) {
+  exampleProducts.value = false;
+  set({ products });
+}
+function chooseStyle(style: StyleId) {
+  const option = areaFor(design.value.category).choices.find((c) => c.style === style);
+  if (option) set({ style, colors: { ...option.colors } });
+}
+const area = computed(() => areaFor(design.value.category));
+
 function back() {
   step.value -= 1;
   error.value = '';
@@ -117,15 +121,19 @@ function back() {
 function next() {
   const d = design.value;
   error.value = '';
-  if (step.value === 0 && (!d.name.trim() || !d.municipality.trim())) {
-    error.value = 'Cuéntanos el nombre de tu negocio y el municipio.';
-    return;
+  if (step.value === 0) {
+    if (!d.name.trim() || !d.municipality.trim()) {
+      error.value = 'Cuéntanos el nombre de tu negocio y el municipio.';
+      return;
+    }
+    if (d.whatsapp && !/^\+?[1-9]\d{9,14}$/.test(d.whatsapp)) {
+      error.value = 'Escribe el WhatsApp con código de país, por ejemplo +57 seguido de tu número.';
+      return;
+    }
+    // Los textos de la página se generan con los datos del negocio.
+    set({ content: generateContent(area.value, d.name, d.municipality, d.description) });
   }
-  if (step.value === 0 && d.whatsapp && !/^\+?[1-9]\d{9,14}$/.test(d.whatsapp)) {
-    error.value = 'Escribe el WhatsApp con código de país, por ejemplo +57 seguido de tu número.';
-    return;
-  }
-  if (step.value === 2 && (d.products.length < 3 || d.products.some((p) => !p.name.trim()))) {
+  if (step.value === 1 && (d.products.length < 3 || d.products.some((p) => !p.name.trim()))) {
     error.value = 'Agrega al menos tres ofertas con nombre para empezar.';
     return;
   }
@@ -136,8 +144,9 @@ function next() {
   }
   busy.value = true;
   try {
-    const id = studio.create(d);
-    router.push(`/estudio/editor?id=${id}`);
+    const id = studio.create(design.value);
+    localStorage.removeItem(draftKey);
+    router.push(`/estudio/gestionar?id=${id}`);
   } catch (e) {
     error.value = (e as Error).message;
     busy.value = false;
@@ -150,7 +159,7 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
   <div class="onboarding-flow">
     <div class="onboarding-top">
       <NuxtLink class="back-link" to="/estudio"><ArrowLeft :size="15" /> Mis tiendas</NuxtLink>
-      <span>DE UNA IDEA A TU PROPIO ESPACIO</span>
+      <span>DE UNA IDEA A TU PROPIA TIENDA</span>
     </div>
     <div class="onboarding-heading">
       <span class="studio-eyebrow">TU PRÓXIMO GRAN PASO</span>
@@ -170,8 +179,9 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
         <strong>{{ label }}</strong>
       </div>
     </nav>
-    <div class="onboarding-layout">
+    <div :class="['onboarding-layout', { wide: step >= 2 }]">
       <section class="onboarding-sheet">
+        <!-- 1. Tu negocio -->
         <div v-if="step === 0" class="studio-form">
           <label>
             Nombre del negocio
@@ -186,9 +196,9 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
           </label>
           <div class="form-two">
             <label>
-              Categoría
-              <select :value="design.category" @change="set({ category: value($event) })">
-                <option v-for="x in categories" :key="x">{{ x }}</option>
+              ¿A qué se dedica tu negocio?
+              <select :value="design.category" @change="setArea(value($event))">
+                <option v-for="x in areaNames" :key="x">{{ x }}</option>
               </select>
             </label>
             <label>
@@ -203,6 +213,7 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
           </div>
           <label>
             La historia de tu negocio
+            <span class="field-help">Opcional · aparecerá en la sección «Nosotros»</span>
             <textarea
               placeholder="¿Qué haces y qué te hace especial?"
               maxlength="1000"
@@ -225,97 +236,83 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
               <span>{{ m.text }}</span>
             </button>
           </div>
-          <label>
-            WhatsApp del negocio
-            <span class="field-help">Opcional · puedes agregarlo después</span>
-            <input
-              type="tel"
-              placeholder="+57…"
-              maxlength="16"
-              :value="design.whatsapp"
-              @input="
-                ($event.target as HTMLInputElement).value = value($event).replace(/[^+\d]/g, '');
-                set({ whatsapp: value($event) });
-              "
-            />
-          </label>
-        </div>
-        <div v-else-if="step === 1">
-          <div class="template-picker">
-            <button
-              v-for="t in templates"
-              :key="t.id"
-              type="button"
-              :class="['template-choice', { selected: design.template === t.id }]"
-              @click="chooseTemplate(t)"
-            >
-              <div
-                class="template-preview"
-                :style="{ background: t.colors.background, color: t.colors.text }"
-              >
-                <span class="template-preview-nav">{{ design.name || 'Tu marca' }}<i /></span>
-                <div class="template-preview-hero" :style="{ background: t.colors.accent }">
-                  <div :style="{ fontFamily: fonts[t.font].family }">
-                    Lo que amas,<br />más cerca.
-                    <i :style="{ background: t.colors.primary }" />
-                  </div>
-                  <img :src="`/art/${t.theme}.svg`" alt="" />
-                </div>
-                <div class="template-preview-products">
-                  <i v-for="i in 3" :key="i" :style="{ background: t.colors.accent }" />
-                </div>
-              </div>
-              <div class="template-choice-caption">
-                <div>
-                  <strong>{{ t.name }}</strong>
-                  <span>{{ t.category }}</span>
-                </div>
-                <span class="template-check">
-                  <Check v-if="design.template === t.id" :size="15" />
-                </span>
-              </div>
-            </button>
+          <div class="form-two">
+            <label>
+              WhatsApp del negocio
+              <span class="field-help">Opcional · genera confianza</span>
+              <input
+                type="tel"
+                placeholder="+57…"
+                maxlength="16"
+                :value="design.whatsapp"
+                @input="
+                  ($event.target as HTMLInputElement).value = value($event).replace(/[^+\d]/g, '');
+                  set({ whatsapp: value($event) });
+                "
+              />
+            </label>
+            <label>
+              Dirección
+              <span class="field-help">Opcional</span>
+              <input
+                maxlength="160"
+                placeholder="Ej. Calle 20 # 18-35, Centro"
+                :value="design.address"
+                @input="set({ address: value($event) })"
+              />
+            </label>
           </div>
-          <div class="studio-form">
-            <ImageField
-              label="Tu logo (opcional)"
-              :model-value="design.logo"
-              @update:model-value="(logo: string) => set({ logo })"
-            />
-          </div>
-        </div>
-        <template v-else-if="step === 2">
-          <p class="field-help">
-            Incluimos ejemplos para ayudarte a comenzar. Reemplázalos por tus propias ofertas,
-            fotografías y precios.
-          </p>
-          <ProductFields
-            :mode="design.mode"
-            :products="design.products"
-            @update="(products: StoreProduct[]) => set({ products })"
+          <ImageField
+            label="Tu logo (opcional)"
+            :model-value="design.logo"
+            @update:model-value="(logo: string) => set({ logo })"
           />
+        </div>
+
+        <!-- 2. Tu catálogo -->
+        <template v-else-if="step === 1">
+          <p class="field-help">
+            Incluimos ejemplos de {{ design.category.toLowerCase() }} para ayudarte a comenzar.
+            Reemplázalos por tus propias ofertas, fotografías y precios.
+          </p>
+          <ProductFields :mode="design.mode" :products="design.products" @update="setProducts" />
         </template>
-        <div v-else class="onboarding-summary">
-          <div class="summary-star"><Sparkles :size="38" /></div>
-          <h2>{{ design.name }}</h2>
-          <p>{{ design.description }}</p>
-          <div class="summary-checks">
-            <span><Check :size="16" /> {{ design.category }} · {{ design.municipality }}</span>
-            <span><Check :size="16" /> Plantilla {{ template.name }}</span>
-            <span><Check :size="16" /> {{ design.products.length }} ofertas para comenzar</span>
-            <span><Check :size="16" /> Editable en celular y escritorio</span>
+
+        <!-- 3. Tu diseño -->
+        <DesignPicker
+          v-else-if="step === 2"
+          :base="design"
+          :model-value="design.style"
+          @update:model-value="chooseStyle"
+        />
+
+        <!-- 4. Listo -->
+        <div v-else class="onboarding-ready">
+          <div class="onboarding-ready-preview" aria-hidden="true">
+            <StorePage :design="design" :interactive="false" />
           </div>
-          <div class="studio-tip">
-            <Palette :size="20" />
-            <p>
-              En el editor podrás arrastrar bloques, escribir tus textos, cambiar colores y ver tu
-              tienda en tiempo real.
+          <div class="onboarding-summary">
+            <div class="summary-star"><Sparkles :size="34" /></div>
+            <h2>{{ design.name }}</h2>
+            <div class="summary-checks">
+              <span><Check :size="16" /> {{ design.category }} · {{ design.municipality }}</span>
+              <span>
+                <Check :size="16" /> Diseño {{ styles[design.style].name.toLowerCase() }} ·
+                {{ styles[design.style].fonts.label }}
+              </span>
+              <span><Check :size="16" /> {{ design.products.length }} ofertas para comenzar</span>
+              <span><Check :size="16" /> Se adapta a celular y computador</span>
+            </div>
+            <p class="field-help">
+              Se crea como borrador. Desde «Mi tienda» la publicas y puedes cambiar el diseño cuando
+              quieras.
             </p>
           </div>
         </div>
+
         <p v-if="error" role="alert" class="field-error">{{ error }}</p>
         <p v-if="storageError" role="status" class="field-error">
-          No se pudo guardar este paso en el navegador. Evita recargar hasta abrir el editor.
+          No se pudo guardar este paso en el navegador. Evita recargar hasta crear tu tienda.
         </p>
         <div class="onboarding-actions">
           <button v-if="step > 0" class="studio-text-button" @click="back">
@@ -323,23 +320,31 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
           </button>
           <span v-else>Sin conocimientos de diseño.</span>
           <button class="studio-primary" :disabled="!ready || !studio.ready || busy" @click="next">
-            {{ busy ? 'Creando tu espacio…' : step === 3 ? 'Abrir mi editor visual' : 'Continuar' }}
+            {{
+              busy
+                ? 'Creando tu tienda…'
+                : step === 3
+                  ? 'Crear mi tienda'
+                  : step === 2
+                    ? `Continuar con ${styles[design.style].name}`
+                    : 'Continuar'
+            }}
             <ArrowRight :size="16" />
           </button>
         </div>
       </section>
-      <aside class="onboarding-aside">
+      <aside v-if="step < 2" class="onboarding-aside">
         <div
           class="onboarding-poster"
-          :style="{ background: template.colors.accent, color: template.colors.primary }"
+          :style="{ background: design.colors.accent, color: design.colors.primary }"
         >
           <span>IMAGÍNALO.<br />CRÉALO.<br /><em>Hazlo tuyo.</em></span>
-          <img :src="`/art/${template.theme}.svg`" alt="" />
+          <img :src="`/art/${area.theme}.svg`" alt="" />
           <small>EL TALENTO DE SUCRE TIENE SU PROPIO LUGAR.</small>
         </div>
         <p>
-          <span>✦</span> Tu creatividad pone la idea.<br />
-          Nosotros ponemos las herramientas.
+          <span>✦</span> Tú pones la idea.<br />
+          Nosotros diseñamos la página.
         </p>
       </aside>
     </div>

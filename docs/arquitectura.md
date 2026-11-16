@@ -28,13 +28,15 @@ Autenticación y autorización se implementarán en servidor. No publicar endpoi
 
 La generación estática actual (`nuxt generate`) no ejecuta API. Para el backend en Node.js hay dos caminos: rutas de servidor de Nuxt en `server/api` servidas con `nuxt build` y `node .output/server/index.mjs`, o una API Node independiente (por ejemplo Express o Fastify) y el frontend estático. Es una decisión pendiente del equipo.
 
-## Configurador: siguiente entrega
+## Configurador y diseños por área
 
-1. Recolección progresiva de identidad, actividad, modalidades y contactos.
-2. Validación y carga de logo y al menos tres ofertas.
-3. Reglas que seleccionen una plantilla base según actividad y modalidad.
-4. Tokens visuales editables, composición responsive y vista previa.
-5. Guardar borrador, revisar y publicar una versión.
-6. Permitir actualizar la vitrina conservando pedidos e identificadores.
+1. El emprendedor indica nombre, área, municipio, forma de atención e historia; luego su catálogo.
+2. `src/domain/designs.ts` define 7 estilos (minimalista, brutalista, editorial, orgánico, elegante, moderno y retro) y, para cada área, 3 propuestas: estilo + paleta + tipografía, además de textos sugeridos con el nombre y el municipio.
+3. `designOptions()` genera las 3 páginas con los datos reales del negocio; el emprendedor ve miniaturas y la vista completa (escritorio y celular) y elige una.
+4. La página tiene una estructura fija (portada, catálogo, historia, pasos para comprar, contacto) dibujada por `StorePage.vue`; cada estilo cambia composición y detalles en `plantillas.css`. No hay editor por bloques.
+5. «Mi tienda» permite cambiar de propuesta, editar datos, textos y catálogo, publicar y restaurar versiones.
+6. Los espacios guardados con el editor anterior (esquema 1) se convierten con `upgradeWorkspace()`.
 
-La IA puede sugerir contenido y estilo después de establecer las reglas. No debe inventar precios, disponibilidad, sellos, reputación ni ofertas. El propietario revisa antes de publicar.
+Para agregar un estilo: añadirlo en `styleIds`/`styles`, escribir su bloque `.sp--<estilo>` en `plantillas.css` y usarlo en las `choices` de alguna área. Las pruebas exigen que cada paleta tenga contraste 4,5 o más y que cada área ofrezca 3 estilos distintos.
+
+Los textos de confianza son compromisos que el propio negocio puede cumplir. No se generan reseñas, calificaciones ni sellos. La IA podrá sugerir textos más adelante, siempre con revisión del propietario y sin inventar precios, disponibilidad ni reputación.

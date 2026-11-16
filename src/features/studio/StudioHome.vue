@@ -13,14 +13,8 @@ import {
   Download,
 } from '@lucide/vue';
 import { useStudio } from '@/lib/studio-store';
-import {
-  templates,
-  createDesign,
-  parseDesignFile,
-  designFile,
-  fonts,
-  type StoreDesign,
-} from '@/domain/studio';
+import { parseDesignFile, designFile, styles } from '@/domain/studio';
+import { areas, styleIds } from '@/domain/designs';
 import { downloadFile } from './files';
 import EditorModal from './EditorModal.vue';
 
@@ -32,7 +26,7 @@ const deleteId = ref('');
 
 function open(create: () => string) {
   try {
-    router.push(`/estudio/editor?id=${create()}`);
+    router.push(`/estudio/gestionar?id=${create()}`);
   } catch (e) {
     message.value = (e as Error).message;
   }
@@ -54,7 +48,15 @@ function remove() {
   studio.remove(deleteId.value);
   deleteId.value = '';
 }
-const hero = (d: StoreDesign) => d.blocks.find((b) => b.kind === 'hero');
+// Muestra de cada estilo con la paleta de la primera área que lo usa.
+const showcase = styleIds.map((id) => {
+  const area = areas.find((a) => a.choices.some((c) => c.style === id))!;
+  return {
+    style: styles[id],
+    area: area.id,
+    colors: area.choices.find((c) => c.style === id)!.colors,
+  };
+});
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 </script>
@@ -76,8 +78,8 @@ const shortDate = (iso: string) =>
         <span class="studio-badge"><Sparkles :size="13" /> PRESENTAMOS ESTUDIO SUCREIA</span>
         <h2>Tu imaginación.<br />Tu próxima tienda.</h2>
         <p>
-          Arrastra bloques, encuentra tus colores y diseña una experiencia que se sienta tan única
-          como tu negocio.
+          Cuéntanos a qué te dedicas y te mostramos tres páginas listas, cada una con su estilo y su
+          tipografía. Tú eliges la que más se parece a tu negocio.
         </p>
         <NuxtLink to="/registro/negocio">Empieza a crear <ArrowUpRight :size="17" /></NuxtLink>
       </div>
@@ -125,15 +127,15 @@ const shortDate = (iso: string) =>
       <article v-for="p in studio.projects" :key="p.id" class="studio-project">
         <NuxtLink
           class="project-preview"
-          :to="`/estudio/editor?id=${p.id}`"
+          :to="`/estudio/gestionar?id=${p.id}`"
           :style="{ background: p.draft.colors.background, color: p.draft.colors.text }"
         >
           <span>{{ p.draft.name }}</span>
           <div :style="{ background: p.draft.colors.accent }">
-            <h3 :style="{ fontFamily: fonts[p.draft.font].family }">
-              {{ hero(p.draft)?.title || p.draft.name }}
+            <h3 :style="{ fontFamily: styles[p.draft.style].fonts.heading }">
+              {{ p.draft.content.heroTitle || p.draft.name }}
             </h3>
-            <img :src="hero(p.draft)?.image || '/art/craft.svg'" alt="" />
+            <img :src="p.draft.content.heroImage || '/art/craft.svg'" alt="" />
           </div>
           <section>
             <i
@@ -174,7 +176,7 @@ const shortDate = (iso: string) =>
           <NuxtLink v-if="p.published" :to="`/tienda?id=${p.id}`">
             Visitar tienda <ArrowUpRight :size="14" />
           </NuxtLink>
-          <NuxtLink v-else :to="`/estudio/editor?id=${p.id}`">Seguir creando →</NuxtLink>
+          <NuxtLink v-else :to="`/estudio/gestionar?id=${p.id}`">Seguir creando →</NuxtLink>
         </div>
       </article>
       <NuxtLink class="new-project-tile" to="/registro/negocio">
@@ -185,28 +187,23 @@ const shortDate = (iso: string) =>
     </div>
     <div class="studio-section-title">
       <div>
-        <h2>Un buen punto de partida</h2>
-        <p>Plantillas listas para convertirse en algo tuyo.</p>
+        <h2>Siete estilos, tres para ti</h2>
+        <p>Según tu área te proponemos los tres que mejor le quedan a tu negocio.</p>
       </div>
-      <span class="studio-small-tag">100% personalizables</span>
+      <span class="studio-small-tag">Con tipografía propia</span>
     </div>
     <div class="studio-template-grid">
-      <button
-        v-for="t in templates"
-        :key="t.id"
-        :disabled="!studio.ready"
-        @click="open(() => studio.create(createDesign(t.id, `${t.name} · mi tienda`)))"
-      >
-        <div :style="{ background: t.colors.accent, color: t.colors.primary }">
-          <span :style="{ fontFamily: fonts[t.font].family }">Aa</span>
-          <img :src="`/art/${t.theme}.svg`" alt="" />
+      <NuxtLink v-for="s in showcase" :key="s.style.id" to="/registro/negocio">
+        <div :style="{ background: s.colors.accent, color: s.colors.primary }">
+          <span :style="{ fontFamily: s.style.fonts.heading }">Aa</span>
+          <small>{{ s.style.fonts.label }}</small>
         </div>
         <section>
-          <strong>{{ t.name }}</strong>
+          <strong>{{ s.style.name }}</strong>
           <ArrowUpRight :size="15" />
         </section>
-        <p>{{ t.description }}</p>
-      </button>
+        <p>{{ s.style.description }}</p>
+      </NuxtLink>
     </div>
     <EditorModal v-if="deleteId" title="¿Eliminar esta tienda?" @close="deleteId = ''">
       <p>

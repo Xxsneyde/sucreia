@@ -59,7 +59,7 @@ const stepLabel = (status: string) => orderSteps.find((s) => s.status === status
     <div>
       <span class="studio-eyebrow">TU MARCA, TU ESPACIO</span>
       <h2>Diseña algo que se sienta tuyo.</h2>
-      <p>Tu editor visual y tus tiendas, en un solo lugar.</p>
+      <p>Tres diseños hechos para tu área. Tú eliges.</p>
     </div>
     <NuxtLink class="studio-primary" to="/estudio">Abrir mi estudio →</NuxtLink>
   </div>
@@ -111,6 +111,6 @@ const stepLabel = (status: string) => orderSteps.find((s) => s.status === status
       <h2>Dale personalidad a tu vitrina.</h2>
       <p>Comienza con la configuración de tu negocio.</p>
     </div>
-    <NuxtLink class="button secondary" to="/estudio">Abrir editor visual →</NuxtLink>
+    <NuxtLink class="button secondary" to="/estudio">Abrir mi tienda →</NuxtLink>
   </section>
 </template>

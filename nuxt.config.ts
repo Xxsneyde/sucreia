@@ -6,7 +6,12 @@ export default defineNuxtConfig({
   ssr: true,
   devtools: { enabled: false },
   telemetry: false,
-  css: ['@/assets/css/globals.css', '@/assets/css/studio.css'],
+  css: [
+    '@/assets/css/fonts.css',
+    '@/assets/css/globals.css',
+    '@/assets/css/studio.css',
+    '@/assets/css/plantillas.css',
+  ],
   app: {
     head: {
       htmlAttrs: { lang: 'es' },
@@ -24,7 +29,7 @@ export default defineNuxtConfig({
   nitro: {
     prerender: {
       crawlLinks: true,
-      routes: ['/', '/estudio/editor/', '/estudio/vista-previa/', '/tienda/'],
+      routes: ['/', '/estudio/gestionar/', '/estudio/vista-previa/', '/tienda/'],
       autoSubfolderIndex: true,
     },
   },
