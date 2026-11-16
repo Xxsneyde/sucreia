@@ -1,6 +1,6 @@
 # SucreIA
 
-Base web del ecosistema de emprendimientos de Sucre. Versión **0.3.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo. Hecho con **Vue 3 + Nuxt 4 (Node.js) + TypeScript**.
+Base web del ecosistema de emprendimientos de Sucre. Versión **0.3.0**, esqueleto navegable con estudio visual local para desarrollo colaborativo. Frontend con **Vue 3 + Nuxt 4** y backend con **Node.js + Express**, todo en TypeScript.
 
 ## Iniciar
 
@@ -8,13 +8,14 @@ Necesitas Node.js 24 LTS y npm.
 
 ```bash
 npm ci
-npm run dev
+npm run dev:api   # Terminal 1: API de Node.js + Express en http://127.0.0.1:4000/api
+npm run dev       # Terminal 2: sitio de Vue en http://127.0.0.1:3000 (reenvía /api a la API)
 ```
 
-Abre http://127.0.0.1:3000. No necesitas claves ni servicios externos para esta demo.
+Abre http://127.0.0.1:3000. No necesitas claves ni servicios externos: la base de datos es SQLite incluida en Node (`server/data/`). Producción: `npm run build && npm start` (API y sitio en el mismo servidor). Detalle de rutas en [docs/api.md](docs/api.md).
 
 ```bash
-npm run check     # TypeScript + pruebas de dominio + compilación
+npm run check     # TypeScript + pruebas (dominio y API) + compilación
 npm run test:e2e  # Con .output/public generado y Chromium de Playwright instalado
 ```
 
@@ -47,7 +48,8 @@ src/
   data/        Datos ficticios
   lib/         Stores (estado compartido) y adaptadores de almacenamiento local
 public/art/    Ilustraciones SVG propias, sin descargas externas
-tests/         Pruebas de reglas y recorridos de navegador
+server/        API de Node.js + Express (rutas, cuentas, base de datos SQLite)
+tests/         Pruebas de reglas, de la API y recorridos de navegador
 docs/          Arquitectura, tareas y contratos para el equipo
 .github/       CI y plantillas de issues/pull requests
 ```

@@ -71,7 +71,7 @@ const modules = [
         La arquitectura, los contratos de datos y las tareas propuestas están documentados en el
         repositorio.
       </p>
-      <span class="tag">Vue 3 · TypeScript · Nuxt · Node.js</span>
+      <span class="tag">Vue 3 · Nuxt · Node.js · Express · TypeScript</span>
     </section>
   </div>
 </template>
