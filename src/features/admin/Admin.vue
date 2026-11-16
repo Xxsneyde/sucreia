@@ -58,7 +58,7 @@ function unpublish() {
               }}
             </td>
             <td>
-              <NuxtLink class="text-button" :to="`/estudio/editor?id=${p.id}`">Revisar</NuxtLink>
+              <NuxtLink class="text-button" :to="`/estudio/gestionar?id=${p.id}`">Revisar</NuxtLink>
               <button v-if="p.published" class="text-button danger" @click="remove = p.id">
                 Retirar publicación
               </button>

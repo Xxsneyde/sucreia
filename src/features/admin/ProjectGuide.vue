@@ -4,8 +4,16 @@ const modules = [
   ['Catálogo y búsqueda', 'Navegable con filtros', 'features/marketplace'],
   ['Carrito y pedidos', 'Flujo local de demostración', 'features/orders'],
   ['Panel del negocio', 'Indicadores y cambios de estado de demo', 'features/business'],
-  ['Configurador de negocios', 'Recorrido por pasos que crea la tienda', 'features/onboarding'],
-  ['Estudio visual', 'Editor, vista previa, versiones y tienda local', 'features/studio'],
+  [
+    'Configurador de negocios',
+    'Elección entre 7 estilos (3 recomendados por área)',
+    'features/onboarding',
+  ],
+  [
+    'Estudio visual',
+    'Mi tienda: diseños, textos, versiones y publicación local',
+    'features/studio',
+  ],
   ['SucrePuntos', 'Pantalla base; reglas y canje pendientes', 'features/rewards'],
   ['Autenticación y perfil', 'Accesos de demo; autenticación pendiente', 'features/account'],
   [

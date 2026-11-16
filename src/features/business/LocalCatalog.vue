@@ -34,8 +34,8 @@ function save(products: StoreProduct[]) {
     </div>
     <div class="notice">
       Los cambios se guardan como borrador.
-      <NuxtLink :to="`/estudio/editor?id=${project.id}`"
-        >Abre el editor para publicarlos →</NuxtLink
+      <NuxtLink :to="`/estudio/gestionar?id=${project.id}`"
+        >Publícalos desde «Mi tienda» →</NuxtLink
       >
     </div>
   </template>

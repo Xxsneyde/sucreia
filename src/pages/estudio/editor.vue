@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import Editor from '@/features/studio/Editor.vue';
-definePageMeta({ layout: false });
-useHead({ title: 'Editor visual' });
+// El editor por bloques se reemplazó por «Mi tienda». Se conserva la ruta para enlaces antiguos.
+const route = useRoute();
+await navigateTo({ path: '/estudio/gestionar', query: route.query }, { replace: true });
 </script>
-<template><Editor /></template>
+<template><div /></template>

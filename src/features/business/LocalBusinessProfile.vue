@@ -44,8 +44,8 @@ function set(change: Partial<StoreDesign>) {
         @input="set({ [key]: ($event.target as HTMLInputElement).value })"
       />
     </label>
-    <NuxtLink class="studio-primary" :to="`/estudio/editor?id=${project.id}`">
-      Diseñar y publicar mi tienda →
+    <NuxtLink class="studio-primary" :to="`/estudio/gestionar?id=${project.id}`">
+      Ver y publicar mi tienda →
     </NuxtLink>
   </section>
   <EmptyState
@@ -54,6 +54,6 @@ function set(change: Partial<StoreDesign>) {
     href="/registro/negocio"
     label="Configurar negocio"
   >
-    Prepara tu identidad y abre tu propio editor visual.
+    Cuéntanos a qué te dedicas y te mostramos tu página en siete estilos.
   </EmptyState>
 </template>

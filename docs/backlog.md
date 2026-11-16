@@ -14,11 +14,11 @@ Cada bloque se puede convertir en un issue con la plantilla disponible.
 
 - [ ] Datos personales y cuenta vinculada al negocio.
 - [ ] Datos mínimos de negocio, municipio y WhatsApp validado.
-- [x] Logo y tres ofertas: subida, validación y edición. _(solo local, en el estudio visual; falta servidor)_
-- [ ] Motor de plantillas por actividad y modalidad.
-- [x] Estilos, colores y distribución visual con accesibilidad móvil. _(solo local, en el estudio visual; falta servidor)_
-- [x] Vista previa, borrador persistente y publicación con versión. _(solo local, en el estudio visual; falta servidor)_
-- [x] Reabrir y editar el negocio sin perder configuración. _(solo local, en el estudio visual; falta servidor)_
+- [x] Logo y tres ofertas: subida, validación y edición. _(solo local; falta servidor)_
+- [x] Motor de plantillas por actividad y modalidad. _(3 diseños por área con estilo y tipografía propios; solo local)_
+- [x] Estilos, colores y distribución visual con accesibilidad móvil. _(solo local; falta servidor)_
+- [x] Vista previa, borrador persistente y publicación con versión. _(solo local; falta servidor)_
+- [x] Reabrir y editar el negocio sin perder configuración. _(solo local; falta servidor)_
 
 ## P1 · Servicios centrales
 
