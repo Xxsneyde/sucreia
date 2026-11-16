@@ -16,17 +16,19 @@ Abre http://127.0.0.1:3000. No necesitas claves ni servicios externos: la base d
 
 ```bash
 npm run check     # TypeScript + pruebas (dominio y API) + compilación
-npm run test:e2e  # Con .output/public generado y Chromium de Playwright instalado
+npm run test:e2e  # Después de npm run build; usa Express con base de datos en memoria
 ```
 
-Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador sirven `.output/public` mediante Python 3. `npm run build` (`nuxt generate`) genera el sitio estático en `.output/public`.
+Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador arrancan el servidor real de Express (`npm start`) con una base de datos en memoria, así que primero hay que ejecutar `npm run build`.
 
 ## Alcance
 
+- Cuentas: crear cuenta, ingresar y salir (`/ingresar`). El estudio y «Mi tienda» piden una cuenta de emprendedor; el configurador se puede llenar sin cuenta y la pide al final, sin perder lo escrito.
+- Las tiendas se guardan en el servidor: al publicarlas, **cualquier persona** las ve en el catálogo y en `/tienda?id=…`. Las tiendas guardadas solo en el navegador con versiones anteriores se pueden subir a la cuenta desde el estudio.
 - Clientes: inicio, filtros de búsqueda, perfiles de negocios, favoritos, carrito, pedidos, solicitudes de cita/cotización y perfil.
 - Negocios: resumen de indicadores, avance de pedidos de demo, listado de productos, perfil, promociones y configuración.
 - Configurador (`/registro/negocio`): datos del negocio → catálogo → **su página en los 7 estilos, con los 3 recomendados para su área primero** (artesanías, gastronomía, belleza, servicios, moda, turismo, salud u otro), cada una con su estilo y su tipografía → crear la tienda.
-- Mi tienda (`/estudio/gestionar`): vista previa en escritorio y celular, cambiar de estilo, datos, textos, catálogo, versiones y publicación. Publica en `/tienda` **solo dentro de este navegador**; no hay servidor ni dominio real.
+- Mi tienda (`/estudio/gestionar`): vista previa en escritorio y celular, cambiar de estilo, datos, textos, catálogo, versiones y publicación. Publica en `/tienda` a través de la API.
 - Estilos disponibles: minimalista, brutalista, editorial, orgánico, elegante, moderno y retro (`src/domain/designs.ts`, CSS en `src/assets/css/plantillas.css`). Las tipografías se sirven desde el propio sitio con `@fontsource`.
 - SucrePuntos, escuela, directorio territorial, entregas y administración: pantallas base con pendientes explícitos.
 - Diseño adaptable a celular; navegación inferior, acciones contextuales y estados de carga/error.

@@ -22,7 +22,7 @@ Cada bloque se puede convertir en un issue con la plantilla disponible.
 
 ## P1 · Servicios centrales
 
-- [x] Autenticación, roles y aislamiento por negocio. _(API Express; falta conectar el frontend)_
+- [x] Autenticación, roles y aislamiento por negocio. _(API Express + pantallas de cuenta)_
 - [ ] Catálogo e inventario persistentes.
 - [ ] Pedidos, reservas y cotizaciones con estados propios.
 - [ ] Validación de precios y disponibilidad en servidor.

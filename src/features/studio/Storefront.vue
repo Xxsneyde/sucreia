@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ArrowLeft, ShoppingBag, Heart, Smartphone, Monitor, PenLine, Check } from '@lucide/vue';
 import { useStudio } from '@/lib/studio-store';
 import { useDemo } from '@/lib/demo-store';
-import type { StoreProduct } from '@/domain/studio';
+import type { StoreDesign, StoreProduct } from '@/domain/studio';
+import { api, ApiError } from '@/lib/api';
 import { currency, cartTotal, actionLabel } from '@/domain/rules';
 import EmptyState from '@/components/EmptyState.vue';
 import EditorModal from './EditorModal.vue';
@@ -15,25 +16,37 @@ const studio = useStudio();
 const demo = useDemo();
 const route = useRoute();
 const id = computed(() => (route.query.id as string | undefined) ?? studio.selectedId);
+// Vista previa: el borrador de la tienda propia. Tienda pública: la versión publicada que
+// entrega la API, visible para cualquier persona.
 const project = computed(() => studio.projects.find((p) => p.id === id.value));
-const design = computed(() =>
-  props.preview ? project.value?.draft : project.value?.published?.design,
-);
+const published = shallowRef<StoreDesign | null>(null);
+const loadingPublic = ref(!props.preview);
+const loadError = ref('');
+const design = computed(() => (props.preview ? project.value?.draft : published.value));
+const ready = computed(() => (props.preview ? studio.ready : !loadingPublic.value));
 const device = ref<'desktop' | 'mobile'>('desktop');
 const notice = ref('');
 const detail = ref('');
 const date = ref('');
 const time = ref('09:00');
 const showRequest = ref(false);
-let counted = '';
 
-// Cuenta una visita por tienda publicada abierta (solo en la tienda, no en la vista previa).
 watch(
-  () => [studio.ready, id.value, !!project.value?.published] as const,
-  ([ready, current, published]) => {
-    if (!props.preview && ready && published && counted !== current) {
-      counted = current;
-      studio.visit(current);
+  id,
+  async (current) => {
+    if (props.preview || typeof window === 'undefined') return;
+    loadingPublic.value = true;
+    loadError.value = '';
+    published.value = null;
+    try {
+      if (current)
+        published.value = (
+          await api<{ design: StoreDesign }>('GET', `/tiendas/${encodeURIComponent(current)}`)
+        ).design;
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) loadError.value = (e as Error).message;
+    } finally {
+      loadingPublic.value = false;
     }
   },
   { immediate: true },
@@ -93,18 +106,22 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="!studio.ready" class="studio-loading">
+  <div v-if="!ready" class="studio-loading">
     <div class="loader" />
     Cargando esta historia…
   </div>
   <EmptyState
-    v-else-if="!design || !project"
-    title="Esta tienda aún no está publicada"
-    href="/estudio"
-    label="Ir a mis tiendas"
+    v-else-if="!design"
+    :title="loadError ? 'No pudimos cargar esta tienda' : 'Esta tienda no está disponible'"
+    :href="preview ? '/estudio' : '/buscar'"
+    :label="preview ? 'Ir a mis tiendas' : 'Ver otros negocios'"
   >
-    Publica tu diseño desde el estudio para verlo aquí. Las tiendas locales están disponibles en el
-    navegador donde se crearon.
+    {{
+      loadError ||
+      (preview
+        ? 'Inicia sesión con la cuenta dueña de esta tienda para ver su vista previa.'
+        : 'Puede que aún no esté publicada o que su dueño la haya retirado.')
+    }}
   </EmptyState>
   <div v-else :class="['storefront-page', { 'preview-page': preview }]">
     <header class="storefront-top">

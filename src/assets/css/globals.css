@@ -1743,3 +1743,91 @@ th {
     transition: none !important;
   }
 }
+
+/* Ingreso y registro (SignIn.vue) y acceso restringido (RequireMerchant.vue) */
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.auth-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.auth-tabs button.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px #16362e1f;
+}
+.auth-roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.auth-roles legend {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.form-stack .auth-roles label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.auth-roles label.selected {
+  border-color: var(--green);
+  background: #f1f7f2;
+}
+.auth-roles input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.auth-roles label:has(input:focus-visible) {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+.auth-roles svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+.auth-roles span {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.auth-roles strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+.auth-gate {
+  max-width: 520px;
+  margin: 40px auto;
+}
+.auth-gate h1 {
+  font-size: 26px;
+  margin: 8px 0;
+}
+@media (max-width: 520px) {
+  .auth-roles {
+    grid-template-columns: 1fr;
+  }
+}

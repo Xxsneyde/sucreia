@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import RequireMerchant from '@/components/RequireMerchant.vue';
 import StudioHome from '@/features/studio/StudioHome.vue';
 useHead({ title: 'Estudio visual' });
 </script>
-<template><StudioHome /></template>
+<template>
+  <RequireMerchant><StudioHome /></RequireMerchant>
+</template>

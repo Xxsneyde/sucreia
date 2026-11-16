@@ -6,7 +6,7 @@
 
 Las rutas (`src/pages`) importan pantallas de cada módulo (`src/features/<módulo>/*.vue`). Esto permite repartir trabajo evitando editar un único archivo central. El layout y la navegación son compartidos; coordinar esos cambios.
 
-`useDemo()` (`src/lib/demo-store.ts`) adapta el almacenamiento local y expone carrito, pedidos, solicitudes, favoritos y borrador. Tiene versión de clave, carga después del montaje (en `app.vue`) y manejo de errores de almacenamiento. No es una frontera de seguridad. Al añadir backend, reemplazar este adaptador por repositorios de API y validación de respuestas; ningún dato del navegador debe ser confiable para precios, permisos o pagos.
+Las tiendas y la cuenta van al servidor (`src/lib/studio-store.ts`, `src/lib/session.ts`). `useDemo()` (`src/lib/demo-store.ts`) adapta el almacenamiento local de pedidos, carrito y favoritos y expone carrito, pedidos, solicitudes, favoritos y borrador. Tiene versión de clave, carga después del montaje (en `app.vue`) y manejo de errores de almacenamiento. No es una frontera de seguridad. Al añadir backend, reemplazar este adaptador por repositorios de API y validación de respuestas; ningún dato del navegador debe ser confiable para precios, permisos o pagos.
 
 ## Modos comerciales
 

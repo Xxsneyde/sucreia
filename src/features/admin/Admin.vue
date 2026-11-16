@@ -6,8 +6,8 @@ import { publicationErrors } from '@/domain/studio';
 import EditorModal from '@/features/studio/EditorModal.vue';
 const studio = useStudio();
 const remove = ref('');
-function unpublish() {
-  studio.unpublish(remove.value);
+async function unpublish() {
+  await studio.unpublish(remove.value).catch(() => {});
   remove.value = '';
 }
 </script>

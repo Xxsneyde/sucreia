@@ -184,8 +184,11 @@ export function toBusiness(p: StoreProject): Business | null {
     cover: d.content.heroImage,
   };
 }
+/** Tiendas creadas en SucreIA (servidor: «tienda-…», navegador: «local-…») o negocios de ejemplo. */
 export function businessHref(id: string) {
-  return id.startsWith('local-') ? `/tienda?id=${encodeURIComponent(id)}` : `/negocios/${id}`;
+  return id.startsWith('tienda-') || id.startsWith('local-')
+    ? `/tienda?id=${encodeURIComponent(id)}`
+    : `/negocios/${id}`;
 }
 export function contrast(a: string, b: string) {
   const luminance = (hex: string) => {
