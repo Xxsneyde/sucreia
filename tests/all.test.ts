@@ -1,3 +1,11 @@
 import './domain.test.ts';
 import './studio.test.ts';
 import './api.test.ts';
+import './account-tokens.test.ts';
+import './images.test.ts';
+import './operations.test.ts';
+import './navigation.test.ts';
+import './public.test.ts';
+import './platform.test.ts';
+import './platform-api.test.ts';
+import './catalog-ai.test.ts';

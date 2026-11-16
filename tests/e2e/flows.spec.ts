@@ -1,62 +1,84 @@
-import { test, expect } from '@playwright/test';
-test('buscar, comprar y avanzar un pedido de demostración', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Lo nuestro, más cerca.' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Buscar negocios o productos' }).fill('raices');
-  await expect(page.locator('.business-card')).toHaveCount(1);
-  await page.locator('.business-card').click();
-  await page.getByRole('button', { name: 'Agregar Bolso de caña flecha' }).click();
-  await page.getByRole('link', { name: 'Finalizar pedido' }).click();
-  await page.getByRole('button', { name: 'Crear pedido de ejemplo' }).click();
-  await expect(page.getByRole('heading', { name: 'Tus pedidos y solicitudes' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Raíces de Sucre' })).toBeVisible();
-  await page.goto('/panel/pedidos/');
-  await page.getByRole('button', { name: 'Avanzar estado de demo' }).first().click();
-  await page.goto('/pedidos/');
-  await expect(
-    page.locator('.order-list article').first().locator('.timeline-step.done'),
-  ).toHaveCount(2);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Raíces de Sucre' })).toBeVisible();
+import { test, expect, type Page } from '@playwright/test';
+import { createDesign } from '../../src/domain/studio.ts';
+async function account(page: Page, role = 'cliente') {
+  await page.goto('/ingresar?cuenta=nueva');
+  await page.getByLabel('Tu nombre').fill('Persona de prueba');
+  await page
+    .getByLabel('Correo', { exact: true })
+    .fill(`recorrido-${crypto.randomUUID()}@ejemplo.co`);
+  await page.getByLabel('Contraseña', { exact: true }).fill('clave-segura-1');
+  if (role === 'cliente') await page.getByText('Quiero comprar', { exact: true }).click();
+  await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
+  await expect(page).toHaveURL(role === 'cliente' ? /inicio/ : /estudio/);
+}
+test('dos cuentas: publicación, pedido, pago, entrega con PIN, reseña y puntos', async ({
+  page,
+  browser,
+}) => {
+  await account(page, 'emprendedor');
+  const design = createDesign('Artesanías', `Artesanías ${crypto.randomUUID().slice(0, 6)}`);
+  design.products[0].price = 12000;
+  const created = await page.request.post('/api/mis-tiendas', { data: { design } });
+  expect(created.status()).toBe(201);
+  const { store } = await created.json();
+  expect((await page.request.post(`/api/mis-tiendas/${store.id}/publicar`)).status()).toBe(200);
+  const buyer = await browser.newPage();
+  await account(buyer);
+  await buyer.goto(`/tienda?id=${store.id}`);
+  await buyer.getByRole('button', { name: `Agregar ${design.products[0].name}` }).click();
+  await buyer.getByRole('link', { name: 'Finalizar pedido' }).click();
+  await buyer.getByLabel('WhatsApp con código de país').fill('+573001234567');
+  await buyer.getByRole('button', { name: 'Confirmar pedido', exact: true }).click();
+  await expect(buyer).toHaveURL(/pedidos/);
+  await expect(buyer.getByText(design.name, { exact: true })).toBeVisible();
+  const pin = (await buyer.locator('.flow-pin strong').textContent())!.trim();
+  await page.goto('/panel/pedidos');
+  const card = page.locator('.flow-operation').filter({ hasText: design.name });
+  await card.getByRole('button', { name: 'Tomar y preparar' }).click();
+  await card.getByRole('button', { name: 'Marcar listo' }).click();
+  await card.getByRole('button', { name: 'Confirmar pago recibido' }).click();
+  await card.getByLabel('PIN que te comparte el cliente').fill(pin);
+  await card.getByRole('button', { name: 'Confirmar entrega con PIN' }).click();
+  await buyer.getByRole('button', { name: 'Actualizar estado' }).click();
+  await expect(buyer.locator('.flow-operation .tag')).toHaveText('Completado');
+  await buyer.getByLabel('Tu experiencia').fill('Recibí el producto y todo estuvo bien.');
+  await buyer.getByRole('button', { name: 'Publicar reseña' }).click();
+  await expect(buyer.getByRole('status').filter({ hasText: 'Tu reseña' })).toBeVisible();
+  await buyer.goto('/puntos');
+  await expect(buyer.locator('.flow-balance')).toContainText('12 puntos');
+  expect(
+    await buyer.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await buyer.close();
 });
-test('reserva, favoritos y borrador sobreviven la navegación', async ({ page }) => {
-  await page.goto('/negocios/alma-estudio/');
-  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
-  await page.getByRole('button', { name: 'Agendar cita / reservar' }).click();
-  await page.getByLabel('Detalle de tu solicitud').fill('Corte de cabello');
-  await page.getByLabel('Fecha preferida').fill('2027-12-20');
-  await page.getByRole('button', { name: 'Guardar solicitud de ejemplo' }).click();
-  await page.goto('/pedidos/');
-  await expect(page.getByText('Cita / reserva · Corte de cabello')).toBeVisible();
-  await page.goto('/favoritos/');
-  await expect(page.locator('.business-card')).toHaveCount(1);
-  await page.goto('/registro/negocio/');
-  await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Tejidos del Caribe');
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await page.reload();
-  // El configurador recuerda el paso (Tu catálogo) y los datos ya escritos.
+test('cliente puede activar su negocio conservando la cuenta y entrar al configurador', async ({
+  page,
+}) => {
+  await account(page);
+  await page.goto('/perfil');
+  await page.getByRole('button', { name: 'Activar mi cuenta de emprendedor' }).click();
+  await page.goto('/registro/negocio');
+  await page.getByLabel('Nombre del negocio').fill('Mi primera tienda');
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await expect(page.locator('[aria-current="step"]')).toContainText('Tu catálogo');
-  await page.getByRole('button', { name: 'Atrás' }).click();
-  await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(
-    'Tejidos del Caribe',
-  );
 });
-test('rutas principales y diseño sin desbordamiento', async ({ page }) => {
-  for (const route of [
-    '/',
-    '/buscar/',
-    '/panel/',
-    '/puntos/',
-    '/perfil/',
-    '/registro/negocio/',
-    '/escuela/',
-    '/mapa/',
-    '/domiciliario/',
-    '/admin/',
-    '/equipo/',
+test('espacios principales tienen estados vacíos sin desbordar ni inventar actividad', async ({
+  page,
+}) => {
+  await account(page, 'emprendedor');
+  for (const path of [
+    '/inicio',
+    '/panel',
+    '/pedidos',
+    '/puntos',
+    '/perfil',
+    '/escuela',
+    '/mapa',
+    '/domiciliario',
+    '/notificaciones',
+    '/asistente',
   ]) {
-    const response = await page.goto(route);
-    expect(response?.status()).toBe(200);
+    await page.goto(path);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

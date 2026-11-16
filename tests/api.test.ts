@@ -1,24 +1,25 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
 import { openDb, type Db } from '../server/db.ts';
+import { httpClient } from './http.ts';
 import { createApp } from '../server/app.ts';
 import { createDesign } from '../src/domain/studio.ts';
 
-// Servidor real en un puerto libre con base de datos en memoria.
-let server: Server;
+// HTTP de Node y Express en memoria, con cookies y aislamiento por cliente, sin abrir puertos.
 let db: Db;
-let base = '';
-before(async () => {
+let dispatch: ReturnType<typeof httpClient>;
+const imagesDir = mkdtempSync(join(tmpdir(), 'sucreia-api-'));
+before(() => {
   db = openDb(':memory:');
-  server = createApp({ db }).listen(0, '127.0.0.1');
-  await new Promise((r) => server.once('listening', r));
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
+  dispatch = httpClient(createApp({ db, imagesDir, localMail: true }));
 });
 after(() => {
-  server.close();
   db.close();
+  rmSync(imagesDir, { recursive: true, force: true });
 });
 
 /** Cliente HTTP con su propia cookie de sesión (como un navegador distinto). */
@@ -30,14 +31,9 @@ function client() {
     body?: unknown,
     headers: Record<string, string> = {},
   ) => {
-    const res = await fetch(base + path, {
-      method,
-      headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(cookie ? { Cookie: cookie } : {}),
-        ...headers,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+    const res = await dispatch(method, '/api' + path, body, {
+      ...(cookie ? { Cookie: cookie } : {}),
+      ...headers,
     });
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0];
@@ -218,4 +214,124 @@ test('rechaza peticiones desde otro sitio y limita los intentos de ingreso', asy
   for (let i = 0; i < 11; i++)
     last = (await attacker('POST', '/auth/ingresar', { email, password: `mala-${i}` })).status;
   assert.equal(last, 429);
+});
+
+async function mailFor(email: string, subject: string) {
+  const inbox = await client()('GET', '/desarrollo/correos');
+  return inbox.json.messages.find(
+    (m: { to: string; subject: string }) => m.to === email && m.subject === subject,
+  ) as { path: string };
+}
+const tokenFrom = (mail: { path: string }) =>
+  new URL(mail.path, 'http://localhost').searchParams.get('token')!;
+
+test('verificar correo: hash en base, propósito separado, un solo uso y reenvío', async () => {
+  const { call, email } = await account('cliente');
+  const first = tokenFrom(await mailFor(email, 'Verifica tu correo'));
+  const stored = db
+    .prepare(
+      'SELECT token_hash FROM account_tokens WHERE user_id = (SELECT id FROM users WHERE email = ?)',
+    )
+    .get(email)!;
+  assert.notEqual(stored.token_hash, first);
+  assert.equal(
+    (await call('POST', '/auth/restablecer', { token: first, password: 'otra-clave-2' })).status,
+    400,
+  );
+  assert.equal((await call('POST', '/auth/solicitar-verificacion')).status, 200);
+  const second = tokenFrom(await mailFor(email, 'Verifica tu correo'));
+  assert.notEqual(second, first);
+  assert.equal((await call('POST', '/auth/verificar-correo', { token: first })).status, 400);
+  assert.equal((await call('POST', '/auth/verificar-correo', { token: second })).status, 200);
+  assert.ok((await call('GET', '/auth/yo')).json.user.emailVerifiedAt);
+  assert.equal((await call('POST', '/auth/verificar-correo', { token: second })).status, 400);
+  assert.equal((await client()('POST', '/auth/solicitar-verificacion')).status, 401);
+});
+
+test('recuperación genérica, caducidad, validación y revocación de todas las sesiones', async () => {
+  const { call, email } = await account('cliente');
+  const other = client();
+  await other('POST', '/auth/ingresar', { email, password: 'clave-segura-1' });
+  const anon = client();
+  const known = await anon('POST', '/auth/recuperar', { email });
+  const unknown = await anon('POST', '/auth/recuperar', { email: 'no-registrado@example.co' });
+  assert.deepEqual(unknown, known);
+  const expired = tokenFrom(await mailFor(email, 'Recupera tu contraseña'));
+  db.prepare(
+    "UPDATE account_tokens SET expires_at = '2000-01-01T00:00:00.000Z' WHERE purpose = 'reset'",
+  ).run();
+  assert.equal(
+    (await anon('POST', '/auth/restablecer', { token: expired, password: 'nueva-clave-2' })).status,
+    400,
+  );
+  await anon('POST', '/auth/recuperar', { email });
+  const token = tokenFrom(await mailFor(email, 'Recupera tu contraseña'));
+  assert.equal((await anon('POST', '/auth/verificar-correo', { token })).status, 400);
+  assert.equal((await anon('POST', '/auth/restablecer', { token, password: 'corta' })).status, 400);
+  assert.equal(
+    (await anon('POST', '/auth/restablecer', { token, password: 'nueva-clave-2' })).status,
+    200,
+  );
+  assert.equal(
+    (await anon('POST', '/auth/restablecer', { token, password: 'nueva-clave-3' })).status,
+    400,
+  );
+  for (const c of [call, other]) assert.equal((await c('GET', '/auth/yo')).json.user, null);
+  assert.equal(
+    (await anon('POST', '/auth/ingresar', { email, password: 'clave-segura-1' })).status,
+    401,
+  );
+  assert.equal(
+    (await anon('POST', '/auth/ingresar', { email, password: 'nueva-clave-2' })).status,
+    200,
+  );
+});
+
+test('la bandeja local está apagada por defecto; no simula envíos sin proveedor', async () => {
+  const isolated = openDb(':memory:');
+  const call = httpClient(createApp({ db: isolated }));
+  try {
+    assert.equal((await call('GET', '/api/desarrollo/correos')).status, 404);
+    assert.equal(
+      (await call('POST', '/api/auth/recuperar', { email: 'alguien@ejemplo.co' })).status,
+      503,
+    );
+  } finally {
+    isolated.close();
+  }
+});
+
+test('imágenes: permisos, subida, publicación, privacidad y borrado sin romper versiones', async () => {
+  const owner = await account('emprendedor');
+  const other = await account('emprendedor');
+  const anon = client();
+  assert.equal((await anon('GET', '/imagenes')).status, 401);
+  const data =
+    'data:image/png;base64,' +
+    (
+      await sharp({ create: { width: 4, height: 4, channels: 3, background: 'red' } })
+        .png()
+        .toBuffer()
+    ).toString('base64');
+  const uploaded = await owner.call('POST', '/imagenes', { data });
+  assert.equal(uploaded.status, 201);
+  const image = uploaded.json.image;
+  assert.equal((await other.call('DELETE', `/imagenes/${image.id}`)).status, 404);
+  assert.equal((await dispatch('GET', image.url)).status, 404);
+  const store = await owner.call('POST', '/mis-tiendas', {
+    design: { ...createDesign(), logo: image.url },
+  });
+  assert.equal(store.status, 201);
+  assert.equal(
+    (await other.call('POST', '/mis-tiendas', { design: { ...createDesign(), logo: image.url } }))
+      .status,
+    400,
+  );
+  assert.equal((await owner.call('DELETE', `/imagenes/${image.id}`)).status, 409);
+  await owner.call('POST', `/mis-tiendas/${store.json.store.id}/publicar`);
+  const publicImage = await dispatch('GET', image.url);
+  assert.equal(publicImage.status, 200);
+  assert.match(publicImage.headers.get('Content-Type')!, /image\/webp/);
+  await owner.call('DELETE', `/mis-tiendas/${store.json.store.id}`);
+  assert.equal((await owner.call('DELETE', `/imagenes/${image.id}`)).status, 204);
 });

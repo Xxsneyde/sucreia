@@ -10,8 +10,8 @@ import {
   MessageSquare,
   Sparkles,
 } from '@lucide/vue';
-import { useDemo } from '@/lib/demo-store';
 import { useStudio } from '@/lib/studio-store';
+import { imageUploads } from '@/lib/images';
 import { useSession } from '@/lib/session';
 import {
   createDesign,
@@ -53,7 +53,6 @@ const modes: { id: BusinessMode; title: string; text: string; icon: typeof Shopp
 
 const studio = useStudio();
 const session = useSession();
-const demo = useDemo();
 const router = useRouter();
 // shallowRef: el diseño se reemplaza completo en cada cambio (objetos planos, sin proxies).
 const design = shallowRef<StoreDesign>(createDesign('Artesanías', ''));
@@ -66,7 +65,7 @@ const storageError = ref(false);
 const exampleProducts = ref(true);
 
 watch(
-  () => demo.ready,
+  () => studio.ready,
   (isReady) => {
     if (!isReady || ready.value) return;
     try {
@@ -126,6 +125,7 @@ function back() {
   error.value = '';
 }
 async function next() {
+  if (imageUploads.value) return;
   const d = design.value;
   error.value = '';
   if (step.value === 0) {
@@ -337,7 +337,11 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
             <ArrowLeft :size="15" /> Atrás
           </button>
           <span v-else>Sin conocimientos de diseño.</span>
-          <button class="studio-primary" :disabled="!ready || !studio.ready || busy" @click="next">
+          <button
+            class="studio-primary"
+            :disabled="!ready || !studio.ready || busy || imageUploads > 0"
+            @click="next"
+          >
             {{
               busy
                 ? 'Creando tu tienda…'

@@ -18,6 +18,7 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  emailVerifiedAt: string | null;
 }
 export const SESSION_COOKIE = 'sucreia_sesion';
 const SESSION_DAYS = 30;
@@ -40,7 +41,13 @@ export function createUser(
   db: Db,
   data: { email: string; name: string; passwordHash: string; role: Role },
 ): User {
-  const user: User = { id: randomUUID(), email: data.email, name: data.name, role: data.role };
+  const user: User = {
+    id: randomUUID(),
+    email: data.email,
+    name: data.name,
+    role: data.role,
+    emailVerifiedAt: null,
+  };
   db.prepare(
     'INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(user.id, user.email, user.name, data.passwordHash, user.role, new Date().toISOString());
@@ -48,7 +55,9 @@ export function createUser(
 }
 export function findUserByEmail(db: Db, email: string) {
   return db
-    .prepare('SELECT id, email, name, role, password_hash FROM users WHERE email = ?')
+    .prepare(
+      'SELECT id, email, name, role, emailVerifiedAt, password_hash FROM users WHERE email = ?',
+    )
     .get(email) as (User & { password_hash: string }) | undefined;
 }
 
@@ -68,7 +77,7 @@ export function deleteSession(db: Db, token: string) {
 function sessionUser(db: Db, token: string): User | undefined {
   return db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
     .get(hashToken(token), new Date().toISOString()) as User | undefined;

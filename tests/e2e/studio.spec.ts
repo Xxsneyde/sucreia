@@ -1,3 +1,4 @@
+import { createDesign } from '../../src/domain/studio.ts';
 import { test, expect, type Page } from '@playwright/test';
 
 /** Crea una cuenta de emprendedor nueva (correo único) y deja la sesión iniciada. */
@@ -39,10 +40,7 @@ async function createStore(page: Page, area = 'Gastronomía', choice = 1) {
   return { styles, chosen, name };
 }
 
-test('crear con un diseño propuesto, publicar, comprar y gestionar la tienda', async ({
-  page,
-  browser,
-}) => {
+test('crear con un diseño propuesto, publicar y gestionar la tienda', async ({ page, browser }) => {
   const { styles, chosen, name } = await createStore(page);
   const manageUrl = page.url();
   expect(manageUrl).toContain('/estudio/gestionar');
@@ -58,18 +56,6 @@ test('crear con un diseño propuesto, publicar, comprar y gestionar la tienda', 
   await visitor.close();
   await page.getByRole('link', { name: 'Ver tienda' }).click();
   await expect(page.locator('.storefront-page .sp')).toHaveAttribute('data-style', chosen);
-  await page.getByRole('button', { name: 'Agregar Torta artesanal' }).click();
-  await page.getByRole('link', { name: 'Finalizar pedido' }).click();
-  await page.getByRole('button', { name: 'Crear pedido de ejemplo' }).click();
-  await expect(page.getByRole('heading', { name })).toBeVisible();
-  await page.goto('/panel/pedidos/');
-  await page.getByRole('button', { name: 'Avanzar estado de demo' }).first().click();
-  await page.getByRole('button', { name: 'Avanzar estado de demo' }).first().click();
-  await page.goto('/domiciliario/');
-  await page.getByRole('button', { name: 'Confirmar entrega local' }).click();
-  await page.goto('/puntos/');
-  await expect(page.locator('.points-balance')).toContainText('2.950');
-
   // Cambiar a otra de las tres propuestas deja cambios sin publicar.
   await page.goto(manageUrl);
   // Un estilo fuera de los tres recomendados.
@@ -96,11 +82,12 @@ test('crear con un diseño propuesto, publicar, comprar y gestionar la tienda', 
 
   // En el catálogo público sigue la versión publicada.
   await page.goto('/buscar/');
-  await page.getByRole('textbox', { name: 'Buscar negocios o productos' }).fill(name);
+  await page.getByRole('searchbox', { name: 'Buscar negocios o productos' }).fill(name);
   await expect(page.locator('.business-card')).toHaveCount(1);
 });
 
 test('ver una propuesta completa en escritorio y celular antes de elegir', async ({ page }) => {
+  await registerMerchant(page);
   await page.goto('/registro/negocio/');
   await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Alma Estudio');
   await page.getByLabel('¿A qué se dedica tu negocio?').selectOption('Belleza');
@@ -133,31 +120,30 @@ test('mi tienda no desborda la pantalla y el editor anterior redirige', async ({
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 });
 
-test('sin cuenta: el estudio pide ingresar y el configurador continúa tras crearla', async ({
+test('sin cuenta: se pide ingresar y se conserva un borrador anterior del configurador', async ({
   page,
 }) => {
-  await page.goto('/estudio/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Tu tienda te espera' })).toBeVisible();
-
-  await page.goto('/registro/negocio/');
-  await page.getByRole('textbox', { name: 'Nombre del negocio' }).fill('Dulces de Ana');
-  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-  await page.getByRole('button', { name: /^Continuar con/ }).click();
-  await page.getByRole('button', { name: 'Crear cuenta y guardar' }).click();
-  const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@ejemplo.co`;
-  await page.getByRole('textbox', { name: 'Tu nombre' }).fill('Ana');
-  await page.getByRole('textbox', { name: 'Correo' }).fill(email);
-  await page.getByLabel('Contraseña').fill('clave-segura-1');
+  await page.goto('/');
+  await page.evaluate(
+    (draft) => {
+      localStorage.setItem('sucreia:onboarding:v3', JSON.stringify(draft));
+      localStorage.setItem('sucreia:onboarding:paso', '3');
+    },
+    createDesign('Gastronomía', 'Dulces de Ana'),
+  );
+  await page.goto('/registro/negocio');
+  await expect(page).toHaveURL(/ingresar.*volver=/);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await page.getByLabel('Tu nombre').fill('Ana');
+  await page.getByLabel('Correo', { exact: true }).fill(`config-${crypto.randomUUID()}@ejemplo.co`);
+  await page.getByLabel('Contraseña', { exact: true }).fill('clave-segura-1');
   await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
-  // Vuelve al último paso con lo que había llenado.
   await expect(page.locator('[aria-current="step"]')).toContainText('Listo');
   await page.getByRole('button', { name: 'Crear mi tienda' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Dulces de Ana' })).toBeVisible();
-
-  // Cerrar sesión: el estudio vuelve a pedir ingresar.
-  await page.goto('/perfil/');
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-  await page.goto('/estudio/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Tu tienda te espera' })).toBeVisible();
+  await page.locator('.topbar').getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
+  await page.goto('/estudio');
+  await expect(page).toHaveURL(/ingresar.*volver=/);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
 });

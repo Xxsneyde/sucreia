@@ -5,7 +5,7 @@ const props = defineProps<{ error: NuxtError }>();
 const notFound = props.error.statusCode === 404;
 </script>
 <template>
-  <NuxtLayout>
+  <NuxtLayout name="public">
     <EmptyState v-if="notFound" title="Esta página no está aquí" href="/" label="Volver al inicio">
       Vuelve al inicio para seguir descubriendo Sucre.
     </EmptyState>

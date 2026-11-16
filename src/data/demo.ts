@@ -1,4 +1,4 @@
-import type { Business, Order } from '@/domain/types';
+import type { Business, Order } from '../domain/types.ts';
 export const businesses: Business[] = [
   {
     id: 'raices-de-sucre',

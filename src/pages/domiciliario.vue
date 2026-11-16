@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Deliveries from '@/features/community/Deliveries.vue';
-useHead({ title: 'Entregas' });
+import Community from '@/features/commerce/Community.vue';
+useHead({ title: 'Domiciliario' });
 </script>
-<template><Deliveries /></template>
+<template><Community /></template>

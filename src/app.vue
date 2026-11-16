@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useDemo } from '@/lib/demo-store';
+import { usePlatform } from '@/lib/platform-store';
 import { useStudio } from '@/lib/studio-store';
 // Los datos locales se leen después de montar para que el HTML generado y el primer
 // render del navegador coincidan (sin errores de hidratación).
@@ -10,7 +10,7 @@ useHead({
 });
 onMounted(() => {
   useStudio().load();
-  useDemo().load();
+  usePlatform().start();
 });
 </script>
 <template>

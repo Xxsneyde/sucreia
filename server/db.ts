@@ -42,6 +42,55 @@ const migrations: string[] = [
   );
   CREATE INDEX versions_store ON store_versions(store_id, published_at);
   `,
+  `
+  ALTER TABLE users ADD COLUMN emailVerifiedAt TEXT;
+  CREATE TABLE account_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose TEXT NOT NULL CHECK (purpose IN ('reset', 'verify')),
+    expires_at TEXT NOT NULL
+  );
+  CREATE INDEX account_tokens_user ON account_tokens(user_id, purpose);
+  `,
+  `
+  CREATE TABLE images (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    bytes INTEGER NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX images_owner ON images(owner_id);
+  `,
+  `
+  CREATE TABLE store_settings (store_id TEXT PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE, payload TEXT NOT NULL);
+  CREATE TABLE inventory (store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, product_id TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity >= 0), PRIMARY KEY(store_id, product_id));
+  CREATE TABLE operations (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id), client_id TEXT NOT NULL REFERENCES users(id), kind TEXT NOT NULL, status TEXT NOT NULL, slot TEXT, idempotency TEXT NOT NULL, request_hash TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(client_id, idempotency));
+  CREATE INDEX operations_store ON operations(store_id, status);
+  CREATE INDEX operations_client ON operations(client_id);
+  CREATE UNIQUE INDEX unique_booking ON operations(store_id, slot) WHERE kind = 'booking' AND status IN ('pending', 'accepted');
+  CREATE TABLE favorites (user_id TEXT NOT NULL REFERENCES users(id), store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, PRIMARY KEY(user_id,store_id));
+  CREATE TABLE points_ledger (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), amount INTEGER NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL);
+  CREATE TABLE promotions (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id), payload TEXT NOT NULL);
+  CREATE TABLE coupons (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), store_id TEXT NOT NULL REFERENCES stores(id), used INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL);
+  CREATE TABLE notifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), title TEXT NOT NULL, link TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+  CREATE INDEX notifications_user ON notifications(user_id,created_at);
+  CREATE TABLE learning (user_id TEXT NOT NULL REFERENCES users(id), lesson_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_id, lesson_id));
+  CREATE TABLE couriers (user_id TEXT PRIMARY KEY REFERENCES users(id), phone TEXT NOT NULL, municipality TEXT NOT NULL, approved INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE reviews (id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE REFERENCES operations(id), store_id TEXT NOT NULL REFERENCES stores(id), user_id TEXT NOT NULL REFERENCES users(id), rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT NOT NULL, created_at TEXT NOT NULL);
+  CREATE TABLE store_views (store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, product_id TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(store_id,product_id));
+  CREATE TABLE admin_audit (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, target TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL);
+  `,
+  `
+  ALTER TABLE couriers ADD COLUMN avatar TEXT NOT NULL DEFAULT '';
+  ALTER TABLE reviews ADD COLUMN courier_rating INTEGER CHECK(courier_rating BETWEEN 1 AND 5);
+  `,
+  `CREATE TABLE certificates (id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE REFERENCES users(id), name TEXT NOT NULL, lessons INTEGER NOT NULL, created_at TEXT NOT NULL);`,
+  `CREATE INDEX points_user ON points_ledger(user_id);
+  CREATE INDEX coupons_user ON coupons(user_id);
+  CREATE INDEX reviews_store ON reviews(store_id);
+  CREATE INDEX operations_courier ON operations(json_extract(payload,'$.courierId'),status);`,
 ];
 
 /** Abre (o crea) la base de datos y aplica las migraciones pendientes. ':memory:' para pruebas. */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import School from '@/features/community/School.vue';
-useHead({ title: 'Escuela emprendedora' });
+import Community from '@/features/commerce/Community.vue';
+useHead({ title: 'Escuela' });
 </script>
-<template><School /></template>
+<template><Community /></template>

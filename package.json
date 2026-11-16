@@ -17,8 +17,12 @@
     "check": "npm run typecheck && npm test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dev:api": "node --watch server/index.ts",
-    "start": "node server/index.ts --production"
+    "dev:api": "node --env-file-if-exists=.env --watch server/index.ts",
+    "start": "node --env-file-if-exists=.env server/index.ts --production",
+    "backup": "node --env-file-if-exists=.env server/commands/backup.ts create",
+    "restore": "node --env-file-if-exists=.env server/commands/backup.ts restore",
+    "mail:check": "node --env-file-if-exists=.env server/commands/mail-check.ts",
+    "admin": "node --env-file-if-exists=.env server/commands/admin.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -43,7 +47,9 @@
     "@fontsource/young-serif": "5.3.0",
     "@lucide/vue": "1.73.0",
     "express": "5.3.0",
+    "nodemailer": "8.0.10",
     "nuxt": "4.6.4",
+    "sharp": "0.35.5",
     "vue": "3.5.45",
     "vue-router": "5.5.1"
   },

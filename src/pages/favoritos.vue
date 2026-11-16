@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Marketplace from '@/features/marketplace/Marketplace.vue';
-useHead({ title: 'Favoritos' });
+import PublicDirectory from '@/features/directory/PublicDirectory.vue';
+useHead({ title: 'Mis favoritos' });
 </script>
-<template><Marketplace favorites-only /></template>
+<template><PublicDirectory favorites-only /></template>

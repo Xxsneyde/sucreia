@@ -142,8 +142,10 @@ export function publicationErrors(d: StoreDesign): string[] {
   if (!d.name.trim()) errors.push('Escribe el nombre de tu negocio.');
   if (!d.municipality.trim()) errors.push('Indica tu municipio.');
   if (d.products.length < 3) errors.push('Agrega al menos tres productos o servicios.');
-  if (d.products.some((p) => !p.name.trim() || !Number.isFinite(p.price) || p.price < 0))
+  if (d.products.some((p) => !p.name.trim() || !Number.isSafeInteger(p.price) || p.price < 0))
     errors.push('Revisa los nombres y precios del catálogo.');
+  if (new Set(d.products.map((p) => p.id)).size !== d.products.length)
+    errors.push('Los productos deben tener identificadores distintos.');
   if (!d.content.heroTitle.trim()) errors.push('Escribe el título principal de tu página.');
   if (d.whatsapp && !/^\+?[1-9]\d{9,14}$/.test(d.whatsapp))
     errors.push('El WhatsApp debe incluir código de país y solo números.');
@@ -210,6 +212,7 @@ export function validImage(value: unknown): value is string {
     value.length < 1_500_000 &&
     (value === '' ||
       /^\/art\/(craft|food|beauty|service|hero)\.svg$/.test(value) ||
+      /^\/api\/imagenes\/[a-f0-9]{64}\.webp$/.test(value) ||
       /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value))
   );
 }

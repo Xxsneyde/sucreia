@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { usePlatform } from '@/lib/platform-store';
+import LogoutButton from '@/components/LogoutButton.vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   Compass,
+  Bell,
   Search,
   ShoppingBag,
   UserRound,
@@ -18,18 +21,19 @@ import {
   ArrowUpRight,
   Leaf,
 } from '@lucide/vue';
-import { useDemo } from '@/lib/demo-store';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
 
 const customer = [
-  { href: '/', label: 'Descubrir', icon: Compass },
+  { href: '/inicio', label: 'Descubrir', icon: Compass },
   { href: '/buscar', label: 'Buscar negocios', icon: Search },
   { href: '/pedidos', label: 'Mis pedidos', icon: ShoppingBag },
   { href: '/favoritos', label: 'Favoritos', icon: Heart },
   { href: '/puntos', label: 'SucrePuntos', icon: Gift },
   { href: '/escuela', label: 'Escuela emprendedora', icon: GraduationCap },
   { href: '/mapa', label: 'Explorar Sucre', icon: MapPin },
+  { href: '/asistente', label: 'Asistente de catálogo', icon: Search },
+  { href: '/notificaciones', label: 'Notificaciones', icon: Gift },
 ];
 const merchant = [
   { href: '/panel', label: 'Resumen', icon: LayoutDashboard },
@@ -41,14 +45,18 @@ const merchant = [
   { href: '/panel/configuracion', label: 'Configuración', icon: Settings },
 ];
 const mobile = [
-  { href: '/', label: 'Inicio', icon: Compass },
+  { href: '/inicio', label: 'Inicio', icon: Compass },
   { href: '/buscar', label: 'Buscar', icon: Search },
   { href: '/pedidos', label: 'Pedidos', icon: ShoppingBag },
   { href: '/perfil', label: 'Perfil', icon: UserRound },
 ];
 const path = usePath();
-const demo = useDemo();
+const platform = usePlatform();
 const session = useSession();
+const mounted = ref(false);
+onMounted(() => {
+  mounted.value = true;
+});
 const initial = computed(() => session.user?.name.trim().slice(0, 1).toUpperCase() || 'S');
 const business = computed(
   () => path.value.startsWith('/panel') || path.value.startsWith('/estudio'),
@@ -57,7 +65,7 @@ const active = (href: string) => path.value === href;
 </script>
 
 <template>
-  <div class="app">
+  <div v-if="mounted && session.ready && session.user" class="app">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <aside class="sidebar">
       <NuxtLink class="brand" to="/">
@@ -85,7 +93,9 @@ const active = (href: string) => path.value === href;
       </div>
       <div class="sidebar-bottom">
         <NuxtLink to="/domiciliario"><Truck :size="17" /> Entregas</NuxtLink>
-        <NuxtLink to="/admin"><ShieldCheck :size="17" /> Administración</NuxtLink>
+        <NuxtLink v-if="session.user?.role === 'admin'" to="/admin"
+          ><ShieldCheck :size="17" /> Administración</NuxtLink
+        >
         <NuxtLink to="/equipo">Guía del proyecto ↗</NuxtLink>
       </div>
       <span class="sidebar-footer">Hecho para nuestra tierra.</span>
@@ -95,28 +105,42 @@ const active = (href: string) => path.value === href;
         <NuxtLink class="mobile-brand brand" to="/">Sucre<span>IA</span></NuxtLink>
         <span class="location"><MapPin :size="16" /> Sucre, Colombia</span>
         <div class="topbar-actions">
-          <NuxtLink :class="!business ? 'view-switch selected' : 'view-switch'" to="/">
+          <NuxtLink :class="!business ? 'view-switch selected' : 'view-switch'" to="/inicio">
             Explorar
           </NuxtLink>
-          <NuxtLink :class="business ? 'view-switch selected' : 'view-switch'" to="/panel">
-            <Store :size="15" /> Mi negocio
-          </NuxtLink>
           <NuxtLink
+            :class="business ? 'view-switch selected' : 'view-switch'"
+            to="/estudio"
+            aria-label="Mi negocio"
+          >
+            <Store :size="15" /> <span>Mi negocio</span>
+          </NuxtLink>
+          <NuxtLink v-if="session.ready && !session.user" class="session-enter" to="/ingresar"
+            >Ingresar</NuxtLink
+          >
+          <NuxtLink
+            v-if="session.user"
             class="avatar"
             :to="session.user ? '/perfil' : '/ingresar'"
             :aria-label="session.user ? `Mi perfil: ${session.user.name}` : 'Ingresar'"
             >{{ initial }}</NuxtLink
           >
+          <NuxtLink
+            to="/notificaciones"
+            class="notification-link"
+            :aria-label="`Notificaciones: ${platform.unread.value} sin leer`"
+            ><Bell :size="18" /><span v-if="platform.unread.value">{{
+              platform.unread.value
+            }}</span></NuxtLink
+          >
+          <LogoutButton v-if="session.user" />
         </div>
       </header>
       <div class="demo-banner">
-        <span class="live-dot" /> Prototipo del equipo
-        <span>· Datos de ejemplo. Operaciones locales, sin pagos ni envíos reales.</span>
+        <span class="live-dot" /> SucreIA · Comunidad local
+        <span>· Pagos confirmados por cada negocio. Sin cobros automáticos.</span>
       </div>
-      <p v-if="demo.storageError" role="status" class="notice">
-        No se pudo recuperar o guardar la demo en este navegador. Puedes seguir explorando.
-      </p>
-      <main id="contenido" class="main">
+      <main id="contenido" class="main" :inert="session.ending">
         <slot />
       </main>
       <footer class="footer">
@@ -136,4 +160,75 @@ const active = (href: string) => path.value === href;
       </NuxtLink>
     </nav>
   </div>
+  <div v-else class="studio-loading" role="status">Comprobando tu acceso…</div>
 </template>
+
+<style scoped>
+.session-enter {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  background: var(--green);
+  color: white;
+  font-weight: 700;
+}
+.topbar-actions {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .topbar .location {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .topbar .view-switch:first-child {
+    display: none;
+  }
+  .topbar .view-switch {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px;
+  }
+  .topbar .view-switch span {
+    display: none;
+  }
+}
+@media (max-width: 380px) {
+  .topbar {
+    padding-inline: 12px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+  .topbar .avatar {
+    display: none;
+  }
+}
+.notification-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 44px;
+}
+.notification-link span {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #246a4e;
+  color: white;
+  font-size: 10px;
+  min-width: 16px;
+  border-radius: 20px;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .topbar .avatar {
+    display: none;
+  }
+}
+</style>
