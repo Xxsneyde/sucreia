@@ -7,6 +7,7 @@ import {
   Bell,
   Search,
   ShoppingBag,
+  ShoppingCart,
   UserRound,
   Heart,
   Gift,
@@ -15,41 +16,43 @@ import {
   Store,
   LayoutDashboard,
   Package,
+  IdCard,
+  Tag,
   Truck,
   Settings,
   ShieldCheck,
+  Sparkles,
+  BookOpen,
   ArrowUpRight,
   Leaf,
 } from '@lucide/vue';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
+import { isMerchant, modeFor, navFor, type CourierState, type IconName } from '@/domain/roles';
 
-const customer = [
-  { href: '/inicio', label: 'Descubrir', icon: Compass },
-  { href: '/buscar', label: 'Buscar negocios', icon: Search },
-  { href: '/pedidos', label: 'Mis pedidos', icon: ShoppingBag },
-  { href: '/favoritos', label: 'Favoritos', icon: Heart },
-  { href: '/puntos', label: 'SucrePuntos', icon: Gift },
-  { href: '/escuela', label: 'Escuela emprendedora', icon: GraduationCap },
-  { href: '/mapa', label: 'Explorar Sucre', icon: MapPin },
-  { href: '/asistente', label: 'Asistente de catálogo', icon: Search },
-  { href: '/notificaciones', label: 'Notificaciones', icon: Gift },
-];
-const merchant = [
-  { href: '/panel', label: 'Resumen', icon: LayoutDashboard },
-  { href: '/estudio', label: 'Estudio visual', icon: Store },
-  { href: '/panel/pedidos', label: 'Pedidos y solicitudes', icon: ShoppingBag },
-  { href: '/panel/productos', label: 'Productos y servicios', icon: Package },
-  { href: '/panel/perfil', label: 'Mi negocio', icon: Store },
-  { href: '/panel/descuentos', label: 'Descuentos', icon: Gift },
-  { href: '/panel/configuracion', label: 'Configuración', icon: Settings },
-];
-const mobile = [
-  { href: '/inicio', label: 'Inicio', icon: Compass },
-  { href: '/buscar', label: 'Buscar', icon: Search },
-  { href: '/pedidos', label: 'Pedidos', icon: ShoppingBag },
-  { href: '/perfil', label: 'Perfil', icon: UserRound },
-];
+// Íconos de las vistas definidas en domain/roles.ts.
+const icons: Record<IconName, unknown> = {
+  compass: Compass,
+  search: Search,
+  cart: ShoppingCart,
+  bag: ShoppingBag,
+  heart: Heart,
+  gift: Gift,
+  school: GraduationCap,
+  map: MapPin,
+  sparkles: Sparkles,
+  bell: Bell,
+  user: UserRound,
+  dashboard: LayoutDashboard,
+  store: Store,
+  package: Package,
+  id: IdCard,
+  tag: Tag,
+  settings: Settings,
+  truck: Truck,
+  shield: ShieldCheck,
+  book: BookOpen,
+};
 const path = usePath();
 const platform = usePlatform();
 const session = useSession();
@@ -58,8 +61,17 @@ onMounted(() => {
   mounted.value = true;
 });
 const initial = computed(() => session.user?.name.trim().slice(0, 1).toUpperCase() || 'S');
-const business = computed(
-  () => path.value.startsWith('/panel') || path.value.startsWith('/estudio'),
+const merchant = computed(() => !!session.user && isMerchant(session.user.role));
+const courier = computed<CourierState>(() => {
+  const c = platform.data.value?.courier;
+  return !c ? 'none' : c.approved ? 'approved' : 'pending';
+});
+const mode = computed(() => (merchant.value ? modeFor(path.value) : 'comprar'));
+const business = computed(() => mode.value === 'negocio');
+const nav = computed(() =>
+  session.user
+    ? navFor({ role: session.user.role, courier: courier.value }, mode.value)
+    : { sections: [], mobile: [] },
 );
 const active = (href: string) => path.value === href;
 </script>
@@ -72,31 +84,36 @@ const active = (href: string) => path.value === href;
         <span class="brand-icon"><ShoppingBag :size="23" /></span>
         Sucre<span>IA</span>
       </NuxtLink>
-      <p class="nav-label">{{ business ? 'ESPACIO DEL NEGOCIO' : 'DESCUBRE LO NUESTRO' }}</p>
-      <nav aria-label="Navegación principal">
-        <NuxtLink
-          v-for="item in business ? merchant : customer"
-          :key="item.href"
-          :to="item.href"
-          :class="['nav-link', { active: active(item.href) }]"
-          :aria-current="active(item.href) ? 'page' : undefined"
-        >
-          <component :is="item.icon" :size="19" />
-          {{ item.label }}
-        </NuxtLink>
+      <nav aria-label="Navegación principal" class="role-nav">
+        <section v-for="section in nav.sections" :key="section.id">
+          <p class="nav-label">{{ section.title }}</p>
+          <NuxtLink
+            v-for="item in section.items"
+            :key="item.href"
+            :to="item.href"
+            :class="['nav-link', { active: active(item.href) }]"
+            :aria-current="active(item.href) ? 'page' : undefined"
+          >
+            <component :is="icons[item.icon]" :size="19" />
+            {{ item.label }}
+          </NuxtLink>
+        </section>
       </nav>
       <div class="sidebar-invite">
         <span class="mini-leaf"><Leaf :size="22" /></span>
-        <h3>Tu idea merece crecer.</h3>
-        <p>Haz parte de la comunidad de emprendedores de Sucre.</p>
-        <NuxtLink to="/estudio">Diseñar mi tienda <ArrowUpRight :size="16" /></NuxtLink>
+        <template v-if="merchant">
+          <h3>Tu idea merece crecer.</h3>
+          <p>Diseña tu página y recibe pedidos de todo Sucre.</p>
+          <NuxtLink to="/estudio">Diseñar mi tienda <ArrowUpRight :size="16" /></NuxtLink>
+        </template>
+        <template v-else>
+          <h3>¿Tienes un negocio?</h3>
+          <p>Actívalo en tu misma cuenta y crea tu página en minutos.</p>
+          <NuxtLink to="/perfil">Abrir mi negocio <ArrowUpRight :size="16" /></NuxtLink>
+        </template>
       </div>
-      <div class="sidebar-bottom">
-        <NuxtLink to="/domiciliario"><Truck :size="17" /> Entregas</NuxtLink>
-        <NuxtLink v-if="session.user?.role === 'admin'" to="/admin"
-          ><ShieldCheck :size="17" /> Administración</NuxtLink
-        >
-        <NuxtLink to="/equipo">Guía del proyecto ↗</NuxtLink>
+      <div v-if="courier === 'none'" class="sidebar-bottom">
+        <NuxtLink to="/domiciliario"><Truck :size="17" /> Quiero repartir</NuxtLink>
       </div>
       <span class="sidebar-footer">Hecho para nuestra tierra.</span>
     </aside>
@@ -105,16 +122,18 @@ const active = (href: string) => path.value === href;
         <NuxtLink class="mobile-brand brand" to="/">Sucre<span>IA</span></NuxtLink>
         <span class="location"><MapPin :size="16" /> Sucre, Colombia</span>
         <div class="topbar-actions">
-          <NuxtLink :class="!business ? 'view-switch selected' : 'view-switch'" to="/inicio">
-            Explorar
-          </NuxtLink>
-          <NuxtLink
-            :class="business ? 'view-switch selected' : 'view-switch'"
-            to="/estudio"
-            aria-label="Mi negocio"
-          >
-            <Store :size="15" /> <span>Mi negocio</span>
-          </NuxtLink>
+          <template v-if="merchant">
+            <NuxtLink :class="!business ? 'view-switch selected' : 'view-switch'" to="/inicio">
+              Comprar
+            </NuxtLink>
+            <NuxtLink
+              :class="business ? 'view-switch selected' : 'view-switch'"
+              to="/panel"
+              aria-label="Mi negocio"
+            >
+              <Store :size="15" /> <span>Mi negocio</span>
+            </NuxtLink>
+          </template>
           <NuxtLink v-if="session.ready && !session.user" class="session-enter" to="/ingresar"
             >Ingresar</NuxtLink
           >
@@ -145,17 +164,18 @@ const active = (href: string) => path.value === href;
       </main>
       <footer class="footer">
         SucreIA <span>Conectamos talento local con nuevas oportunidades.</span>
-        <NuxtLink to="/equipo">Versión 0.3.0</NuxtLink>
+        <NuxtLink v-if="session.user?.role === 'admin'" to="/equipo">Versión 0.3.0</NuxtLink>
+        <span v-else>Versión 0.3.0</span>
       </footer>
     </div>
     <nav class="bottom-nav" aria-label="Navegación móvil">
       <NuxtLink
-        v-for="item in mobile"
+        v-for="item in nav.mobile"
         :key="item.href"
         :to="item.href"
         :class="{ active: active(item.href) }"
       >
-        <component :is="item.icon" :size="20" />
+        <component :is="icons[item.icon]" :size="20" />
         <span>{{ item.label }}</span>
       </NuxtLink>
     </nav>
@@ -176,6 +196,23 @@ const active = (href: string) => path.value === href;
 }
 .topbar-actions {
   min-width: 0;
+}
+.role-nav {
+  margin-top: 28px;
+}
+.role-nav section + section {
+  margin-top: 18px;
+}
+/* Títulos de sección en versalitas pequeñas, como el resto de etiquetas del sitio. */
+.role-nav .nav-label {
+  margin: 0 10px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+/* Más compacto: el emprendedor tiene casi veinte opciones. */
+.role-nav .nav-link {
+  padding: 9px 13px;
+  margin-bottom: 2px;
 }
 @media (max-width: 1100px) {
   .topbar .location {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { roleHome } from '@/domain/roles';
 import { ShoppingBag, ArrowUpRight } from '@lucide/vue';
 import { useSession } from '@/lib/session';
 const session = useSession();
@@ -13,7 +14,7 @@ const session = useSession();
       <NuxtLink
         v-if="session.user"
         class="public-access"
-        :to="session.isMerchant.value ? '/estudio' : '/inicio'"
+        :to="session.user ? roleHome(session.user.role) : '/inicio'"
         >Ir a mi espacio <ArrowUpRight :size="16"
       /></NuxtLink>
       <NuxtLink v-else class="public-access" to="/ingresar"

@@ -10,6 +10,7 @@ Esneyder asumió el desarrollo completo por indicación del 2026-11-16. El repar
 | Comunidad, escuela, logística y administración | `features/commerce/Community.vue`                                                     |
 | Cuentas, tiendas, imágenes y operación         | `server/auth.ts`, `stores.ts`, `images.ts`, `backups.ts`, `mail.ts`                   |
 | Estado del producto                            | `lib/platform-store.ts`, `lib/studio-store.ts`, `lib/session.ts`                      |
+| Vistas por rol                                 | `domain/roles.ts`, `layouts/default.vue` ([roles.md](roles.md))                       |
 | Vitrina pública                                | `features/directory/PublicDirectory.vue`, `layouts/public.vue`                        |
 | IA local opcional                              | `server/catalog-ai.ts`; catálogo y tutor sin escrituras                               |
 

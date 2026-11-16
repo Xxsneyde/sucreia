@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { roleHome } from '@/domain/roles';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { internalReturn } from '@/domain/navigation';
@@ -70,7 +71,7 @@ async function submit() {
         password: password.value,
         role: role.value,
       });
-    const destination = back.value || (session.isMerchant.value ? '/estudio' : '/inicio');
+    const destination = back.value || roleHome(session.user!.role);
     forgetBack();
     await router.push(destination);
   } catch (e) {
@@ -97,9 +98,7 @@ async function submit() {
     <h2>Ya iniciaste sesión</h2>
     <p class="muted">{{ session.user.name }} · {{ session.user.email }}</p>
     <div class="form-stack">
-      <NuxtLink class="button" :to="back || (session.isMerchant.value ? '/estudio' : '/inicio')">
-        Continuar →
-      </NuxtLink>
+      <NuxtLink class="button" :to="back || roleHome(session.user.role)"> Continuar → </NuxtLink>
       <LogoutButton
         label="Cerrar sesión y usar otra cuenta"
         :destination="back ? `/ingresar?volver=${encodeURIComponent(back)}` : '/ingresar'"

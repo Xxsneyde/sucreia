@@ -74,7 +74,7 @@ docs/          Arquitectura, tareas y contratos para el equipo
 .github/       CI y plantillas de issues/pull requests
 ```
 
-Empieza por [CONTRIBUTING.md](CONTRIBUTING.md), [arquitectura](docs/arquitectura.md), [reparto de módulos](docs/modulos.md) y [backlog](docs/backlog.md).
+Empieza por [CONTRIBUTING.md](CONTRIBUTING.md), [arquitectura](docs/arquitectura.md), [reparto de módulos](docs/modulos.md), [vistas por rol](docs/roles.md) y [backlog](docs/backlog.md).
 
 ## Control de versiones
 
