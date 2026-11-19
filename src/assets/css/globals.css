@@ -1,11 +1,16 @@
 :root {
-  --ink: #16362e;
-  --muted: #728078;
-  --green: #246a4e;
-  --lime: #dcf492;
-  --paper: #f8faf7;
-  --line: #e4e9e2;
-  --radius: 18px;
+  /* Marca SucreIA (la misma de la portada, ver home.css). */
+  --ink: #12302a;
+  --muted: #5d6f68;
+  --green: #1f6a4c;
+  --deep: #0f2a23;
+  --lime: #d9f28b;
+  --paper: #f7f6ef;
+  --sand: #efe9da;
+  --line: #e0e2d8;
+  --radius: 22px;
+  --display: 'Fraunces Variable', Georgia, serif;
+  --body: 'DM Sans Variable', system-ui, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -18,7 +23,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--paper);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--body);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -334,7 +339,7 @@ legend {
   line-height: 1.03;
 }
 .hero h1 em {
-  font-family: Georgia, serif;
+  font-family: var(--display);
   font-weight: 400;
   color: #587946;
 }
@@ -1143,7 +1148,7 @@ th {
   border-radius: 20px;
 }
 .onboarding-note h2 {
-  font-family: Georgia, serif;
+  font-family: var(--display);
   font-size: 32px;
   font-weight: 400;
   margin-bottom: 20px;
@@ -1194,7 +1199,7 @@ th {
 }
 .coupon > strong {
   display: block;
-  font-family: Georgia, serif;
+  font-family: var(--display);
   font-size: 55px;
   line-height: 1;
   margin: 25px 0;

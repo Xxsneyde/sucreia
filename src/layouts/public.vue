@@ -33,7 +33,9 @@ const session = useSession();
 <style scoped>
 .public-shell {
   min-height: 100dvh;
-  background: #f8faf7;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
 }
 .public-header {
   max-width: 1240px;
@@ -49,27 +51,42 @@ const session = useSession();
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 8px 16px;
-  border: 1px solid #bfcfc2;
-  border-radius: 9px;
-  font-weight: 600;
-  color: #234c3c;
+  padding: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+  color: var(--ink);
+  transition:
+    transform 0.18s ease-out,
+    box-shadow 0.2s ease-out;
+}
+.public-access:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(15, 42, 35, 0.5);
 }
 .public-main {
   max-width: 1240px;
   margin: auto;
   padding: 24px 24px 64px;
 }
+.public-main {
+  width: 100%;
+  flex: 1;
+}
 .public-footer {
-  max-width: 1192px;
-  margin: auto;
-  padding: 24px 0;
-  border-top: 1px solid #dce4d9;
+  margin-top: auto;
+  padding: 28px max(24px, calc((100% - 1192px) / 2));
+  background: var(--deep);
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  font-size: 13px;
-  color: #4b6152;
+  font-size: 14px;
+  color: #b9cbc2;
+}
+.public-footer a {
+  color: var(--lime);
+  font-weight: 700;
 }
 @media (max-width: 600px) {
   .public-header {
@@ -87,7 +104,7 @@ const session = useSession();
     padding: 20px 18px 40px;
   }
   .public-footer {
-    margin-inline: 18px;
+    padding-inline: 18px;
     flex-direction: column;
   }
 }

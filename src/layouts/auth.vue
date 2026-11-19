@@ -32,7 +32,9 @@ const session = useSession();
 .auth-shell {
   min-height: 100dvh;
   padding: 32px clamp(20px, 6vw, 96px) 24px;
-  background: #f3f5ed;
+  background:
+    radial-gradient(circle at 12% 85%, rgba(242, 220, 174, 0.55), transparent 40%),
+    radial-gradient(circle at 92% 8%, rgba(207, 233, 176, 0.7), transparent 42%), var(--paper);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
   align-items: center;
@@ -58,27 +60,28 @@ const session = useSession();
   padding-block: 24px;
 }
 .auth-kicker {
-  font-size: 11px;
-  letter-spacing: 2px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
   font-weight: 700;
-  color: #45644f;
+  color: var(--green);
 }
 .auth-story h2 {
   font-size: clamp(42px, 5vw, 72px);
-  letter-spacing: -2.5px;
-  line-height: 1.06;
-  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-weight: 500;
   margin-block: 20px 24px;
 }
 .auth-story em {
-  font-family: Georgia, serif;
+  font-family: var(--display);
+  font-style: italic;
   font-weight: 400;
-  color: #246a4e;
+  color: var(--green);
 }
 .auth-story > p:not(.auth-kicker) {
   max-width: 380px;
-  font-size: 16px;
-  color: #465c50;
+  font-size: 17px;
+  color: var(--muted);
 }
 .auth-story img {
   display: block;
@@ -89,23 +92,25 @@ const session = useSession();
   margin-block: 24px;
 }
 .auth-signature {
-  font-family: Georgia, serif;
-  font-size: 18px;
-  color: #426b50;
+  font-family: var(--display);
+  font-size: 19px;
+  font-style: italic;
+  color: var(--green);
 }
 .auth-content {
   min-width: 0;
   padding: clamp(24px, 3vw, 40px);
   background: #fff;
-  border: 1px solid #dce3d6;
-  border-radius: 20px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: 0 40px 80px -48px rgba(15, 42, 35, 0.45);
+  animation: auth-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .auth-content :deep(.page-title) {
   margin: 0 0 28px;
 }
 .auth-content :deep(h1) {
-  font-size: clamp(28px, 3vw, 36px);
-  letter-spacing: -1px;
+  font-size: clamp(30px, 3vw, 40px);
 }
 .auth-content :deep(.auth-card) {
   margin: 0;
@@ -122,13 +127,24 @@ const session = useSession();
   color: #526356;
 }
 .auth-content :deep(.auth-tabs button.active) {
-  color: var(--ink);
+  color: #fff;
 }
 .auth-content :deep(.button) {
   min-height: 48px;
 }
 .auth-content :deep(.notice) {
   margin-top: 20px;
+}
+@keyframes auth-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-content {
+    animation: none;
+  }
 }
 .auth-footer {
   grid-column: 1 / -1;

@@ -60,8 +60,8 @@ async function logout() {
   gap: 7px;
   min-height: 44px;
   padding: 8px 12px;
-  border: 1px solid #cbd8cd;
-  border-radius: 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   background: #fff;
   color: #234c3c;
   font-size: 13px;

@@ -15,6 +15,7 @@ export default defineNuxtConfig({
     '@/assets/css/globals.css',
     '@/assets/css/flows.css',
     '@/assets/css/studio.css',
+    '@/assets/css/tema.css',
     '@/assets/css/plantillas.css',
     '@/assets/css/home.css',
   ],

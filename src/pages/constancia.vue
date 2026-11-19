@@ -53,7 +53,7 @@ function print() {
   gap: 20px;
 }
 .certificate h2 {
-  font-family: Georgia, serif;
+  font-family: var(--display);
   font-size: 40px;
 }
 .certificate p {

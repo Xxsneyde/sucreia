@@ -175,7 +175,7 @@ onMounted(() => {
   margin: 20px 0;
 }
 .directory-intro h1 em {
-  font-family: Georgia, serif;
+  font-family: var(--display);
   color: #246a4e;
   font-weight: 400;
 }

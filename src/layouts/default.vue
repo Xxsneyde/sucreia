@@ -188,9 +188,9 @@ const active = (href: string) => path.value === href;
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  padding: 8px 14px;
-  border-radius: 9px;
-  background: var(--green);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--deep);
   color: white;
   font-weight: 700;
 }

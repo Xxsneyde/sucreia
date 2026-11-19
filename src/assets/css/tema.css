@@ -1,0 +1,438 @@
+/* =========================================================================
+   Tema de la plataforma: el lenguaje visual de la portada (home.css) aplicado
+   a las vistas internas. Se carga después de globals/flows/studio y antes de
+   plantillas.css (las páginas de tienda conservan su propio estilo).
+   ========================================================================= */
+body {
+  font-family: var(--body);
+  font-size: 15px;
+  background: var(--paper);
+}
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+h1 {
+  font-size: clamp(32px, 3.6vw, 48px);
+  line-height: 1.05;
+}
+h2 {
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.15;
+}
+h3 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+h1 em,
+h2 em {
+  font-style: italic;
+  color: var(--green);
+}
+::selection {
+  background: var(--lime);
+  color: var(--deep);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: var(--green);
+  outline-offset: 3px;
+}
+
+/* ---- Marca ---------------------------------------------------------- */
+.brand {
+  gap: 0;
+  font-family: var(--body);
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  color: var(--deep);
+}
+.brand-icon {
+  margin-right: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--deep);
+}
+
+/* ---- Menú lateral y barra superior ----------------------------------- */
+.sidebar {
+  background: var(--deep);
+  border-right: 0;
+  color: #b9cbc2;
+}
+.sidebar .brand {
+  color: #fff;
+}
+.sidebar .brand > span:last-child {
+  color: var(--lime);
+}
+.sidebar .brand-icon {
+  background: var(--lime);
+  color: var(--deep);
+}
+.nav-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7f988d;
+}
+.nav-link {
+  color: #c4d3cc;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 12px;
+}
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.nav-link.active {
+  background: var(--lime);
+  color: var(--deep);
+}
+.sidebar-invite {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  color: #fff;
+}
+.sidebar-invite p {
+  color: #b9cbc2;
+  font-size: 13px;
+}
+.sidebar-invite a {
+  color: var(--lime);
+  font-size: 13px;
+}
+.mini-leaf {
+  color: var(--lime);
+}
+.sidebar-bottom {
+  font-size: 13px;
+  color: #c4d3cc;
+}
+.sidebar-bottom a:hover {
+  color: var(--lime);
+}
+.sidebar-footer {
+  color: #7f988d;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 13px;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(247, 246, 239, 0.86);
+  backdrop-filter: blur(14px);
+}
+.location {
+  font-size: 13px;
+  color: var(--muted);
+}
+.view-switch {
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.view-switch.selected {
+  background: var(--deep);
+  color: #fff;
+}
+.avatar {
+  background: var(--lime);
+  color: var(--deep);
+  border-color: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.demo-banner {
+  background: var(--sand);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* ---- Contenido -------------------------------------------------------- */
+.main > * {
+  animation: tema-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.main > :nth-child(2) {
+  animation-delay: 60ms;
+}
+.main > :nth-child(3) {
+  animation-delay: 120ms;
+}
+.main > :nth-child(n + 4) {
+  animation-delay: 180ms;
+}
+@keyframes tema-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.eyebrow,
+.studio-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.small {
+  font-size: 13px;
+}
+.muted {
+  color: var(--muted);
+}
+.page-title {
+  margin: 8px 0 34px;
+}
+.page-title .muted {
+  font-size: 16px;
+}
+
+/* Botones */
+.button,
+.studio-primary,
+.studio-secondary {
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 22px;
+  min-height: 46px;
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+.button:hover,
+.studio-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -12px rgba(15, 42, 35, 0.55);
+}
+.button.dark {
+  background: var(--deep);
+}
+.button.secondary,
+.studio-secondary {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.button.secondary:hover,
+.studio-secondary:hover {
+  background: #fff;
+  border-color: #b9d7a8;
+}
+.button.subtle {
+  border-color: var(--line);
+}
+.button:disabled,
+.studio-primary:disabled {
+  transform: none;
+  box-shadow: none;
+}
+.text-button {
+  color: var(--green);
+  font-weight: 700;
+}
+.icon-button {
+  border-radius: 999px;
+}
+
+/* Tarjetas y etiquetas */
+.card,
+.business-card,
+.stat,
+.product-card {
+  border-color: var(--line);
+  border-radius: var(--radius);
+}
+.card {
+  padding: 26px;
+  box-shadow: 0 1px 0 rgba(15, 42, 35, 0.02);
+}
+.business-card,
+.product-card {
+  transition:
+    transform 0.25s ease-out,
+    box-shadow 0.25s ease-out;
+}
+.business-card:hover,
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 44px -28px rgba(15, 42, 35, 0.6);
+}
+.tag {
+  background: #eaf3df;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+.stat > strong {
+  font-family: var(--display);
+  font-weight: 500;
+  color: var(--green);
+}
+.notice {
+  border-radius: 16px;
+}
+.empty-symbol {
+  background: var(--lime);
+}
+
+/* Formularios */
+.form-stack label,
+.studio-form > label {
+  font-size: 14px;
+}
+.form-stack input,
+.form-stack select,
+.form-stack textarea,
+.studio-form input,
+.studio-form select,
+.studio-form textarea,
+.search-field,
+.filter-select {
+  border-color: var(--line);
+  border-radius: 14px;
+  background: #fff;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.form-stack input:focus,
+.form-stack select:focus,
+.form-stack textarea:focus,
+.studio-form input:focus,
+.studio-form select:focus,
+.studio-form textarea:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 4px rgba(31, 106, 76, 0.12);
+}
+.search-field {
+  border-radius: 999px;
+}
+.category,
+.auth-tabs button,
+.wizard-steps button {
+  border-radius: 999px;
+}
+.category.active {
+  background: var(--deep);
+  color: #fff;
+}
+.auth-tabs {
+  border-radius: 999px;
+}
+.auth-tabs button.active {
+  background: var(--deep);
+  color: #fff;
+}
+.auth-roles label.selected {
+  border-color: var(--green);
+  background: #eef6e6;
+}
+
+/* Tablas */
+th {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Navegación inferior en celular */
+@media (max-width: 800px) {
+  .bottom-nav {
+    background: rgba(247, 246, 239, 0.94);
+    backdrop-filter: blur(14px);
+  }
+  .bottom-nav a {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .bottom-nav a.active {
+    color: var(--deep);
+  }
+  .bottom-nav a.active svg {
+    padding: 3px 12px;
+    box-sizing: content-box;
+    border-radius: 999px;
+    background: var(--lime);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main > * {
+    animation: none;
+  }
+  .button:hover,
+  .studio-primary:hover,
+  .business-card:hover,
+  .product-card:hover {
+    transform: none;
+  }
+}
+
+/* Selectores sueltos de los paneles */
+.flow-toolbar label,
+.merchant-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.flow-toolbar select,
+.merchant-selector select {
+  min-height: 44px;
+  padding: 0 38px 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%2312302a' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E")
+    no-repeat right 16px center;
+  appearance: none;
+  font: 600 14px var(--body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.merchant-selector a {
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 700;
+}
+.flow-metrics strong {
+  font-family: var(--display);
+  font-weight: 500;
+  color: var(--green);
+  letter-spacing: -0.02em;
+}
+
+/* Estudio: textos que quedaron pálidos al pasar del morado al verde */
+.studio-home-heading h1 em {
+  color: var(--green);
+}
+.studio-home-heading p,
+.studio-section-title p {
+  font-size: 15px;
+  color: var(--muted);
+}
+.studio-welcome p {
+  font-size: 15px;
+  color: var(--muted);
+}
+.studio-welcome a {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green);
+}
