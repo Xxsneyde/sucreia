@@ -54,7 +54,7 @@ test('cerrar sesión desde la cabecera invalida la cookie y permite volver como 
   await expect(page).toHaveURL(/ingresar/);
   await page.getByRole('link', { name: 'Explorar negocios' }).click();
   await expect(
-    page.locator('.public-header').getByRole('link', { name: 'Ingresar', exact: true }),
+    page.locator('.public-header, .hp-header').getByRole('link', { name: 'Ingresar', exact: true }),
   ).toBeVisible();
   await expect(page.locator('.topbar').getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(
     0,

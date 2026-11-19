@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Business } from '@/domain/types';
 import { businessHref } from '@/domain/studio';
 import { filterDirectory } from '@/domain/directory';
-const props = defineProps<{ favoritesOnly?: boolean }>();
+const props = defineProps<{ favoritesOnly?: boolean; embedded?: boolean }>();
 const platform = usePlatform();
 const stores = shallowRef<Business[]>([]);
 const loading = ref(true);
@@ -15,7 +15,9 @@ const query = ref('');
 const category = ref('');
 const municipality = ref('');
 const categories = computed(() =>
-  [...new Set(stores.value.map((b) => b.category))].sort((a, b) => a.localeCompare(b, 'es')),
+  [...new Set([...stores.value.map((b) => b.category), category.value].filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, 'es'),
+  ),
 );
 const municipalities = computed(() =>
   [...new Set(stores.value.map((b) => b.municipality))].sort((a, b) => a.localeCompare(b, 'es')),
@@ -45,10 +47,17 @@ async function load() {
 function clear() {
   query.value = category.value = municipality.value = '';
 }
-onMounted(load);
+onMounted(() => {
+  // Búsqueda que llega desde la portada: /buscar?q=…&categoria=… (se lee al montar, ver
+  // docs/verificacion.md sobre consultas en páginas generadas).
+  const params = new URLSearchParams(window.location.search);
+  query.value = params.get('q') ?? '';
+  category.value = params.get('categoria') ?? '';
+  void load();
+});
 </script>
 <template>
-  <section class="directory-intro">
+  <section v-if="!embedded" class="directory-intro">
     <p class="directory-eyebrow">
       {{ favoritesOnly ? 'TUS NEGOCIOS GUARDADOS' : 'LA VITRINA DE SUCRE' }}
     </p>

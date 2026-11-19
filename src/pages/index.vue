@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import PublicDirectory from '@/features/directory/PublicDirectory.vue';
-definePageMeta({ layout: 'public' });
-useHead({ title: 'Negocios publicados' });
+import HomePage from '@/features/home/HomePage.vue';
+// La portada tiene su propia cabecera y pie (secciones a todo lo ancho).
+definePageMeta({ layout: false });
+useHead({ title: 'SucreIA · La vitrina digital de Sucre' });
 </script>
-<template><PublicDirectory /></template>
+<template><HomePage /></template>

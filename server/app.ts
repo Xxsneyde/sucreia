@@ -101,7 +101,11 @@ export function createApp({
     // no ve ni un instante de la página y no hay diferencias de hidratación en el navegador.
     // Misma lista que el middleware del frontend (src/domain/access.ts).
     app.use(loadUser(db), (req, res, next) => {
-      if (!['GET', 'HEAD'].includes(req.method) || !requiresSession(req.path)) return next();
+      // Solo páginas: los archivos generados (`_payload.json`, imágenes…) no tienen datos
+      // personales y Nuxt los descarga por adelantado al mostrar enlaces.
+      const isFile = /\.[a-z0-9]+$/i.test(req.path);
+      if (!['GET', 'HEAD'].includes(req.method) || isFile || !requiresSession(req.path))
+        return next();
       const user = currentUser(res);
       // Administración: los demás roles van a su propia vista (misma regla que el frontend).
       if (user && requiredRole(req.path) === 'admin' && user.role !== 'admin')

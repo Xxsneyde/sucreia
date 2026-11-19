@@ -16,6 +16,7 @@ export default defineNuxtConfig({
     '@/assets/css/flows.css',
     '@/assets/css/studio.css',
     '@/assets/css/plantillas.css',
+    '@/assets/css/home.css',
   ],
   app: {
     head: {
