@@ -1,6 +1,5 @@
 // Nuxt 4 (Vue 3 + Node). El sitio se genera estático con `nuxt generate` en .output/public;
 // cuando haya backend, se puede servir con Node (`nuxt build`) o conectar una API aparte.
-import { businesses } from './src/data/demo';
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
@@ -10,15 +9,7 @@ export default defineNuxtConfig({
   ssr: true,
   devtools: { enabled: false },
   telemetry: false,
-  css: [
-    '@/assets/css/fonts.css',
-    '@/assets/css/globals.css',
-    '@/assets/css/flows.css',
-    '@/assets/css/studio.css',
-    '@/assets/css/tema.css',
-    '@/assets/css/plantillas.css',
-    '@/assets/css/home.css',
-  ],
+  css: ['@/assets/css/fonts.css', '@/assets/css/sucre.css'],
   app: {
     head: {
       htmlAttrs: { lang: 'es' },
@@ -43,9 +34,9 @@ export default defineNuxtConfig({
       routes: [
         '/',
         '/inicio/',
-        ...businesses.map((b) => `/negocios/${b.id}/`),
-        '/estudio/gestionar/',
-        '/estudio/vista-previa/',
+        '/buscar/',
+        '/sectores/',
+        '/mapa/',
         '/tienda/',
         '/recuperar/',
         '/verificar-correo/',

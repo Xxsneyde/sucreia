@@ -1,174 +1,206 @@
 <script setup lang="ts">
-import { usePlatform } from '@/lib/platform-store';
-import LogoutButton from '@/components/LogoutButton.vue';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import {
-  Compass,
   Bell,
-  Search,
-  ShoppingBag,
-  ShoppingCart,
-  UserRound,
-  Heart,
-  Gift,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  CircleUser,
   GraduationCap,
-  MapPin,
-  Store,
+  Heart,
+  House,
   LayoutDashboard,
+  LayoutGrid,
+  MapPin,
+  Menu,
   Package,
-  IdCard,
-  Tag,
-  Truck,
+  Search,
   Settings,
   ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
   Sparkles,
-  BookOpen,
-  ArrowUpRight,
-  Leaf,
+  Store,
+  Tag,
+  Truck,
+  UserRound,
+  X,
 } from '@lucide/vue';
+import { usePlatform } from '@/lib/platform-store';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
 import { isMerchant, modeFor, navFor, type CourierState, type IconName } from '@/domain/roles';
+import { requiresSession } from '@/domain/access';
+import LogoutButton from '@/components/LogoutButton.vue';
+import SucreLogo from '@/components/sucre/SucreLogo.vue';
+import SearchBox from '@/components/sucre/SearchBox.vue';
+import AssistantFab from '@/components/sucre/AssistantFab.vue';
 
-// Íconos de las vistas definidas en domain/roles.ts.
+// Marco de la presentación: menú lateral azul, barra superior y contenido.
+// Visitantes y cuentas ven el mismo menú; lo personal aparece después de montar
+// (el HTML generado no conoce la sesión y debe coincidir con el primer render).
 const icons: Record<IconName, unknown> = {
-  compass: Compass,
+  home: House,
   search: Search,
-  cart: ShoppingCart,
-  bag: ShoppingBag,
-  heart: Heart,
-  gift: Gift,
-  school: GraduationCap,
+  grid: LayoutGrid,
   map: MapPin,
+  tag: Tag,
+  truck: Truck,
+  school: GraduationCap,
   sparkles: Sparkles,
+  bag: ShoppingBag,
+  cart: ShoppingCart,
+  heart: Heart,
   bell: Bell,
   user: UserRound,
   dashboard: LayoutDashboard,
   store: Store,
   package: Package,
-  id: IdCard,
-  tag: Tag,
   settings: Settings,
-  truck: Truck,
   shield: ShieldCheck,
   book: BookOpen,
 };
+const route = useRoute();
 const path = usePath();
 const platform = usePlatform();
 const session = useSession();
 const mounted = ref(false);
+const drawer = ref(false);
+const menu = ref(false);
 onMounted(() => {
   mounted.value = true;
+  void session.load();
 });
-const initial = computed(() => session.user?.name.trim().slice(0, 1).toUpperCase() || 'S');
-const merchant = computed(() => !!session.user && isMerchant(session.user.role));
+watch(path, () => {
+  drawer.value = false;
+  menu.value = false;
+});
+const user = computed(() => (mounted.value ? session.user : null));
 const courier = computed<CourierState>(() => {
   const c = platform.data.value?.courier;
   return !c ? 'none' : c.approved ? 'approved' : 'pending';
 });
-const mode = computed(() => (merchant.value ? modeFor(path.value) : 'comprar'));
-const business = computed(() => mode.value === 'negocio');
 const nav = computed(() =>
-  session.user
-    ? navFor({ role: session.user.role, courier: courier.value }, mode.value)
-    : { sections: [], mobile: [] },
+  navFor(
+    user.value ? { role: user.value.role, courier: courier.value } : null,
+    modeFor(path.value),
+  ),
 );
 const active = (href: string) => path.value === href;
+const unread = computed(() => (user.value ? platform.unread.value : 0));
+const cartCount = computed(() =>
+  user.value ? platform.cart.value.reduce((n, l) => n + l.quantity, 0) : 0,
+);
+const firstName = computed(() => user.value?.name.trim().split(/\s+/)[0] ?? '');
+const banner = computed(() => route.meta.banner === true);
+// Las páginas con cuenta dependen de la sesión: se dibujan después de montar.
+const privatePage = computed(() => requiresSession(path.value));
+const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPath)}`);
 </script>
 
 <template>
-  <div v-if="mounted && session.ready && session.user" class="app">
+  <div :class="['sx', { 'sx--banner': banner }]">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
-    <aside class="sidebar">
-      <NuxtLink class="brand" to="/">
-        <span class="brand-icon"><ShoppingBag :size="23" /></span>
-        Sucre<span>IA</span>
+    <aside :class="['sx-side', { open: drawer }]" aria-label="Menú de SucreIA">
+      <NuxtLink class="sx-side-brand" to="/" aria-label="SucreIA, portada">
+        <SucreLogo :size="42" />
+        <small>El ecosistema digital de<br />emprendimientos de Sucre</small>
       </NuxtLink>
-      <nav aria-label="Navegación principal" class="role-nav">
-        <section v-for="section in nav.sections" :key="section.id">
-          <p class="nav-label">{{ section.title }}</p>
+      <nav aria-label="Navegación principal">
+        <div v-for="section in nav.sections" :key="section.id" class="sx-nav">
+          <p v-if="section.title" class="sx-nav-title">{{ section.title }}</p>
           <NuxtLink
             v-for="item in section.items"
             :key="item.href"
             :to="item.href"
-            :class="['nav-link', { active: active(item.href) }]"
+            :class="{ active: active(item.href) }"
             :aria-current="active(item.href) ? 'page' : undefined"
           >
-            <component :is="icons[item.icon]" :size="19" />
-            {{ item.label }}
+            <component :is="icons[item.icon]" :size="21" :stroke-width="1.9" />
+            <span>{{ item.label }}</span>
+            <span v-if="item.href === '/notificaciones' && unread" class="sx-badge">{{
+              unread
+            }}</span>
           </NuxtLink>
-        </section>
+        </div>
       </nav>
-      <div class="sidebar-invite">
-        <span class="mini-leaf"><Leaf :size="22" /></span>
-        <template v-if="merchant">
-          <h3>Tu idea merece crecer.</h3>
-          <p>Diseña tu página y recibe pedidos de todo Sucre.</p>
-          <NuxtLink to="/estudio">Diseñar mi tienda <ArrowUpRight :size="16" /></NuxtLink>
-        </template>
-        <template v-else>
-          <h3>¿Tienes un negocio?</h3>
-          <p>Actívalo en tu misma cuenta y crea tu página en minutos.</p>
-          <NuxtLink to="/perfil">Abrir mi negocio <ArrowUpRight :size="16" /></NuxtLink>
-        </template>
-      </div>
-      <div v-if="courier === 'none'" class="sidebar-bottom">
-        <NuxtLink to="/domiciliario"><Truck :size="17" /> Quiero repartir</NuxtLink>
-      </div>
-      <span class="sidebar-footer">Hecho para nuestra tierra.</span>
+      <NuxtLink class="sx-side-account" :to="user ? '/perfil' : login" style="margin-top: auto">
+        <CircleUser :size="24" />
+        <span>{{ user ? 'Mi cuenta' : 'Ingresar' }}</span>
+        <ChevronRight :size="18" />
+      </NuxtLink>
     </aside>
-    <div class="workspace">
-      <header class="topbar">
-        <NuxtLink class="mobile-brand brand" to="/">Sucre<span>IA</span></NuxtLink>
-        <span class="location"><MapPin :size="16" /> Sucre, Colombia</span>
-        <div class="topbar-actions">
-          <template v-if="merchant">
-            <NuxtLink :class="!business ? 'view-switch selected' : 'view-switch'" to="/inicio">
-              Comprar
-            </NuxtLink>
-            <NuxtLink
-              :class="business ? 'view-switch selected' : 'view-switch'"
-              to="/panel"
-              aria-label="Mi negocio"
-            >
-              <Store :size="15" /> <span>Mi negocio</span>
-            </NuxtLink>
-          </template>
-          <NuxtLink v-if="session.ready && !session.user" class="session-enter" to="/ingresar"
-            >Ingresar</NuxtLink
-          >
+    <div v-if="drawer" class="sx-scrim" @click="drawer = false" />
+
+    <div class="sx-body">
+      <header class="sx-top">
+        <button
+          type="button"
+          class="sx-burger"
+          aria-label="Abrir menú"
+          :aria-expanded="drawer"
+          @click="drawer = !drawer"
+        >
+          <X v-if="drawer" :size="22" /><Menu v-else :size="22" />
+        </button>
+        <SearchBox label="" placeholder="¿Qué producto o servicio necesitas en Sucre?" />
+        <div class="sx-top-end">
           <NuxtLink
-            v-if="session.user"
-            class="avatar"
-            :to="session.user ? '/perfil' : '/ingresar'"
-            :aria-label="session.user ? `Mi perfil: ${session.user.name}` : 'Ingresar'"
-            >{{ initial }}</NuxtLink
+            v-if="user"
+            class="sx-iconbtn"
+            to="/carrito"
+            :aria-label="`Carrito: ${cartCount} productos`"
           >
+            <ShoppingCart :size="21" />
+            <span v-if="cartCount" class="sx-badge">{{ cartCount }}</span>
+          </NuxtLink>
           <NuxtLink
+            v-if="user"
+            class="sx-iconbtn"
             to="/notificaciones"
-            class="notification-link"
-            :aria-label="`Notificaciones: ${platform.unread.value} sin leer`"
-            ><Bell :size="18" /><span v-if="platform.unread.value">{{
-              platform.unread.value
-            }}</span></NuxtLink
+            :aria-label="`Notificaciones: ${unread} sin leer`"
           >
-          <LogoutButton v-if="session.user" />
+            <Bell :size="21" />
+            <span v-if="unread" class="sx-dot" />
+          </NuxtLink>
+          <div class="sx-user">
+            <template v-if="user">
+              <button
+                type="button"
+                :aria-expanded="menu"
+                :aria-label="`Hola, ${firstName}: menú de tu cuenta`"
+                @click="menu = !menu"
+              >
+                <span class="sx-avatar" aria-hidden="true">{{
+                  firstName.slice(0, 1).toUpperCase()
+                }}</span>
+                <span>Hola, {{ firstName }}</span>
+                <ChevronDown :size="17" />
+              </button>
+              <div v-if="menu" class="sx-menu">
+                <NuxtLink to="/perfil"><CircleUser :size="18" /> Mi cuenta</NuxtLink>
+                <NuxtLink v-if="isMerchant(user.role)" to="/panel"
+                  ><Store :size="18" /> Mi negocio</NuxtLink
+                >
+                <NuxtLink to="/pedidos"><ShoppingCart :size="18" /> Mis compras</NuxtLink>
+                <LogoutButton />
+              </div>
+            </template>
+            <NuxtLink v-else :to="login"><span>Ingresar</span><CircleUser :size="22" /></NuxtLink>
+          </div>
         </div>
       </header>
-      <div class="demo-banner">
-        <span class="live-dot" /> SucreIA · Comunidad local
-        <span>· Pagos confirmados por cada negocio. Sin cobros automáticos.</span>
-      </div>
-      <main id="contenido" class="main" :inert="session.ending">
-        <slot />
+      <main id="contenido" class="sx-main" :inert="session.ending">
+        <slot v-if="mounted || !privatePage" />
+        <p v-else class="loader" role="status">Comprobando tu acceso…</p>
       </main>
-      <footer class="footer">
-        SucreIA <span>Conectamos talento local con nuevas oportunidades.</span>
-        <NuxtLink v-if="session.user?.role === 'admin'" to="/equipo">Versión 0.3.0</NuxtLink>
-        <span v-else>Versión 0.3.0</span>
+      <footer class="sx-footer">
+        SucreIA · El ecosistema digital de emprendimientos de Sucre. Pagos acordados con cada
+        negocio; sin cobros automáticos.
       </footer>
     </div>
-    <nav class="bottom-nav" aria-label="Navegación móvil">
+    <nav class="sx-bottom" aria-label="Navegación en celular">
       <NuxtLink
         v-for="item in nav.mobile"
         :key="item.href"
@@ -179,93 +211,6 @@ const active = (href: string) => path.value === href;
         <span>{{ item.label }}</span>
       </NuxtLink>
     </nav>
+    <AssistantFab />
   </div>
-  <div v-else class="studio-loading" role="status">Comprobando tu acceso…</div>
 </template>
-
-<style scoped>
-.session-enter {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 8px 18px;
-  border-radius: 999px;
-  background: var(--deep);
-  color: white;
-  font-weight: 700;
-}
-.topbar-actions {
-  min-width: 0;
-}
-.role-nav {
-  margin-top: 28px;
-}
-.role-nav section + section {
-  margin-top: 18px;
-}
-/* Títulos de sección en versalitas pequeñas, como el resto de etiquetas del sitio. */
-.role-nav .nav-label {
-  margin: 0 10px 6px;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-/* Más compacto: el emprendedor tiene casi veinte opciones. */
-.role-nav .nav-link {
-  padding: 9px 13px;
-  margin-bottom: 2px;
-}
-@media (max-width: 1100px) {
-  .topbar .location {
-    display: none;
-  }
-}
-@media (max-width: 800px) {
-  .topbar .view-switch:first-child {
-    display: none;
-  }
-  .topbar .view-switch {
-    min-width: 44px;
-    min-height: 44px;
-    justify-content: center;
-    padding: 8px;
-  }
-  .topbar .view-switch span {
-    display: none;
-  }
-}
-@media (max-width: 380px) {
-  .topbar {
-    padding-inline: 12px;
-  }
-  .topbar-actions {
-    gap: 6px;
-  }
-  .topbar .avatar {
-    display: none;
-  }
-}
-.notification-link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 40px;
-  min-height: 44px;
-}
-.notification-link span {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #246a4e;
-  color: white;
-  font-size: 10px;
-  min-width: 16px;
-  border-radius: 20px;
-  text-align: center;
-}
-@media (max-width: 600px) {
-  .topbar .avatar {
-    display: none;
-  }
-}
-</style>

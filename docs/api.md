@@ -30,23 +30,25 @@ JSON. Los errores responden `{ "error": "mensaje en español" }` con el código 
 
 ## Cuentas — `/api/auth`
 
-| Método | Ruta        | Cuerpo                                                        | Respuesta                     |
-| ------ | ----------- | ------------------------------------------------------------- | ----------------------------- |
-| POST   | `/registro` | `{ email, name, password, role: "cliente" \| "emprendedor" }` | 201 `{ user }` y cookie       |
-| POST   | `/ingresar` | `{ email, password }`                                         | 200 `{ user }` y cookie       |
-| POST   | `/salir`    | —                                                             | 204                           |
-| GET    | `/yo`       | —                                                             | `{ user }` o `{ user: null }` |
+| Método | Ruta        | Cuerpo                                                                   | Respuesta                                                                                            |
+| ------ | ----------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| POST   | `/registro` | `{ email, name, password, role: "cliente" \| "emprendedor", referido? }` | 201 `{ user }` y cookie (`referido`: código de 6 caracteres de quien invita; uno inválido se ignora) |
+| POST   | `/ingresar` | `{ email, password }`                                                    | 200 `{ user }` y cookie                                                                              |
+| POST   | `/salir`    | —                                                                        | 204                                                                                                  |
+| GET    | `/yo`       | —                                                                        | `{ user }` o `{ user: null }`                                                                        |
 
 La sesión viaja en la cookie `sucreia_sesion` (httpOnly, SameSite=Lax, 30 días). Contraseña mínima de 8 caracteres. No se pueden crear administradores desde el registro. Máximo 10 intentos de ingreso cada 15 minutos por IP y correo; hasta 60 registros cada 15 minutos por IP.
 
 ## Tiendas públicas — `/api/tiendas`
 
-| Método | Ruta   | Respuesta                                                            |
-| ------ | ------ | -------------------------------------------------------------------- |
-| GET    | `/`    | `{ stores: Business[] }` (solo publicadas, formato del catálogo)     |
-| GET    | `/:id` | `{ id, publishedAt, design }` (versión publicada; 404 si no lo está) |
+| Método | Ruta   | Respuesta                                                                                              |
+| ------ | ------ | ------------------------------------------------------------------------------------------------------ |
+| GET    | `/`    | `{ stores: Business[] }` (solo publicadas, formato del catálogo, con `logo`, `rating` y `reviewCount`) |
+| GET    | `/:id` | `{ id, publishedAt, design }` (versión publicada; 404 si no lo está)                                   |
 
 ## Mis tiendas — `/api/mis-tiendas` (rol emprendedor o admin)
+
+`design.category` guarda uno de los 10 sectores de `src/domain/sectors.ts`. Campos opcionales: `phone`, `email` y `products[].category` (grupo del catálogo).
 
 | Método | Ruta               | Cuerpo       | Respuesta                                              |
 | ------ | ------------------ | ------------ | ------------------------------------------------------ |
@@ -122,31 +124,35 @@ La API iniciada desde `server/index.ts` bloquea sus datos mientras está en uso.
 
 Ver contratos en `src/domain/platform.ts`, reglas en `server/platform.ts` y [recorrido funcional](recorrido-completo.md).
 
-| Método | Ruta                                      | Acceso y comportamiento                                                                                                                                                |
-| ------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/estado`                                 | Sesión: operaciones propias, ventas propias, entregas asignadas, favoritos, libro de puntos, bonos, avisos y aprendizaje; PIN solo para su cliente                     |
-| GET    | `/negocios/:id`                           | Publicación o propietario: metadatos de comercio, stock y reseñas; vistas/evidencias privadas solo al dueño                                                            |
-| GET    | `/negocios/:id/horarios?fecha=YYYY-MM-DD` | Horas libres de un negocio publicado; intervalos persistentes, hora de Colombia, hasta 90 días                                                                         |
-| POST   | `/negocios/:id/visita`                    | `{ productId? }`; limita por IP/producto/30 min; no equivale a venta                                                                                                   |
-| POST   | `/operaciones`                            | Sesión: `{ storeId, key, kind, items?, detail?, slot?, phone, fulfillment?, address?, paymentMethod?, couponId?, expectedSubtotal? }`; precios y permisos del servidor |
-| POST   | `/operaciones/:id/:action`                | Participante autorizado: `prepare`, `ready`, `confirm`, `quote`, `accept`, `payment`, `dispatch`, `complete`, `cancel`, `refund`; estado y rol comprobados             |
-| POST   | `/favoritos/:id`                          | Alterna un negocio publicado en favoritos del usuario                                                                                                                  |
-| POST   | `/notificaciones/leidas`                  | Marca solo los avisos de la cuenta                                                                                                                                     |
-| PUT    | `/negocios/:id/configuracion`             | Dueño: domicilio/tarifa, instrucciones de pago, apertura/cierre diarios, duración y coordenadas opcionales                                                             |
-| PUT    | `/negocios/:id/inventario`                | Dueño: `{ productId, quantity: integer \| null }`; null significa sin límite                                                                                           |
-| POST   | `/negocios/:id/promociones`               | Dueño de negocio publicado de productos: título, porcentaje 1–50, costo de canje y vencimiento futuro                                                                  |
-| DELETE | `/promociones/:id`                        | Dueño: detiene canjes nuevos y conserva bonos emitidos                                                                                                                 |
-| POST   | `/canjes/:id`                             | Sesión: descuenta puntos y emite un bono ligado a cuenta/negocio; saldo comprobado en transacción                                                                      |
-| POST   | `/resenas`                                | Cliente de operación completada: `{ operationId, rating, comment, courierRating? }`; una por operación                                                                 |
-| POST   | `/negocios/:id/verificacion`              | Dueño: solicita revisión con referencias; no concede sello automáticamente                                                                                             |
-| PUT    | `/domiciliario`                           | Cuenta: contacto, municipio y foto propia opcional; requiere revisión tras cambios                                                                                     |
-| GET    | `/admin`                                  | Solo admin: revisión y auditoría                                                                                                                                       |
-| POST   | `/admin/:type/:id`                        | Solo admin, motivo obligatorio: negocios/domiciliarios aprueban o rechazan; suspender/reactivar controlan la publicación                                               |
-| POST   | `/lecciones/:id`                          | Cuenta, `{ answer }`; respuesta correcta comprobada en servidor e idempotente                                                                                          |
-| POST   | `/certificado`                            | Cuenta con todas las evaluaciones completas; devuelve la misma constancia en reintentos                                                                                |
-| GET    | `/certificados/:id`                       | Consulta pública por código: nombre y fecha aceptados al generar, sin email ni operaciones                                                                             |
-| POST   | `/asistente/:id`                          | Pregunta sobre catálogo publicado; IA opcional solo con sesión; sin escrituras                                                                                         |
-| POST   | `/tutor`                                  | Sesión: pregunta sobre material de aprendizaje; guía local o modelo opcional                                                                                           |
+| Método | Ruta                                      | Acceso y comportamiento                                                                                                                                                                |
+| ------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/estado`                                 | Sesión: operaciones propias, ventas propias, entregas asignadas, favoritos, libro de puntos, bonos, avisos, aprendizaje, `referral`, `challenges` y `events`; PIN solo para su cliente |
+| GET    | `/negocios/:id`                           | Publicación o propietario: metadatos de comercio, stock y reseñas; vistas/evidencias privadas solo al dueño                                                                            |
+| GET    | `/negocios/:id/horarios?fecha=YYYY-MM-DD` | Horas libres de un negocio publicado; intervalos persistentes, hora de Colombia, hasta 90 días                                                                                         |
+| POST   | `/negocios/:id/visita`                    | `{ productId? }`; limita por IP/producto/30 min; no equivale a venta                                                                                                                   |
+| POST   | `/operaciones`                            | Sesión: `{ storeId, key, kind, items?, detail?, slot?, phone, fulfillment?, address?, paymentMethod?, couponId?, expectedSubtotal? }`; precios y permisos del servidor                 |
+| POST   | `/operaciones/:id/:action`                | Participante autorizado: `prepare`, `ready`, `confirm`, `quote`, `accept`, `payment`, `dispatch`, `complete`, `cancel`, `refund`; estado y rol comprobados                             |
+| POST   | `/favoritos/:id`                          | Alterna un negocio publicado en favoritos del usuario                                                                                                                                  |
+| POST   | `/notificaciones/leidas`                  | Marca solo los avisos de la cuenta                                                                                                                                                     |
+| PUT    | `/negocios/:id/configuracion`             | Dueño: domicilio/tarifa, instrucciones de pago, apertura/cierre diarios, duración y coordenadas opcionales                                                                             |
+| PUT    | `/negocios/:id/inventario`                | Dueño: `{ productId, quantity: integer \| null }`; null significa sin límite                                                                                                           |
+| POST   | `/negocios/:id/promociones`               | Dueño de negocio publicado de productos: título, porcentaje 1–50, costo de canje y vencimiento futuro                                                                                  |
+| DELETE | `/promociones/:id`                        | Dueño: detiene canjes nuevos y conserva bonos emitidos                                                                                                                                 |
+| POST   | `/canjes/:id`                             | Sesión: descuenta puntos y emite un bono ligado a cuenta/negocio; saldo comprobado en transacción                                                                                      |
+| POST   | `/resenas`                                | Cliente de operación completada: `{ operationId, rating, comment, courierRating? }`; una por operación                                                                                 |
+| POST   | `/negocios/:id/verificacion`              | Dueño: solicita revisión con referencias; no concede sello automáticamente                                                                                                             |
+| PUT    | `/domiciliario`                           | Cuenta: contacto, municipio y foto propia opcional; requiere revisión tras cambios                                                                                                     |
+| GET    | `/admin`                                  | Solo admin: revisión y auditoría                                                                                                                                                       |
+| POST   | `/admin/:type/:id`                        | Solo admin, motivo obligatorio: negocios/domiciliarios aprueban o rechazan; suspender/reactivar controlan la publicación                                                               |
+| POST   | `/lecciones/:id`                          | Cuenta, `{ answer }`; respuesta correcta comprobada en servidor e idempotente                                                                                                          |
+| POST   | `/certificado`                            | Cuenta con todas las evaluaciones completas; devuelve la misma constancia en reintentos                                                                                                |
+| GET    | `/certificados/:id`                       | Consulta pública por código: nombre y fecha aceptados al generar, sin email ni operaciones                                                                                             |
+| POST   | `/asistente/:id`                          | Pregunta sobre catálogo publicado; IA opcional solo con sesión; sin escrituras                                                                                                         |
+| GET    | `/eventos`                                | Ferias y eventos de los últimos 30 días y próximos; con sesión indica `attended`. Nunca expone el código                                                                               |
+| POST   | `/eventos/:id/asistencia`                 | Sesión, `{ code }`: del día del evento a 7 días después; suma sus puntos una vez; 8 intentos fallidos bloquean 15 min                                                                  |
+| POST   | `/admin/eventos`                          | Solo admin: `{ title, place, municipality, date, points 1–100, code }` (código guardado como hash)                                                                                     |
+| DELETE | `/admin/eventos/:id`                      | Solo admin                                                                                                                                                                             |
+| POST   | `/tutor`                                  | Sesión: pregunta sobre material de aprendizaje; guía local o modelo opcional                                                                                                           |
 
 `POST /api/auth/emprender` activa el rol emprendedor de una cuenta cliente sin poder convertirse en administrador; `PUT /api/auth/perfil` cambia el nombre. Las rutas de gestión de tiendas se limitan al propietario; la administración modera mediante sus rutas auditadas.
 

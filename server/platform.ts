@@ -17,6 +17,14 @@ import {
   type CommerceStore,
 } from '../src/domain/platform.ts';
 import { lessons } from '../src/features/community/lessons.ts';
+import {
+  afterCompleted,
+  challengeProgress,
+  checkChallenges,
+  listEvents,
+  referralCode,
+  referralStats,
+} from './rewards.ts';
 const now = () => new Date().toISOString();
 export function transaction<T>(db: Db, fn: () => T): T {
   db.exec('BEGIN IMMEDIATE');
@@ -170,6 +178,9 @@ export function state(db: Db, user: User): PlatformState {
         ? allCouriers.filter((c) => c.approved)
         : [],
     courier: allCouriers.find((c) => c.id === user.id) ?? null,
+    referral: { code: referralCode(db, user.id), ...referralStats(db, user.id) },
+    challenges: challengeProgress(db, user.id),
+    events: listEvents(db, user.id),
   };
 }
 export function commerceStore(db: Db, storeId: string): CommerceStore {
@@ -435,6 +446,7 @@ export function actOperation(
 ) {
   // Los intentos fallidos del PIN deben persistir incluso al rechazar la acción.
   const current = operation(db, id);
+  let completedClient = '';
   const owner = current.ownerId === actor.id,
     client = current.clientId === actor.id,
     courier = current.courierId === actor.id;
@@ -567,6 +579,7 @@ export function actOperation(
         Math.floor((op.amount - op.fee) / 1000),
         `Compra o servicio completado en ${op.storeName}`,
       );
+      completedClient = op.clientId;
     } else throw new HttpError(409, 'Esta acción no está permitida en el estado actual.');
     op.status = next;
     op.events.push({
@@ -581,6 +594,7 @@ export function actOperation(
           : `Estado actualizado: ${statusNames[next]}.`,
     });
     saveOperation(db, op);
+    if (completedClient) afterCompleted(db, completedClient);
     notify(
       db,
       op.clientId,
@@ -633,4 +647,5 @@ export function lessonAnswer(db: Db, actor: User, id: string, answer: number) {
   if (answer !== lesson.correct)
     throw new HttpError(400, 'Revisa el contenido y vuelve a intentarlo.');
   db.prepare('INSERT OR IGNORE INTO learning VALUES (?,?,?)').run(actor.id, id, now());
+  checkChallenges(db, actor.id);
 }

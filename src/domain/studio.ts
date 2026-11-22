@@ -1,4 +1,5 @@
 import type { Business, BusinessMode } from './types.ts';
+import { sectorFor } from './sectors.ts';
 import {
   areaFor,
   designChoices,
@@ -16,6 +17,8 @@ export interface StoreProduct {
   description: string;
   price: number;
   image: string;
+  /** Grupo del catálogo («Tortas», «Postres»…); vacío o ausente = sin grupo. */
+  category?: string;
 }
 /** Textos e imágenes de la página. Cada estilo los presenta a su manera. */
 export interface StoreContent {
@@ -38,6 +41,10 @@ export interface StoreDesign {
   municipality: string;
   description: string;
   whatsapp: string;
+  /** Teléfono fijo o celular para llamadas (opcional). */
+  phone?: string;
+  /** Correo de contacto del negocio (opcional). */
+  email?: string;
   address: string;
   hours: string;
   logo: string;
@@ -99,12 +106,13 @@ export function createDesign(
   name = 'Mi emprendimiento',
   choice = 0,
 ): StoreDesign {
+  const sector = sectorFor(category);
   const area = areaFor(category);
   const option = area.choices[choice] ?? area.choices[0];
   const municipality = 'Sincelejo';
   return {
     name,
-    category: area.id,
+    category: sector.id,
     municipality,
     description: '',
     whatsapp: '',
@@ -184,13 +192,12 @@ export function toBusiness(p: StoreProject): Business | null {
     products: d.products,
     local: true,
     cover: d.content.heroImage,
+    logo: d.logo,
   };
 }
-/** Tiendas creadas en SucreIA (servidor: «tienda-…», navegador: «local-…») o negocios de ejemplo. */
+/** Página pública de un negocio publicado en SucreIA. */
 export function businessHref(id: string) {
-  return id.startsWith('tienda-') || id.startsWith('local-')
-    ? `/tienda?id=${encodeURIComponent(id)}`
-    : `/negocios/${id}`;
+  return `/tienda?id=${encodeURIComponent(id)}`;
 }
 export function contrast(a: string, b: string) {
   const luminance = (hex: string) => {
@@ -245,7 +252,8 @@ export function isDesign(v: unknown): v is StoreDesign {
   if (
     !['name', 'category', 'municipality', 'description', 'whatsapp', 'address', 'hours'].every(
       (k) => short(v[k]),
-    )
+    ) ||
+    !['phone', 'email'].every((k) => v[k] === undefined || short(v[k], 200))
   )
     return false;
   if (
@@ -270,7 +278,8 @@ export function isDesign(v: unknown): v is StoreDesign {
         Number.isFinite(p.price) &&
         p.price >= 0 &&
         p.price <= 1e9 &&
-        validImage(p.image),
+        validImage(p.image) &&
+        (p.category === undefined || short(p.category, 60)),
     )
   )
     return false;

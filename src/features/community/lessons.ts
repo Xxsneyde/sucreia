@@ -36,7 +36,7 @@ export const lessons = [
     content:
       'Empieza con una portada, un catálogo y una forma de contacto. Usa pocos colores, textos que se lean bien y fotografías consistentes. Revisa tu tienda en la vista de celular antes de publicarla.',
     exercise:
-      'Entra al estudio, cambia a vista de celular y comprueba que el nombre, el catálogo y el botón principal sean fáciles de encontrar.',
+      'Abre la página de tu negocio desde el celular y comprueba que el nombre, el catálogo y el botón principal sean fáciles de encontrar.',
     question: '¿Qué debes revisar antes de publicar?',
     answers: [
       'Que cada bloque use una tipografía diferente',
@@ -87,5 +87,20 @@ export const lessons = [
       'Usarla como prueba de reputación',
     ],
     correct: 0,
+  },
+  {
+    id: 'formalizacion',
+    title: 'Formaliza tu negocio',
+    content:
+      'Formalizarte te permite facturar, acceder a créditos y vender a empresas. Los primeros pasos son inscribirte en el RUT ante la DIAN y obtener la matrícula mercantil en la Cámara de Comercio de tu jurisdicción (en Sucre, la Cámara de Comercio de Sincelejo). Según tu actividad pueden aplicar otros permisos, como los sanitarios para alimentos. Consulta siempre las fuentes oficiales.',
+    exercise:
+      'Haz una lista de los registros y permisos que aplican a tu actividad y marca cuáles ya tienes.',
+    question: '¿Cuál es un primer paso para formalizar un negocio en Colombia?',
+    answers: [
+      'Publicar más fotos en redes sociales',
+      'Inscribirse en el RUT y obtener la matrícula mercantil',
+      'Pedir un sello de verificado en SucreIA',
+    ],
+    correct: 1,
   },
 ];

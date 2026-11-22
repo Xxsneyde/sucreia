@@ -45,6 +45,7 @@ export function publicStoreRoutes(db: Db) {
           verified: info.settings.verification === 'approved',
           completed365: info.completed365,
           rating: info.rating ?? 0,
+          reviewCount: info.reviewCount,
         };
       }),
     });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
 import Requests from '@/features/commerce/Requests.vue';
-useHead({ title: 'Pedidos' });
+useHead({ title: 'Mis compras' });
 </script>
-<template><Requests /></template>
+<template><Requests kind="compras" /></template>

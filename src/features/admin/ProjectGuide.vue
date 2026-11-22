@@ -1,30 +1,22 @@
 <script setup lang="ts">
 import PageTitle from '@/components/PageTitle.vue';
 const modules = [
-  ['Catálogo y búsqueda', 'Navegable con filtros', 'features/marketplace'],
   [
-    'Carrito y pedidos',
-    'Operaciones persistentes, inventario, agenda y cotizaciones',
-    'features/orders',
-  ],
-  ['Panel del negocio', 'Indicadores y gestión con datos del servidor', 'features/business'],
-  [
-    'Configurador de negocios',
-    'Elección entre 7 estilos (3 recomendados por área)',
-    'features/onboarding',
+    'Explorar',
+    'Inicio, buscar, sectores, mapa, página del negocio y recomendaciones',
+    'features/explore',
   ],
   [
-    'Estudio visual',
-    'Mi tienda: diseños, textos, versiones y publicación local',
-    'features/studio',
+    'Compras y panel',
+    'Carrito, pedidos, solicitudes, panel y datos del negocio',
+    'features/commerce',
   ],
-  ['SucrePuntos', 'Libro de puntos, promociones y canje persistente', 'features/rewards'],
-  ['Autenticación y perfil', 'Sesiones, recuperación y verificación de correo', 'features/account'],
   [
-    'Escuela, territorio y entregas',
-    'Escuela, ubicaciones y entregas persistentes',
+    'SucrePuntos, Escuela y Logística',
+    'Puntos y bonos, cursos con constancia y entregas',
     'features/community',
   ],
+  ['Autenticación y perfil', 'Sesiones, recuperación y verificación de correo', 'features/account'],
   ['Administración', 'Revisión y moderación con permisos y auditoría', 'features/admin'],
 ];
 </script>

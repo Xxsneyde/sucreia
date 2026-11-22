@@ -13,24 +13,23 @@ export interface Viewer {
 export type Mode = 'negocio' | 'comprar';
 
 export type IconName =
-  | 'compass'
+  | 'home'
   | 'search'
-  | 'cart'
-  | 'bag'
-  | 'heart'
-  | 'gift'
-  | 'school'
+  | 'grid'
   | 'map'
+  | 'tag'
+  | 'truck'
+  | 'school'
   | 'sparkles'
+  | 'bag'
+  | 'cart'
+  | 'heart'
   | 'bell'
   | 'user'
   | 'dashboard'
   | 'store'
   | 'package'
-  | 'id'
-  | 'tag'
   | 'settings'
-  | 'truck'
   | 'shield'
   | 'book';
 export interface NavItem {
@@ -39,30 +38,29 @@ export interface NavItem {
   icon: IconName;
 }
 export interface NavSection {
-  id: 'negocio' | 'comprar' | 'comunidad' | 'cuenta' | 'entregas' | 'admin';
+  id: 'principal' | 'negocio' | 'entregas' | 'admin';
+  /** Vacío en la sección principal (como en la presentación). */
   title: string;
   items: NavItem[];
 }
 
-const comprar: NavSection = {
-  id: 'comprar',
-  title: 'Comprar',
+/** Menú principal de la presentación: igual para visitantes, clientes y emprendedores. */
+const principal: NavSection = {
+  id: 'principal',
+  title: '',
   items: [
-    { href: '/inicio', label: 'Descubrir', icon: 'compass' },
+    { href: '/inicio', label: 'Inicio', icon: 'home' },
     { href: '/buscar', label: 'Buscar negocios', icon: 'search' },
-    { href: '/carrito', label: 'Carrito', icon: 'cart' },
-    { href: '/pedidos', label: 'Mis pedidos', icon: 'bag' },
+    { href: '/sectores', label: 'Sectores', icon: 'grid' },
+    { href: '/mapa', label: 'Mapa de emprendimientos', icon: 'map' },
+    { href: '/puntos', label: 'Descuentos y SucrePuntos', icon: 'tag' },
+    { href: '/logistica', label: 'Logística y entregas', icon: 'truck' },
+    { href: '/escuela', label: 'Escuela del Emprendedor con IA', icon: 'school' },
+    { href: '/recomendaciones', label: 'Recomendaciones IA', icon: 'sparkles' },
+    { href: '/solicitudes', label: 'Mis solicitudes', icon: 'bag' },
+    { href: '/pedidos', label: 'Mis compras', icon: 'cart' },
     { href: '/favoritos', label: 'Favoritos', icon: 'heart' },
-    { href: '/puntos', label: 'SucrePuntos', icon: 'gift' },
-  ],
-};
-const comunidad: NavSection = {
-  id: 'comunidad',
-  title: 'Comunidad',
-  items: [
-    { href: '/escuela', label: 'Escuela emprendedora', icon: 'school' },
-    { href: '/mapa', label: 'Explorar Sucre', icon: 'map' },
-    { href: '/asistente', label: 'Asistente de catálogo', icon: 'sparkles' },
+    { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
   ],
 };
 const negocio: NavSection = {
@@ -70,20 +68,11 @@ const negocio: NavSection = {
   title: 'Mi negocio',
   items: [
     { href: '/panel', label: 'Resumen', icon: 'dashboard' },
-    { href: '/estudio', label: 'Mis tiendas', icon: 'store' },
-    { href: '/panel/pedidos', label: 'Pedidos y solicitudes', icon: 'bag' },
+    { href: '/panel/perfil', label: 'Datos del negocio', icon: 'store' },
     { href: '/panel/productos', label: 'Productos y servicios', icon: 'package' },
-    { href: '/panel/perfil', label: 'Datos del negocio', icon: 'id' },
+    { href: '/panel/pedidos', label: 'Pedidos y solicitudes', icon: 'bag' },
     { href: '/panel/descuentos', label: 'Descuentos', icon: 'tag' },
     { href: '/panel/configuracion', label: 'Configuración', icon: 'settings' },
-  ],
-};
-const cuenta: NavSection = {
-  id: 'cuenta',
-  title: 'Mi cuenta',
-  items: [
-    { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
-    { href: '/perfil', label: 'Perfil', icon: 'user' },
   ],
 };
 const entregas: NavSection = {
@@ -102,42 +91,47 @@ const admin: NavSection = {
 
 export const isMerchant = (role: Role) => role === 'emprendedor' || role === 'admin';
 
-/** Secciones del menú lateral y pestañas del menú inferior (celular) para quien navega. */
-export function navFor(viewer: Viewer, mode: Mode): { sections: NavSection[]; mobile: NavItem[] } {
-  const merchant = isMerchant(viewer.role);
-  const businessFirst = merchant && mode === 'negocio';
-  const sections: NavSection[] = businessFirst
-    ? [negocio, comprar, comunidad]
-    : merchant
-      ? [comprar, comunidad, negocio]
-      : [comprar, comunidad];
-  if (viewer.courier !== 'none') sections.push(entregas);
-  sections.push(cuenta);
-  if (viewer.role === 'admin') sections.push(admin);
-  const mobile: NavItem[] = businessFirst
-    ? [
-        { href: '/panel', label: 'Resumen', icon: 'dashboard' },
-        { href: '/panel/pedidos', label: 'Pedidos', icon: 'bag' },
-        { href: '/estudio', label: 'Tiendas', icon: 'store' },
-        { href: '/perfil', label: 'Perfil', icon: 'user' },
-      ]
-    : [
-        { href: '/inicio', label: 'Inicio', icon: 'compass' },
-        { href: '/buscar', label: 'Buscar', icon: 'search' },
-        { href: '/pedidos', label: 'Pedidos', icon: 'bag' },
-        { href: '/perfil', label: 'Perfil', icon: 'user' },
-      ];
+/**
+ * Secciones del menú lateral y del menú inferior (celular). Sin sesión se ve el menú principal:
+ * las páginas que necesitan cuenta llevan a ingresar.
+ */
+export function navFor(
+  viewer: Viewer | null,
+  mode: Mode = 'comprar',
+): { sections: NavSection[]; mobile: NavItem[] } {
+  const sections: NavSection[] = [principal];
+  const merchant = !!viewer && isMerchant(viewer.role);
+  if (merchant) {
+    if (mode === 'negocio') sections.unshift(negocio);
+    else sections.push(negocio);
+  }
+  if (viewer && viewer.courier !== 'none') sections.push(entregas);
+  if (viewer?.role === 'admin') sections.push(admin);
+  const mobile: NavItem[] =
+    merchant && mode === 'negocio'
+      ? [
+          { href: '/panel', label: 'Resumen', icon: 'dashboard' },
+          { href: '/panel/pedidos', label: 'Pedidos', icon: 'bag' },
+          { href: '/panel/productos', label: 'Productos', icon: 'package' },
+          { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
+        ]
+      : [
+          { href: '/inicio', label: 'Inicio', icon: 'home' },
+          { href: '/buscar', label: 'Buscar', icon: 'search' },
+          { href: '/puntos', label: 'Puntos', icon: 'tag' },
+          { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
+        ];
   return { sections, mobile };
 }
 
 /** Modo según la página: las del negocio abren el menú del negocio. */
 export function modeFor(path: string): Mode {
-  return /^\/(panel|estudio|registro\/negocio)(\/|$)/.test(path) ? 'negocio' : 'comprar';
+  return /^\/panel(\/|$)/.test(path) ? 'negocio' : 'comprar';
 }
 
 /** Dónde empieza cada rol al ingresar. */
 export function roleHome(role: Role): string {
-  return role === 'admin' ? '/admin' : role === 'emprendedor' ? '/estudio' : '/inicio';
+  return role === 'admin' ? '/admin' : role === 'emprendedor' ? '/panel' : '/inicio';
 }
 
 /**
@@ -147,7 +141,7 @@ export function roleHome(role: Role): string {
 export function requiredRole(path: string): 'admin' | 'emprendedor' | null {
   const clean = path.replace(/\/+$/, '') || '/';
   if (/^\/(admin|equipo)(\/|$)/.test(clean)) return 'admin';
-  if (/^\/(panel|estudio|registro\/negocio)(\/|$)/.test(clean)) return 'emprendedor';
+  if (/^\/panel(\/|$)/.test(clean)) return 'emprendedor';
   return null;
 }
 export function canOpen(path: string, role: Role): boolean {
@@ -159,10 +153,10 @@ export function canOpen(path: string, role: Role): boolean {
 export const roleViews = {
   visitante: {
     inicio: '/',
-    ve: ['Vitrina pública', 'Buscar negocios', 'Página de cada tienda', 'Ingresar o crear cuenta'],
+    ve: ['Portada', 'Buscar negocios', 'Sectores', 'Mapa', 'Página de cada negocio', 'Ingresar'],
   },
-  cliente: { inicio: '/inicio', ve: ['Comprar', 'Comunidad', 'Mi cuenta'] },
-  emprendedor: { inicio: '/estudio', ve: ['Mi negocio', 'Comprar', 'Comunidad', 'Mi cuenta'] },
+  cliente: { inicio: '/inicio', ve: ['Menú principal', 'Mi cuenta'] },
+  emprendedor: { inicio: '/panel', ve: ['Mi negocio', 'Menú principal', 'Mi cuenta'] },
   domiciliario: { inicio: '(según su rol)', ve: ['Entregas', '+ lo de su rol'] },
   admin: { inicio: '/admin', ve: ['Todo lo anterior', 'Administración'] },
 } as const;

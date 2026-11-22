@@ -2,6 +2,7 @@
 // Cada área ofrece 3 opciones; cada opción combina un estilo visual, una paleta y una tipografía.
 // Datos puros (sin Vue) para poder probarlos y reutilizarlos en el backend.
 import type { BusinessMode } from './types.ts';
+import { sectorFor } from './sectors.ts';
 
 export const styleIds = [
   'minimalista',
@@ -479,9 +480,16 @@ export const areas: AreaDefinition[] = [
 
 export const areaNames = areas.map((a) => a.id);
 
-/** Área del negocio; si la categoría no existe se usa «Otro». */
+/**
+ * Textos y productos iniciales de un negocio: por nombre de área («Artesanías») o por sector
+ * de la presentación («Gastronomía y Alimentos», ver sectors.ts). Si no existe se usa «Otro».
+ */
 export function areaFor(category: string): AreaDefinition {
-  return areas.find((a) => a.id === category) ?? areas[areas.length - 1];
+  return (
+    areas.find((a) => a.id === category) ??
+    areas.find((a) => a.id === sectorFor(category).area) ??
+    areas[areas.length - 1]
+  );
 }
 
 export interface DesignOption extends DesignChoice {

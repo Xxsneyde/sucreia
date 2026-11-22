@@ -91,6 +91,11 @@ const migrations: string[] = [
   CREATE INDEX coupons_user ON coupons(user_id);
   CREATE INDEX reviews_store ON reviews(store_id);
   CREATE INDEX operations_courier ON operations(json_extract(payload,'$.courierId'),status);`,
+  `CREATE TABLE referral_codes (user_id TEXT PRIMARY KEY REFERENCES users(id), code TEXT NOT NULL UNIQUE);
+  CREATE TABLE referrals (user_id TEXT PRIMARY KEY REFERENCES users(id), inviter_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
+  CREATE INDEX referrals_inviter ON referrals(inviter_id);
+  CREATE TABLE events (id TEXT PRIMARY KEY, title TEXT NOT NULL, place TEXT NOT NULL, municipality TEXT NOT NULL, date TEXT NOT NULL, points INTEGER NOT NULL CHECK(points BETWEEN 1 AND 100), code_hash TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
+  CREATE TABLE event_attendance (event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE, user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, PRIMARY KEY(event_id, user_id));`,
 ];
 
 /** Abre (o crea) la base de datos y aplica las migraciones pendientes. ':memory:' para pruebas. */

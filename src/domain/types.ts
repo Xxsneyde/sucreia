@@ -21,6 +21,9 @@ export interface Business {
   products: Product[];
   local?: boolean;
   cover?: string;
+  logo?: string;
+  /** Número de reseñas publicadas (solo en el listado de la API). */
+  reviewCount?: number;
 }
 export interface CartLine {
   businessId: string;

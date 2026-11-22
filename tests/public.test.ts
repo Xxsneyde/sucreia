@@ -19,6 +19,8 @@ test('vitrina, acceso y tiendas públicas no requieren sesión; todas las herram
     '/ingresar',
     '/recuperar',
     '/tienda',
+    '/sectores',
+    '/mapa/',
     '/verificar-correo',
     '/correo-local',
   ])
@@ -27,19 +29,18 @@ test('vitrina, acceso y tiendas públicas no requieren sesión; todas las herram
     '/inicio',
     '/panel/',
     '/panel/pedidos',
-    '/estudio/gestionar',
     '/carrito',
+    '/solicitudes',
+    '/logistica',
+    '/recomendaciones',
     '/perfil',
     '/pedidos',
     '/favoritos',
     '/puntos',
     '/escuela',
-    '/mapa',
     '/domiciliario',
     '/admin',
     '/equipo',
-    '/registro/negocio',
-    '/negocios/alma-estudio',
   ])
     assert.equal(requiresSession(path), true, path);
 });

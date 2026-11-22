@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { sectors } from '../src/domain/sectors.ts';
 import assert from 'node:assert/strict';
 import {
   createDesign,
@@ -38,22 +39,25 @@ function project(): StoreProject {
   };
 }
 
-test('cada área genera un documento válido, publicable y con su forma de atención', () => {
-  for (const area of areas) {
-    const d = createDesign(area.id, 'Mi negocio');
-    assert.ok(isDesign(d), area.id);
+test('cada sector genera un documento válido, publicable y con su forma de atención', () => {
+  for (const sector of sectors) {
+    const d = createDesign(sector.id, 'Mi negocio');
+    assert.ok(isDesign(d), sector.id);
+    assert.equal(d.category, sector.id);
     assert.equal(d.products.length, 3);
-    assert.deepEqual(publicationErrors(d), [], area.id);
-    assert.equal(d.mode, area.mode);
+    assert.deepEqual(publicationErrors(d), [], sector.id);
+    assert.equal(d.mode, areaFor(sector.area).mode);
   }
+  // Las categorías anteriores se guardan con el sector equivalente.
+  assert.equal(createDesign('Belleza').category, 'Belleza y Bienestar');
   assert.equal(createDesign('Belleza').mode, 'booking');
   assert.equal(createDesign('Servicios').mode, 'quote');
-  assert.equal(createDesign('Área inexistente').category, 'Otro');
+  assert.equal(createDesign('Área inexistente').category, 'Otros Sectores');
 });
 
 test('cada área ofrece los siete estilos, con sus tres recomendados primero', () => {
   for (const area of areas) {
-    const options = designOptions(createDesign(area.id, 'Mi negocio'));
+    const options = designOptions({ ...createDesign(area.id, 'Mi negocio'), category: area.id });
     assert.equal(options.length, styleIds.length, area.id);
     assert.equal(new Set(options.map((o) => o.style)).size, styleIds.length, area.id);
     assert.deepEqual(
@@ -267,9 +271,11 @@ test('solo las publicaciones se muestran en el catálogo local', () => {
   assert.equal(business.local, true);
   assert.equal(business.verified, false);
   assert.equal(business.rating, 0);
-  assert.equal(business.theme, 'craft');
+  // «Artesanías» se guarda en el sector Moda y Confección y usa su ilustración.
+  assert.equal(business.category, 'Moda y Confección');
+  assert.equal(business.theme, 'beauty');
   assert.equal(businessHref(business.id), '/tienda?id=local-test');
-  assert.equal(businessHref('raices-de-sucre'), '/negocios/raices-de-sucre');
+  assert.equal(businessHref('tienda-1'), '/tienda?id=tienda-1');
 });
 
 test('el espacio persistido valida versiones y los datos anidados', () => {

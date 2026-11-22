@@ -82,7 +82,7 @@ const s = useSession(),
       <button v-else class="button" type="button" :disabled="activating" @click="activate">
         {{ activating ? 'Activando…' : 'Activar mi cuenta de emprendedor' }}
       </button>
-      <NuxtLink v-if="s.isMerchant.value" to="/registro/negocio">Crear una tienda →</NuxtLink
+      <NuxtLink v-if="s.isMerchant.value" to="/panel/perfil">Datos de mi negocio →</NuxtLink
       ><NuxtLink to="/domiciliario">Realizar entregas →</NuxtLink>
     </section>
   </div>

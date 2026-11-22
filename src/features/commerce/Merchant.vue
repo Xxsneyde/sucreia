@@ -23,7 +23,7 @@ const tab = computed(() =>
       ? 'catalog'
       : route.path.includes('descuentos')
         ? 'promotions'
-        : route.path.includes('configuracion') || route.path.includes('perfil')
+        : route.path.includes('configuracion')
           ? 'settings'
           : 'dashboard',
 );
@@ -125,7 +125,7 @@ async function deactivate(id: string) {
 </script>
 <template>
   <PageTitle
-    eyebrow="ESPACIO DEL EMPRENDEDOR"
+    eyebrow="Mi negocio"
     :title="store?.draft.name || 'Tu próximo negocio empieza aquí.'"
     description="Ventas y actividad calculadas con operaciones de tu negocio."
   />
@@ -133,7 +133,7 @@ async function deactivate(id: string) {
   <p v-if="p.error.value" role="alert" class="notice">{{ p.error.value }}</p>
   <div v-if="!store" class="card flow-empty">
     <h2>Crea tu tienda para comenzar</h2>
-    <NuxtLink class="button" to="/registro/negocio">Configurar mi negocio →</NuxtLink>
+    <NuxtLink class="button" to="/panel/perfil">Crear mi negocio →</NuxtLink>
   </div>
   <template v-else>
     <div class="flow-toolbar">
@@ -149,8 +149,7 @@ async function deactivate(id: string) {
             {{ s.draft.name || 'Sin nombre' }}
           </option>
         </select></label
-      ><NuxtLink class="button secondary" :to="`/estudio/gestionar?id=${store.id}`"
-        >Editar página y catálogo →</NuxtLink
+      ><NuxtLink class="button secondary" to="/panel/perfil">Editar datos y catálogo →</NuxtLink
       ><NuxtLink v-if="store.published" :to="`/tienda?id=${store.id}`"
         >Ver página publicada ↗</NuxtLink
       >

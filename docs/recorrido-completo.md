@@ -13,18 +13,18 @@ Usa una sola API con esta base de datos. Si existe un bloqueo de datos de una ej
 
 ## 1. Visitante → cliente o emprendedor
 
-1. La portada muestra únicamente negocios publicados. Puedes buscar por producto, categoría y municipio y abrir sus páginas sin cuenta.
-2. Pulsa **Ingresar → Crear cuenta**. Elige **Quiero comprar** o **Tengo un negocio**.
-3. Un cliente entra a su inicio y un emprendedor a su estudio. Una cuenta de cliente puede activar su espacio de emprendedor desde **Perfil** sin perder compras, puntos ni favoritos.
+1. La portada presenta SucreIA; «Explorar negocios» abre el buscador con los negocios publicados. Puedes filtrar por sector, municipio, precio, valoración y tipo de oferta, y abrir sus páginas sin cuenta.
+2. Pulsa **Iniciar sesión → Registrarse**. Elige **Quiero comprar** o **Tengo un negocio**.
+3. Un cliente entra a su inicio y un emprendedor a su panel. Una cuenta de cliente puede activar su espacio de emprendedor desde **Perfil** sin perder compras, puntos ni favoritos.
 4. La plataforma interna nunca muestra sus menús antes de comprobar la sesión. Pedidos, panel, perfil, escuela y demás herramientas requieren cuenta.
-5. Para probar correos sin SMTP, abre la bandeja de desarrollo desde el acceso. Con SMTP configurado, los mensajes usan ese servicio. Cerrar sesión está disponible en cabecera y perfil.
+5. Para probar correos sin SMTP, abre la bandeja de desarrollo desde el acceso. Con SMTP configurado, los mensajes usan ese servicio. Cerrar sesión está en el menú «Hola, …» de la barra superior y en el perfil.
 
 ## 2. Emprendedor → publicación
 
-1. Abre **Mi negocio → Estudio visual → Crear tienda**.
-2. Completa nombre, municipio, actividad y WhatsApp; carga logo y al menos tres productos o servicios. Selecciona la modalidad: productos, citas o cotizaciones.
-3. Revisa las siete propuestas, elige una y crea la tienda. Puedes editar portada, historia, catálogo, imágenes y estilo, y previsualizar en celular.
-4. Publica la página. Ya aparece en la vitrina pública; los cambios posteriores del borrador no se muestran hasta volver a publicar.
+1. Abre **Mi negocio → Datos del negocio** y crea tu negocio con nombre, sector, municipio y forma de atención (productos, reservas o cotizaciones).
+2. Completa descripción, historia, destacados, logo, foto de portada, WhatsApp, teléfono, correo, dirección y horario.
+3. En **Productos y servicios**, deja al menos tres ofertas con nombre, precio, grupo y foto.
+4. Pulsa **Publicar**. La página aparece en Buscar, Sectores y Mapa; los cambios posteriores del borrador no se muestran hasta volver a publicar.
 5. En **Configuración**, define pago por transferencia si lo ofreces, domicilio y tarifa, horario diario de agenda y duración de citas. Si quieres aparecer en el mapa, registra latitud y longitud reales. Las coordenadas son opcionales; no se inventan ubicaciones.
 6. En **Productos y servicios**, indica existencias disponibles o déjalas sin límite. Los cambios de stock se aplican inmediatamente; nombres, fotos y precios se cambian en el editor y se publican.
 
@@ -33,9 +33,9 @@ Usa una sola API con esta base de datos. Si existe un bloqueo de datos de una ej
 Para recorrer esta parte usa dos cuentas distintas, en dos perfiles/ventanas de navegador. No se permite comprar al propio negocio.
 
 1. Como cliente, abre un negocio de productos y agrega una oferta. El carrito solo contiene productos de un negocio a la vez.
-2. Abre **Finalizar pedido**. Revisa cantidades, WhatsApp, recogida/domicilio, método de pago y bono si tienes uno.
+2. En la pestaña **Productos y servicios** de la página del negocio pulsa **Agregar**; el panel «Tu carrito» muestra subtotal, entrega y total. Pulsa **Finalizar compra**. Revisa cantidades, WhatsApp, recogida/domicilio, método de pago y bono si tienes uno.
 3. Confirma. El servidor toma el precio publicado, comprueba los importes, reserva existencias y guarda una copia del nombre y precio de cada línea. Los reintentos con la misma clave no crean compras duplicadas.
-4. El cliente ve la operación en **Pedidos**. El emprendedor la recibe en **Mi negocio → Pedidos y solicitudes** y en sus avisos.
+4. El cliente ve la operación en **Mis compras** y su avance en **Logística y entregas**. El emprendedor la recibe en **Mi negocio → Pedidos y solicitudes** y en sus avisos.
 5. El negocio toma el pedido, lo prepara y lo marca listo. Confirma el pago solamente cuando lo recibe: SucreIA no cobra ni comprueba transferencias bancarias automáticamente.
 6. Para recogida, el cliente comunica su PIN de seis dígitos **al recibir** el producto. El negocio introduce ese PIN para completar la entrega. No se muestra el PIN al negocio ni al repartidor.
 7. Al completarse una operación pagada se calculan puntos. El cliente puede escribir una reseña de esa operación. No puede escribir varias ni reseñar operaciones ajenas.

@@ -1,3 +1,4 @@
+import { registerReferral } from '../rewards.ts';
 import { Router } from 'express';
 import type { Db } from '../db.ts';
 import { HttpError, text } from '../http.ts';
@@ -138,6 +139,8 @@ export function authRoutes(
     if (findUserByEmail(db, email))
       throw new HttpError(409, 'Ya existe una cuenta con ese correo.');
     const user = createUser(db, { email, name, role, passwordHash: await hashPassword(password) });
+    // Código de quien invitó (opcional): premia al que invita cuando esta cuenta compre.
+    registerReferral(db, user.id, req.body?.referido);
     let verificationSent = false;
     if (mailbox) {
       try {

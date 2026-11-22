@@ -22,33 +22,25 @@
     "backup": "node --env-file-if-exists=.env server/commands/backup.ts create",
     "restore": "node --env-file-if-exists=.env server/commands/backup.ts restore",
     "mail:check": "node --env-file-if-exists=.env server/commands/mail-check.ts",
-    "admin": "node --env-file-if-exists=.env server/commands/admin.ts"
+    "admin": "node --env-file-if-exists=.env server/commands/admin.ts",
+    "demo": "node server/commands/demo.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@types/express": "5.0.6",
     "@types/node": "26.6.5",
+    "@types/qrcode": "1.5.5",
     "prettier": "3.9.9",
     "typescript": "5.9.3",
     "vue-tsc": "3.3.14"
   },
   "dependencies": {
-    "@fontsource-variable/cormorant-garamond": "5.3.0",
-    "@fontsource-variable/dm-sans": "5.3.0",
-    "@fontsource-variable/fraunces": "5.3.0",
-    "@fontsource-variable/inter": "5.3.0",
-    "@fontsource-variable/jost": "5.3.0",
-    "@fontsource-variable/manrope": "5.3.0",
-    "@fontsource-variable/nunito-sans": "5.3.0",
-    "@fontsource-variable/space-grotesk": "5.3.0",
-    "@fontsource-variable/work-sans": "5.3.0",
-    "@fontsource/abril-fatface": "5.3.0",
-    "@fontsource/archivo-black": "5.3.0",
-    "@fontsource/young-serif": "5.3.0",
+    "@fontsource/poppins": "5.3.0",
     "@lucide/vue": "1.73.0",
     "express": "5.3.0",
     "nodemailer": "8.0.10",
     "nuxt": "4.6.4",
+    "qrcode": "1.5.4",
     "sharp": "0.35.5",
     "vue": "3.5.45",
     "vue-router": "5.5.1"

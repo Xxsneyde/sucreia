@@ -1,35 +1,27 @@
-import { test, expect, type Page } from '@playwright/test';
-import { createDesign } from '../../src/domain/studio.ts';
-async function account(page: Page, merchant = false) {
-  await page.goto('/ingresar?cuenta=nueva');
-  await page.getByLabel('Tu nombre').fill('Persona de prueba');
-  await page
-    .getByLabel('Correo', { exact: true })
-    .fill(`servicios-${crypto.randomUUID()}@ejemplo.co`);
-  await page.getByLabel('Contraseña', { exact: true }).fill('clave-segura-1');
-  if (!merchant) await page.getByText('Quiero comprar', { exact: true }).click();
-  await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
-  await expect(page).toHaveURL(merchant ? /estudio/ : /inicio/);
-}
+import { test, expect } from '@playwright/test';
+import { account, publishedStore } from './helpers.ts';
+
 for (const mode of ['booking', 'quote'] as const)
-  test(`recorrido de ${mode === 'booking' ? 'cita con horario disponible' : 'cotización aceptada y completada'}`, async ({
+  test(`recorrido de ${mode === 'booking' ? 'reserva con horario disponible' : 'cotización aceptada y completada'}`, async ({
     page,
     browser,
   }) => {
-    await account(page, true);
-    const design = createDesign(
-      mode === 'booking' ? 'Belleza' : 'Servicios',
+    await account(page, 'emprendedor', 'servicios');
+    const { id, design } = await publishedStore(
+      page,
+      mode === 'booking' ? 'Belleza y Bienestar' : 'Servicios Profesionales',
       `Servicio ${crypto.randomUUID().slice(0, 8)}`,
+      mode,
     );
-    design.mode = mode;
-    const response = await page.request.post('/api/mis-tiendas', { data: { design } });
-    expect(response.status()).toBe(201);
-    const { store } = await response.json();
-    expect((await page.request.post(`/api/mis-tiendas/${store.id}/publicar`)).status()).toBe(200);
     const buyer = await browser.newPage();
-    await account(buyer);
-    await buyer.goto(`/tienda?id=${store.id}`);
-    await buyer.locator('#sp-catalogo button').first().click();
+    await account(buyer, 'cliente', 'servicios');
+    await buyer.goto(`/tienda?id=${id}`);
+    await buyer
+      .getByRole('button', {
+        name: mode === 'booking' ? 'Reservar ahora' : 'Solicitar cotización',
+        exact: true,
+      })
+      .click();
     const dialog = buyer.getByRole('dialog');
     await dialog
       .getByLabel('Detalle de tu solicitud')
@@ -43,11 +35,11 @@ for (const mode of ['booking', 'quote'] as const)
     }
     await dialog
       .getByRole('button', {
-        name: mode === 'booking' ? 'Solicitar cita' : 'Enviar solicitud de cotización',
+        name: mode === 'booking' ? 'Solicitar reserva' : 'Enviar solicitud de cotización',
         exact: true,
       })
       .click();
-    await expect(buyer).toHaveURL(/pedidos/);
+    await expect(buyer).toHaveURL(/solicitudes/);
     await page.goto('/panel/pedidos');
     const card = page.locator('.flow-operation').filter({ hasText: design.name });
     if (mode === 'booking') {
@@ -67,18 +59,39 @@ for (const mode of ['booking', 'quote'] as const)
     }
     await buyer.close();
   });
-test('escuela conserva evaluaciones y emite una constancia consultable', async ({ page }) => {
+
+test('escuela: ruta en orden, evaluaciones guardadas y constancia consultable', async ({
+  page,
+}) => {
   await account(page);
   await page.goto('/escuela');
   const { lessons } = await import('../../src/features/community/lessons.ts');
-  for (const lesson of lessons) {
-    const card = page
-      .locator('article')
-      .filter({ has: page.getByRole('heading', { name: lesson.title, exact: true }) });
-    await card.getByRole('radio', { name: lesson.answers[lesson.correct], exact: true }).check();
-    await card.getByRole('button', { name: 'Comprobar y guardar progreso' }).click();
-    await expect(card.getByText('Completada', { exact: true })).toBeVisible();
+  // Orden de la ruta por defecto; cada curso se desbloquea al terminar el anterior.
+  const route = [
+    ['Marketing digital', ['historia', 'diseno']],
+    ['Costos y finanzas', ['costos']],
+    ['Formalización del negocio', ['formalizacion']],
+    ['Ventas en línea y e-commerce', ['catalogo']],
+    ['Atención al cliente', ['atencion']],
+    ['Uso de tecnologías e IA', ['herramientas']],
+  ] as const;
+  await expect(page.getByRole('button', { name: 'Costos y finanzas', exact: true })).toBeDisabled();
+  for (const [topic, ids] of route) {
+    await page.getByRole('button', { name: topic, exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    for (const id of ids) {
+      const lesson = lessons.find((l) => l.id === id)!;
+      const card = dialog
+        .locator('article')
+        .filter({ has: page.getByRole('heading', { name: lesson.title, exact: true }) });
+      await card.getByRole('radio', { name: lesson.answers[lesson.correct], exact: true }).check();
+      await card.getByRole('button', { name: 'Comprobar y guardar progreso' }).click();
+      await expect(card.getByText('Completada', { exact: true })).toBeVisible();
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
   }
+  await expect(page.getByText('100%')).toBeVisible();
   await page.getByRole('button', { name: 'Generar constancia de finalización' }).click();
   await expect(page).toHaveURL(/constancia\?id=/);
   await expect(page.getByRole('heading', { name: 'Constancia de finalización' })).toBeVisible();

@@ -7,22 +7,39 @@ const ids = (v: Parameters<typeof navFor>[0], mode: 'negocio' | 'comprar' = 'com
 const hrefs = (v: Parameters<typeof navFor>[0], mode: 'negocio' | 'comprar' = 'comprar') =>
   navFor(v, mode).sections.flatMap((s) => s.items.map((i) => i.href));
 
-test('el cliente ve comprar, comunidad y su cuenta; nada del negocio ni de administración', () => {
+// Menú de la presentación (diapositivas 3 a 8), igual para todos.
+const principal = [
+  '/inicio',
+  '/buscar',
+  '/sectores',
+  '/mapa',
+  '/puntos',
+  '/logistica',
+  '/escuela',
+  '/recomendaciones',
+  '/solicitudes',
+  '/pedidos',
+  '/favoritos',
+  '/notificaciones',
+];
+
+test('visitantes y clientes ven el menú de la presentación; nada del negocio ni de administración', () => {
+  assert.deepEqual(hrefs(null), principal);
   const v = { role: 'cliente', courier: 'none' } as const;
-  assert.deepEqual(ids(v), ['comprar', 'comunidad', 'cuenta']);
-  for (const href of ['/panel', '/estudio', '/admin', '/equipo', '/domiciliario'])
+  assert.deepEqual(ids(v), ['principal']);
+  for (const href of ['/panel', '/admin', '/equipo', '/domiciliario'])
     assert.ok(!hrefs(v).includes(href), href);
   assert.equal(roleHome('cliente'), '/inicio');
 });
 
-test('el emprendedor ve su negocio primero en las páginas del negocio y también puede comprar', () => {
+test('el emprendedor ve su negocio primero en las páginas del negocio y también el menú principal', () => {
   const v = { role: 'emprendedor', courier: 'none' } as const;
-  assert.deepEqual(ids(v, 'negocio'), ['negocio', 'comprar', 'comunidad', 'cuenta']);
-  assert.deepEqual(ids(v, 'comprar'), ['comprar', 'comunidad', 'negocio', 'cuenta']);
+  assert.deepEqual(ids(v, 'negocio'), ['negocio', 'principal']);
+  assert.deepEqual(ids(v, 'comprar'), ['principal', 'negocio']);
   assert.equal(navFor(v, 'negocio').mobile[0].href, '/panel');
   assert.equal(navFor(v, 'comprar').mobile[0].href, '/inicio');
   assert.ok(!hrefs(v).includes('/admin'));
-  assert.equal(roleHome('emprendedor'), '/estudio');
+  assert.equal(roleHome('emprendedor'), '/panel');
 });
 
 test('las entregas aparecen solo con solicitud de domiciliario', () => {
@@ -33,7 +50,7 @@ test('las entregas aparecen solo con solicitud de domiciliario', () => {
 
 test('el administrador ve todo y su sección de administración', () => {
   const v = { role: 'admin', courier: 'none' } as const;
-  assert.deepEqual(ids(v, 'negocio'), ['negocio', 'comprar', 'comunidad', 'cuenta', 'admin']);
+  assert.deepEqual(ids(v, 'negocio'), ['negocio', 'principal', 'admin']);
   assert.equal(roleHome('admin'), '/admin');
 });
 
@@ -41,12 +58,11 @@ test('las páginas exclusivas se reconocen con o sin barra final', () => {
   assert.equal(requiredRole('/admin/'), 'admin');
   assert.equal(requiredRole('/equipo'), 'admin');
   assert.equal(requiredRole('/panel/pedidos/'), 'emprendedor');
-  assert.equal(requiredRole('/registro/negocio'), 'emprendedor');
   assert.equal(requiredRole('/panelito'), null);
   assert.equal(requiredRole('/inicio'), null);
   assert.equal(canOpen('/admin', 'emprendedor'), false);
   assert.equal(canOpen('/panel', 'cliente'), false);
   assert.equal(canOpen('/panel', 'admin'), true);
-  assert.equal(modeFor('/estudio/gestionar'), 'negocio');
+  assert.equal(modeFor('/panel/perfil'), 'negocio');
   assert.equal(modeFor('/pedidos'), 'comprar');
 });

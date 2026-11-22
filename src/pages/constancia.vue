@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { api } from '@/lib/api';
-definePageMeta({ layout: 'public' });
+definePageMeta({ layout: 'default' });
 useHead({ title: 'Constancia de aprendizaje' });
 const route = useRoute(),
   certificate = ref<{ id: string; name: string; lessons: number; at: string } | null>(null),

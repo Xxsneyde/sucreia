@@ -61,7 +61,13 @@ const session = {
       await api<{ user: SessionUser }>('POST', '/auth/ingresar', { email, password })
     ).user;
   },
-  async register(data: { email: string; name: string; password: string; role: Role }) {
+  async register(data: {
+    email: string;
+    name: string;
+    password: string;
+    role: Role;
+    referido?: string;
+  }) {
     await load();
     const result = await api<{ user: SessionUser; verificationSent: boolean }>(
       'POST',

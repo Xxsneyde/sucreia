@@ -1,16 +1,6 @@
-/* Tipografías de las plantillas, servidas desde el propio sitio (@fontsource).
-   El navegador solo descarga las que usa la página que está viendo. */
-@import '@fontsource-variable/dm-sans/index.css';
-@import '@fontsource/archivo-black/index.css';
-@import '@fontsource-variable/space-grotesk/index.css';
-@import '@fontsource-variable/fraunces/index.css';
-@import '@fontsource-variable/fraunces/wght-italic.css';
-@import '@fontsource-variable/inter/index.css';
-@import '@fontsource/young-serif/index.css';
-@import '@fontsource-variable/nunito-sans/index.css';
-@import '@fontsource-variable/cormorant-garamond/index.css';
-@import '@fontsource-variable/cormorant-garamond/wght-italic.css';
-@import '@fontsource-variable/jost/index.css';
-@import '@fontsource-variable/manrope/index.css';
-@import '@fontsource/abril-fatface/index.css';
-@import '@fontsource-variable/work-sans/index.css';
+/* Tipografía de la presentación (Poppins), servida desde el propio sitio (@fontsource). */
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/500.css';
+@import '@fontsource/poppins/600.css';
+@import '@fontsource/poppins/700.css';
+@import '@fontsource/poppins/800.css';

@@ -27,14 +27,14 @@ La [guía del recorrido completo](docs/recorrido-completo.md) explica cómo prob
 
 - **Visitantes:** vitrina de negocios realmente publicados, filtros, catálogos y contacto por WhatsApp, sin menús de la plataforma ni negocios ficticios.
 - **Cuentas:** acceso independiente, recuperación/verificación, nombre editable, salida visible y activación del espacio de emprendedor sin crear otra cuenta.
-- **Emprendedores:** configurador con siete estilos, tres recomendados por área, imágenes propias, edición, vista previa móvil, versiones y publicación en servidor.
+- **Emprendedores:** «Datos del negocio» (sector, municipio, historia, destacados, contacto, logo y portada) y «Productos y servicios» (grupos, precios, fotos y existencias); la página pública usa el diseño fijo de la presentación ([docs/presentacion.md](docs/presentacion.md)).
 - **Compras:** carrito por cuenta/navegador, cálculo del servidor, stock, reintentos idempotentes, recogida/domicilio y seguimiento persistente. No permite comprar al propio negocio.
 - **Servicios:** agenda sin solapamientos, citas con confirmación, solicitudes de cotización, propuesta del negocio y aceptación del cliente.
 - **Negocios:** pagos confirmados hoy, operaciones nuevas, pendientes por despachar/entregar, productos consultados, inventario, agenda, instrucciones de transferencia y promociones.
 - **Entregas:** solicitud y revisión de domiciliarios, foto, asignación, contacto, minutos estimados, efectivo recibido y confirmación con PIN privado del cliente.
 - **SucrePuntos:** saldo inicial cero, libro de movimientos, puntos por operaciones pagadas/completadas, canjes ligados al negocio, bonos de un uso y ajustes por devoluciones.
 - **Confianza:** reseñas por operaciones completadas, valoración del domiciliario y sello de verificación manual con operaciones de los últimos 365 días.
-- **Escuela:** seis lecciones, ejercicios y evaluación comprobada en servidor, progreso por cuenta, orden sugerido por actividad, tutor y constancia verificable para imprimir.
+- **Escuela:** siete lecciones en seis cursos, ejercicios y evaluación comprobada en servidor, progreso por cuenta, orden sugerido por actividad, tutor y constancia verificable para imprimir.
 - **Territorio y asistencia:** ubicaciones reales indicadas por los negocios; consulta de catálogo y tutor con guía local o IA de Ollama opcional, sin acciones automáticas ni afirmaciones de disponibilidad.
 - **Administración:** permisos de administrador, revisión y moderación, suspensión/reactivación de publicaciones y auditoría de decisiones. El primer administrador se habilita por terminal, con la API detenida.
 - **Avisos:** notificaciones persistentes por cuenta y consultas periódicas de estado cada 15 segundos. WhatsApp se abre por decisión del usuario; no hay mensajes automáticos.
@@ -42,6 +42,10 @@ La [guía del recorrido completo](docs/recorrido-completo.md) explica cómo prob
 SQLite guarda operaciones y permisos; los archivos de imágenes están en disco. El carrito es local al navegador y a la cuenta. No se crean compras, reputación o saldos ficticios al iniciar. El código anterior de demostración se conserva como referencia, pero sus pantallas no son las rutas del producto.
 
 Los pagos y devoluciones se registran después de efectuarlos directamente con el negocio: SucreIA no mueve dinero ni verifica bancos automáticamente. No hay GPS en vivo ni aprovisionamiento automático de SMTP, modelos de IA o hosting. La validación de navegador real y la configuración operativa son necesarias antes del uso con clientes reales.
+
+## Datos de demostración
+
+`npm run demo -- --confirmar` carga en una API local los negocios de la presentación con fotos, descuentos y reseñas de compras reales de prueba. Ver [docs/presentacion.md](docs/presentacion.md); nunca usarlo en producción.
 
 ## Correo, copias y Docker
 
@@ -61,13 +65,13 @@ src/
   layouts/     Layout principal (barra lateral y navegación)
   app.vue      Raíz de la app; carga los datos locales al montar
   error.vue    Página 404 y de error
-  assets/css/  Estilos globales, del estudio, de las plantillas y tipografías
+  assets/css/  Sistema visual de la presentación (sucre.css) y tipografía Poppins
   components/  Navegación y piezas visuales compartidas
   features/    Funciones agrupadas por módulo y equipo responsable
   domain/      Entidades y reglas de negocio en TypeScript puro (sin Vue)
-  data/        Datos ficticios
   lib/         Stores (estado compartido) y adaptadores de almacenamiento local
 public/art/    Ilustraciones SVG propias, sin descargas externas
+public/sucre/  Fotos recortadas de la presentación (las demo-* solo para `npm run demo`)
 server/        API de Node.js + Express (rutas, cuentas, base de datos SQLite)
 tests/         Pruebas de reglas, de la API y recorridos de navegador
 docs/          Arquitectura, tareas y contratos para el equipo
@@ -86,8 +90,8 @@ Vue 3 + Nuxt 4 + TypeScript, CSS compartido y módulos por función. El equipo e
 
 Migrado desde React/Next.js en la versión 0.3.0 conservando diseño, reglas de dominio y pruebas. Notas para el equipo:
 
-- Componentes con `<script setup lang="ts">`; estado compartido con `useDemo()` y `useStudio()` de `src/lib`.
-- Los diseños del estudio se guardan como objetos planos (`shallowRef`); no pasar objetos reactivos a `structuredClone` ni a IndexedDB.
+- Componentes con `<script setup lang="ts">`; estado compartido con `useStudio()` (tiendas del emprendedor), `useDirectory()` (negocios publicados) y `usePlatform()` de `src/lib`.
+- Los diseños de tienda se guardan como objetos planos (`shallowRef`); no pasar objetos reactivos a `structuredClone` ni a IndexedDB.
 - Los datos del navegador se leen en `onMounted` de `app.vue` para que el HTML generado coincida con el primer render.
 
 La operación incluye SMTP opcional, copias/restauración y Docker con volúmenes persistentes. Consulta [la guía de operación](docs/operacion.md) para configurar y comprobar correo, copias y hosting; los recorridos reales y la revisión visual deben comprobarse antes de desplegar. No hay infraestructura de pago provisionada. Sites conserva un registro de vista previa en `.openai/hosting.json`; su existencia no significa que esté publicado.

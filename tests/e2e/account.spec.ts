@@ -4,10 +4,10 @@ test('verificar correo y recuperar contraseña desde la bandeja local', async ({
   const email = `cuenta-${crypto.randomUUID()}@ejemplo.co`;
   await page.goto('/ingresar?cuenta=nueva');
   await page.getByLabel('Tu nombre').fill('Emprendedora');
-  await page.getByLabel('Correo', { exact: true }).fill(email);
+  await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill('clave-inicial-1');
   await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
-  await expect(page).toHaveURL(/estudio/);
+  await expect(page).toHaveURL(/panel/);
   await page.goto('/correo-local');
   const verification = page
     .locator('li')
@@ -18,9 +18,13 @@ test('verificar correo y recuperar contraseña desde la bandeja local', async ({
   await expect(page.getByRole('heading', { name: 'Correo verificado', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Volver a mi perfil' }).click();
   await expect(page.getByText('Correo verificado', { exact: true })).toBeVisible();
-  await page.locator('.topbar').getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
-  await page.goto('/ingresar');
-  await page.getByRole('link', { name: 'Olvidé mi contraseña' }).click();
+  await page.getByRole('button', { name: /Hola,/ }).click();
+  await page
+    .locator('.sx-menu')
+    .getByRole('button', { name: 'Cerrar sesión', exact: true })
+    .click();
+  await expect(page).toHaveURL(/ingresar/);
+  await page.getByRole('link', { name: '¿Olvidaste tu contraseña?' }).click();
   await page.getByLabel('Correo de tu cuenta').fill(email);
   await page.getByRole('button', { name: 'Enviar enlace de recuperación' }).click();
   await expect(page.getByRole('heading', { name: 'Revisa tu correo' })).toBeVisible();
@@ -38,10 +42,10 @@ test('verificar correo y recuperar contraseña desde la bandeja local', async ({
   await page.getByRole('button', { name: 'Guardar contraseña' }).click();
   await expect(page.getByRole('heading', { name: 'Ya puedes volver' })).toBeVisible();
   await page.getByRole('link', { name: 'Volver a ingresar' }).click();
-  await page.getByLabel('Correo', { exact: true }).fill(email);
+  await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill('clave-nueva-2');
-  await page.getByRole('button', { name: 'Entrar a mi cuenta' }).click();
-  await expect(page).toHaveURL(/estudio/);
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).last().click();
+  await expect(page).toHaveURL(/panel/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

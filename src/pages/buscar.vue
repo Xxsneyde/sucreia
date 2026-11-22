@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import PublicDirectory from '@/features/directory/PublicDirectory.vue';
-definePageMeta({ layout: 'public' });
-useHead({ title: 'Negocios publicados' });
+import SearchPage from '@/features/explore/SearchPage.vue';
+definePageMeta({ banner: true });
+useHead({ title: 'Buscar negocios' });
 </script>
-<template><PublicDirectory /></template>
+<template><SearchPage /></template>

@@ -26,6 +26,12 @@ onMounted(async () => {
         'GET',
         `/plataforma/negocios/${p.cart.value[0].businessId}`,
       );
+      // Opción de entrega elegida en la página del negocio (?entrega=domicilio).
+      if (
+        new URLSearchParams(window.location.search).get('entrega') === 'domicilio' &&
+        config.value.settings.delivery
+      )
+        fulfillment.value = 'delivery';
     } catch (e) {
       error.value = (e as Error).message;
     }

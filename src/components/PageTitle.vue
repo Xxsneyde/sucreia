@@ -8,6 +8,6 @@ defineProps<{ eyebrow: string; title: string; description?: string }>();
       <h1>{{ title }}</h1>
       <p v-if="description" class="muted">{{ description }}</p>
     </div>
-    <slot name="action" />
+    <slot name="action" /><slot />
   </div>
 </template>

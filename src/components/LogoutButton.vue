@@ -54,37 +54,22 @@ async function logout() {
   position: relative;
 }
 .logout-button {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
-  color: #234c3c;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 500;
+  color: #b91c1c;
 }
 .logout-button:hover {
-  background: #f1f6ee;
-  border-color: #246a4e;
+  background: #fdecec;
 }
 .logout-error {
-  position: absolute;
-  z-index: 60;
-  right: 0;
-  top: 100%;
-  width: min(300px, 80vw);
-  background: #fff5ef;
-  border: 1px solid #debaa5;
-  border-radius: 10px;
-  padding: 12px;
-  color: #823c24;
-  box-shadow: 0 4px 20px #16362e14;
-  white-space: normal;
-  font-size: 13px;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: #b91c1c;
 }
 </style>

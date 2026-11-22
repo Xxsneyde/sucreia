@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import Community from '@/features/commerce/Community.vue';
-useHead({ title: 'Escuela' });
+import SchoolPage from '@/features/community/SchoolPage.vue';
+definePageMeta({ banner: true });
+useHead({ title: 'Escuela del Emprendedor con IA' });
 </script>
-<template><Community /></template>
+<template><SchoolPage /></template>

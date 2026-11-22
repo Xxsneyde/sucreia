@@ -10,27 +10,26 @@ El servidor comprueba permisos en cada operación de la API; estas reglas decide
 | ----------------- | -------------------------------------------------------------------------------------- | ------------ |
 | **Visitante**     | Sin cuenta                                                                             | `/`          |
 | **Cliente**       | Crear cuenta con «Quiero comprar»                                                      | `/inicio`    |
-| **Emprendedor**   | Crear cuenta con «Tengo un negocio», o activarlo desde el perfil (misma cuenta)        | `/estudio`   |
+| **Emprendedor**   | Crear cuenta con «Tengo un negocio», o activarlo desde el perfil (misma cuenta)        | `/panel`     |
 | **Domiciliario**  | Permiso extra, no rol: se solicita en «Quiero repartir» y lo aprueba la administración | según su rol |
 | **Administrador** | Solo desde la terminal local (ver `docs/operacion.md`)                                 | `/admin`     |
 
 ## Qué ve cada uno
 
-| Sección (menú)     | Páginas                                                                                                                                           | Visitante |   Cliente    | Emprendedor | Domiciliario | Admin |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | :-------: | :----------: | :---------: | :----------: | :---: |
-| Vitrina pública    | `/`, `/buscar`, `/tienda?id=…`, `/constancia`                                                                                                     |     ✓     |      ✓       |      ✓      |      ✓       |   ✓   |
-| Acceso             | `/ingresar`, `/recuperar`, `/verificar-correo`                                                                                                    |     ✓     |              |             |              |       |
-| **Comprar**        | Descubrir `/inicio`, Buscar, Carrito `/carrito`, Mis pedidos `/pedidos`, Favoritos `/favoritos`, SucrePuntos `/puntos`                            |           |      ✓       |      ✓      |      ✓       |   ✓   |
-| **Comunidad**      | Escuela `/escuela`, Explorar Sucre `/mapa`, Asistente `/asistente`                                                                                |           |      ✓       |      ✓      |      ✓       |   ✓   |
-| **Mi negocio**     | Resumen `/panel`, Mis tiendas `/estudio`, Pedidos `/panel/pedidos`, Productos, Datos, Descuentos, Configuración, Configurador `/registro/negocio` |           | (invitación) |      ✓      |              |   ✓   |
-| **Entregas**       | `/domiciliario`                                                                                                                                   |           | (solicitud)  | (solicitud) |      ✓       |   ✓   |
-| **Mi cuenta**      | Notificaciones `/notificaciones`, Perfil `/perfil`                                                                                                |           |      ✓       |      ✓      |      ✓       |   ✓   |
-| **Administración** | Revisión y moderación `/admin`, Guía del proyecto `/equipo`                                                                                       |           |              |             |              |   ✓   |
+El menú lateral es el de la presentación y es igual para todos: Inicio, Buscar negocios, Sectores, Mapa de emprendimientos, Descuentos y SucrePuntos, Logística y entregas, Escuela del Emprendedor con IA, Recomendaciones IA, Mis solicitudes, Mis compras, Favoritos y Notificaciones; abajo, «Mi cuenta».
 
-- **Emprendedor:** en las páginas del negocio el menú pone «Mi negocio» primero; arriba puede cambiar entre «Mi negocio» y «Comprar». En celular, las pestañas inferiores son Resumen, Pedidos, Tiendas y Perfil.
-- **Cliente:** no ve opciones del negocio; ve «Abrir mi negocio» (activación en el perfil) y «Quiero repartir». Si abre una página del negocio, se le ofrece activar su cuenta ahí mismo.
+| Sección (menú)     | Páginas                                                                                                                                                | Visitante  |        Cliente         | Emprendedor | Domiciliario | Admin |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | :--------: | :--------------------: | :---------: | :----------: | :---: |
+| Públicas           | `/`, `/buscar`, `/sectores`, `/mapa`, `/tienda?id=…`, `/constancia`                                                                                    |     ✓      |           ✓            |      ✓      |      ✓       |   ✓   |
+| Acceso             | `/ingresar`, `/recuperar`, `/verificar-correo`                                                                                                         |     ✓      |                        |             |              |       |
+| Menú principal     | `/inicio`, `/puntos`, `/logistica`, `/escuela`, `/recomendaciones`, `/solicitudes`, `/pedidos`, `/favoritos`, `/notificaciones`, `/carrito`, `/perfil` | (ingresar) |           ✓            |      ✓      |      ✓       |   ✓   |
+| **Mi negocio**     | Resumen `/panel`, Datos del negocio `/panel/perfil`, Productos, Pedidos y solicitudes, Descuentos, Configuración                                       |            | (activar en el perfil) |      ✓      |              |   ✓   |
+| **Entregas**       | `/domiciliario`                                                                                                                                        |            |      (solicitud)       | (solicitud) |      ✓       |   ✓   |
+| **Administración** | Revisión y moderación `/admin`, Guía del proyecto `/equipo`                                                                                            |            |                        |             |              |   ✓   |
+
+- **Emprendedor:** en las páginas del panel el menú pone «Mi negocio» primero. En celular, las pestañas inferiores son Resumen, Pedidos, Productos y Mi cuenta.
+- **Visitante:** ve el mismo menú; las páginas que necesitan cuenta llevan a `/ingresar?volver=…`.
 - **Administración:** quien no es administrador y abre `/admin` o `/equipo` vuelve a su propio inicio (Express lo redirige antes de enviar la página).
-- **Sin cuenta:** las páginas internas redirigen a `/ingresar?volver=…` y, al entrar, se vuelve a ese destino.
 
 ## Agregar una vista
 

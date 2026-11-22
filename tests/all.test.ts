@@ -10,3 +10,4 @@ import './platform.test.ts';
 import './platform-api.test.ts';
 import './catalog-ai.test.ts';
 import './roles.test.ts';
+import './rewards.test.ts';

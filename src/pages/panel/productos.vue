@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import RequireMerchant from '@/components/RequireMerchant.vue';
-import Merchant from '@/features/commerce/Merchant.vue';
-useHead({ title: 'Mi negocio' });
+import ProductsEditor from '@/features/commerce/ProductsEditor.vue';
+useHead({ title: 'Productos y servicios' });
 </script>
 <template>
-  <RequireMerchant><Merchant /></RequireMerchant>
+  <RequireMerchant><ProductsEditor /></RequireMerchant>
 </template>

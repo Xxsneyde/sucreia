@@ -1,4 +1,5 @@
 import type { BusinessMode, CartLine } from './types.ts';
+import type { ChallengeProgress, SucreEvent } from './rewards.ts';
 export type OperationStatus =
   | 'pending'
   | 'preparing'
@@ -128,6 +129,10 @@ export interface PlatformState {
   lessons: string[];
   couriers: Courier[];
   courier: Courier | null;
+  /** Código para invitar amigos y cuántos se registraron / completaron su primera compra. */
+  referral: { code: string; invited: number; rewarded: number };
+  challenges: ChallengeProgress[];
+  events: SucreEvent[];
 }
 export interface CommerceStore {
   settings: StoreSettings;

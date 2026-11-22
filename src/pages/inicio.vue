@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import PublicDirectory from '@/features/directory/PublicDirectory.vue';
-useHead({ title: 'Mi comunidad' });
+import HomeFeed from '@/features/explore/HomeFeed.vue';
+definePageMeta({ banner: true });
+useHead({ title: 'Inicio' });
 </script>
-<template><PublicDirectory /></template>
+<template><HomeFeed /></template>

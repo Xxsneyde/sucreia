@@ -1,4 +1,4 @@
-/** Las páginas públicas no muestran el espacio de trabajo. Las de demo también requieren cuenta. */
+/** Páginas que necesitan cuenta. Portada, buscar, sectores, mapa y cada negocio son públicas. */
 export function requiresSession(path: string): boolean {
   const clean = path.replace(/\/+$/, '') || '/';
   return [
@@ -6,18 +6,17 @@ export function requiresSession(path: string): boolean {
     '/notificaciones',
     '/asistente',
     '/panel',
-    '/estudio',
     '/perfil',
     '/carrito',
     '/pedidos',
+    '/solicitudes',
     '/favoritos',
     '/puntos',
+    '/logistica',
     '/escuela',
-    '/mapa',
+    '/recomendaciones',
     '/domiciliario',
     '/admin',
     '/equipo',
-    '/registro/negocio',
-    '/negocios',
   ].some((base) => clean === base || clean.startsWith(base + '/'));
 }

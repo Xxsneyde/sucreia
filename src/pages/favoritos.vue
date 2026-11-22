@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import PublicDirectory from '@/features/directory/PublicDirectory.vue';
-useHead({ title: 'Mis favoritos' });
+import SearchPage from '@/features/explore/SearchPage.vue';
+useHead({ title: 'Favoritos' });
 </script>
-<template><PublicDirectory favorites-only /></template>
+<template><SearchPage favorites-only /></template>

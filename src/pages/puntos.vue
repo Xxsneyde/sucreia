@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import Community from '@/features/commerce/Community.vue';
-useHead({ title: 'Puntos' });
+import PointsPage from '@/features/community/PointsPage.vue';
+definePageMeta({ banner: true });
+useHead({ title: 'Descuentos y SucrePuntos' });
 </script>
-<template><Community /></template>
+<template><PointsPage /></template>

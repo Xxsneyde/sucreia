@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Community from '@/features/commerce/Community.vue';
-useHead({ title: 'Mapa' });
+import MapPage from '@/features/explore/MapPage.vue';
+useHead({ title: 'Mapa de emprendimientos' });
 </script>
-<template><Community /></template>
+<template><MapPage /></template>

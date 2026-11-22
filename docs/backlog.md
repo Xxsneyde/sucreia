@@ -15,7 +15,10 @@ Cada bloque se puede convertir en un issue con la plantilla disponible.
 - [x] Datos personales y cuenta vinculada al negocio.
 - [x] Datos mínimos de negocio, municipio y WhatsApp validado.
 - [x] Logo y tres ofertas: subida, validación y edición. _(API Express; validación HTTP/navegador de los cambios recientes pendiente por permisos locales)_
-- [x] Motor de plantillas por actividad y modalidad. _(7 estilos, 3 recomendados por área, con tipografías locales)_
+- [x] Interfaz completa según la presentación (ver docs/presentacion.md). _(El Estudio de 7 estilos se retiró el 2026-11-21.)_
+- [ ] Acceso con Google y Facebook (OAuth).
+- [ ] Conectar un modelo de IA al asistente general, las recomendaciones y la ruta de la Escuela.
+- [x] SucrePuntos por reseñas, referidos (código y QR), ferias/eventos y retos.
 - [x] Estilos, colores y distribución visual con accesibilidad móvil. _(API Express; validación HTTP/navegador de los cambios recientes pendiente por permisos locales)_
 - [x] Vista previa, borrador persistente y publicación con versión. _(API Express; validación HTTP/navegador de los cambios recientes pendiente por permisos locales)_
 - [x] Reabrir y editar el negocio sin perder configuración. _(API Express; validación HTTP/navegador de los cambios recientes pendiente por permisos locales)_

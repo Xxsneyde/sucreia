@@ -1,76 +1,33 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { usePlatform } from '@/lib/platform-store';
 import { useSession } from '@/lib/session';
-import { useStudio } from '@/lib/studio-store';
-import { useLocalBusinesses } from '@/lib/studio-store';
 import { api } from '@/lib/api';
-import { currency } from '@/domain/rules';
-import { lessons } from '@/features/community/lessons';
 import { verificationNames } from '@/domain/platform';
+import { municipalities } from '@/domain/sectors';
+import type { SucreEvent } from '@/domain/rewards';
 import type { Courier, StoreSettings } from '@/domain/platform';
-import ImageField from '@/features/studio/ImageField.vue';
+import ImageField from '@/components/images/ImageField.vue';
 import PageTitle from '@/components/PageTitle.vue';
 import OperationList from './OperationList.vue';
+// Notificaciones, espacio del domiciliario y administración.
 const route = useRoute(),
-  router = useRouter(),
   p = usePlatform(),
-  session = useSession(),
-  stores = useLocalBusinesses();
+  session = useSession();
 const mode = computed(() => route.path.replace(/\/+$/, '').slice(1)),
   message = ref(''),
   courier = ref({ phone: '', municipality: '', avatar: '' });
-const answers = ref<Record<string, number>>({});
 const admin = ref<{
   stores: { id: string; name: string; published: boolean; settings: StoreSettings }[];
   couriers: Courier[];
   users: number;
   audit: { action: string; target: string; note: string; at: string }[];
 } | null>(null);
-const selected = ref(''),
-  question = ref(''),
-  response = ref(''),
-  responseMode = ref(''),
-  pending = ref(false);
-const coords = ref<{ id: string; name: string; lat: number; lon: number }[]>([]);
-const isExpired = (value: string) => Date.parse(value) < Date.now();
-const tutorQuestion = ref(''),
-  tutorAnswer = ref(''),
-  tutorMode = ref(''),
-  tutorBusy = ref(false);
-const recommended = computed(() => {
-  const business = useStudio().projects[0]?.draft;
-  const order =
-    business?.mode === 'quote'
-      ? ['historia', 'costos', 'atencion', 'catalogo', 'herramientas', 'diseno']
-      : business?.mode === 'products'
-        ? ['catalogo', 'costos', 'diseno', 'atencion', 'historia', 'herramientas']
-        : lessons.map((l) => l.id);
-  return order.map((id) => lessons.find((l) => l.id === id)!).filter(Boolean);
-});
-async function tutor() {
-  tutorBusy.value = true;
-  try {
-    const result = await api<{ answer: string; mode: string }>('POST', '/plataforma/tutor', {
-      question: tutorQuestion.value,
-    });
-    tutorAnswer.value = result.answer;
-    tutorMode.value = result.mode;
-  } catch (e) {
-    message.value = (e as Error).message;
-  } finally {
-    tutorBusy.value = false;
-  }
-}
 const titles: Record<string, string> = {
-  puntos: 'SucrePuntos y beneficios.',
-  escuela: 'Aprende a hacer crecer tu negocio.',
   domiciliario: 'Tu espacio de entregas.',
   notificaciones: 'Lo que está pasando.',
   admin: 'Administración y revisión.',
-  mapa: 'El talento tiene un lugar.',
-  asistente: 'Pregunta por lo que necesitas.',
 };
 onMounted(async () => {
   await p.refresh();
@@ -87,48 +44,10 @@ onMounted(async () => {
       message.value = (e as Error).message;
     }
 });
-watch(
-  () => stores.value,
-  async () => {
-    if (typeof window === 'undefined') return;
-    if (mode.value === 'mapa') {
-      const list = await Promise.all(
-        stores.value.map(async (s) => {
-          try {
-            const info = await api<{ settings: StoreSettings }>(
-              'GET',
-              `/plataforma/negocios/${s.id}`,
-            );
-            return info.settings.latitude !== null && info.settings.longitude !== null
-              ? {
-                  id: s.id,
-                  name: s.name,
-                  lat: info.settings.latitude,
-                  lon: info.settings.longitude,
-                }
-              : null;
-          } catch {
-            return null;
-          }
-        }),
-      );
-      coords.value = list.filter((x): x is NonNullable<typeof x> => !!x);
-    }
-  },
-  { immediate: true },
-);
 async function doAction(path: string, body?: unknown) {
   try {
     await p.run('POST', path, body);
     message.value = 'Acción guardada.';
-  } catch (e) {
-    message.value = (e as Error).message;
-  }
-}
-async function certificate() {
-  try {
-    const result = await p.run<{ id: string }>('POST', '/certificado');
-    await router.push(`/constancia?id=${result.id}`);
   } catch (e) {
     message.value = (e as Error).message;
   }
@@ -159,159 +78,50 @@ async function decide(type: string, id: string, approved: boolean, event: Event)
     message.value = (e as Error).message;
   }
 }
-async function chat() {
-  if (!selected.value) return;
-  pending.value = true;
+// --- Ferias y eventos (administración) -----------------------------------------------------
+const events = ref<SucreEvent[]>([]);
+const event = ref({
+  title: '',
+  place: '',
+  municipality: 'Sincelejo',
+  date: '',
+  points: 50,
+  code: '',
+});
+async function loadEvents() {
   try {
-    const result = await api<{ answer: string; mode: string }>(
-      'POST',
-      `/plataforma/asistente/${selected.value}`,
-      {
-        question: question.value,
-      },
-    );
-    response.value = result.answer;
-    responseMode.value = result.mode;
+    events.value = (await api<{ events: SucreEvent[] }>('GET', '/plataforma/eventos')).events;
   } catch (e) {
     message.value = (e as Error).message;
-  } finally {
-    pending.value = false;
   }
 }
-function position(value: number, key: 'lat' | 'lon') {
-  const values = coords.value.map((c) => c[key]),
-    min = Math.min(...values),
-    max = Math.max(...values);
-  return 30 + (max === min ? 0.5 : (value - min) / (max - min)) * (key === 'lat' ? 240 : 540);
+onMounted(() => {
+  if (mode.value === 'admin') void loadEvents();
+});
+async function createEvent() {
+  try {
+    await p.run('POST', '/admin/eventos', event.value);
+    message.value = 'Evento creado.';
+    event.value = { ...event.value, title: '', place: '', code: '' };
+    await loadEvents();
+  } catch (e) {
+    message.value = (e as Error).message;
+  }
+}
+async function removeEvent(id: string) {
+  try {
+    await p.run('DELETE', `/admin/eventos/${id}`);
+    await loadEvents();
+  } catch (e) {
+    message.value = (e as Error).message;
+  }
 }
 </script>
 <template>
-  <PageTitle eyebrow="COMUNIDAD SUCREIA" :title="titles[mode] || 'Tu comunidad'" />
+  <PageTitle eyebrow="SucreIA" :title="titles[mode] || 'Tu comunidad'" />
   <p v-if="message" role="status" class="notice">{{ message }}</p>
   <p v-if="p.error.value" role="alert" class="notice">{{ p.error.value }}</p>
-  <template v-if="mode === 'puntos'">
-    <div class="card flow-balance">
-      <span>Tu saldo disponible</span><strong>{{ currency(p.data.value?.points ?? 0) }}</strong>
-      <p>
-        {{ p.data.value?.points ?? 0 }} puntos · 1 punto = $1 COP para referencia del saldo. Los
-        canjes se realizan con bonos de cada negocio.
-      </p>
-      <p>
-        Ganas 1 punto por cada $1.000 de productos o servicios pagados y completados; no se cuentan
-        domicilios. No es dinero retirable.
-      </p>
-    </div>
-    <h2>Descuentos disponibles</h2>
-    <div class="flow-grid">
-      <article v-for="promo in p.data.value?.promotions" :key="promo.id" class="card">
-        <h3>{{ promo.title }}</h3>
-        <p>{{ promo.storeName }} · {{ promo.percent }} % de descuento</p>
-        <p>
-          {{ promo.cost }} puntos · vence {{ new Date(promo.expires).toLocaleDateString('es-CO') }}
-        </p>
-        <NuxtLink :to="`/tienda?id=${promo.storeId}`">Ver negocio →</NuxtLink
-        ><button
-          class="button"
-          :disabled="p.busy.value || (p.data.value?.points ?? 0) < promo.cost"
-          @click="doAction(`/canjes/${promo.id}`)"
-        >
-          Canjear bono
-        </button>
-      </article>
-    </div>
-    <p v-if="!p.data.value?.promotions.length" class="flow-empty">No hay promociones activas.</p>
-    <h2>Tus bonos</h2>
-    <div class="flow-grid">
-      <article v-for="c in p.data.value?.coupons" :key="c.id" class="card">
-        <h3>{{ c.title }}</h3>
-        <p>
-          {{ c.percent }} % ·
-          {{ c.used ? 'Utilizado' : isExpired(c.expires) ? 'Vencido' : 'Disponible' }}
-        </p>
-        <NuxtLink :to="`/tienda?id=${c.storeId}`">{{ c.storeName }} →</NuxtLink>
-      </article>
-    </div>
-    <h2>Historial de puntos</h2>
-    <ul class="card">
-      <li v-for="entry in p.data.value?.ledger" :key="entry.id">
-        {{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }} · {{ entry.note }} ·
-        {{ new Date(entry.at).toLocaleDateString('es-CO') }}
-      </li>
-    </ul>
-  </template>
-  <template v-else-if="mode === 'escuela'"
-    ><div class="card">
-      <h2>Tu progreso</h2>
-      <p>{{ p.data.value?.lessons.length ?? 0 }} de {{ lessons.length }} lecciones completadas</p>
-      <button
-        v-if="p.data.value?.lessons.length === lessons.length"
-        class="button"
-        :disabled="p.busy.value"
-        @click="certificate"
-      >
-        Generar constancia de finalización
-      </button>
-      <p v-if="p.data.value?.lessons.length === lessons.length" class="small">
-        La constancia usa tu nombre y se puede consultar mediante su enlace. No es una acreditación
-        académica oficial.
-      </p>
-      <progress
-        :value="p.data.value?.lessons.length ?? 0"
-        :max="lessons.length"
-        aria-label="Progreso de aprendizaje"
-      />
-      <p>
-        Empieza por historia y catálogo; continúa con diseño, costos, atención y herramientas
-        digitales. La ruta es una guía local, sin tutor de IA conectado.
-      </p>
-    </div>
-    <form class="card form-stack" @submit.prevent="tutor">
-      <h2>Tu tutor de aprendizaje</h2>
-      <p>
-        El orden sugerido se adapta al tipo de negocio y puedes avanzar a tu ritmo. El tutor
-        consulta las lecciones; usa IA local solo cuando está configurada.
-      </p>
-      <label>¿Qué quieres entender?<input v-model="tutorQuestion" required maxlength="500" /></label
-      ><button class="button secondary" :disabled="tutorBusy">
-        {{ tutorBusy ? 'Consultando…' : 'Consultar tutor' }}
-      </button>
-      <p v-if="tutorAnswer" class="notice flow-pre" role="status">{{ tutorAnswer }}</p>
-      <small v-if="tutorMode">{{
-        tutorMode === 'ollama' ? 'Respuesta de IA local' : 'Guía del contenido del curso'
-      }}</small>
-    </form>
-    <div class="flow-grid">
-      <article v-for="lesson in recommended" :key="lesson.id" class="card form-stack">
-        <span class="tag">{{
-          p.data.value?.lessons.includes(lesson.id) ? 'Completada' : 'Por aprender'
-        }}</span>
-        <h2>{{ lesson.title }}</h2>
-        <p>{{ lesson.content }}</p>
-        <p><strong>Práctica:</strong> {{ lesson.exercise }}</p>
-        <form
-          class="form-stack"
-          @submit.prevent="doAction(`/lecciones/${lesson.id}`, { answer: answers[lesson.id] })"
-        >
-          <fieldset>
-            <legend>{{ lesson.question }}</legend>
-            <label v-for="(answer, index) in lesson.answers" :key="answer"
-              ><input
-                v-model="answers[lesson.id]"
-                type="radio"
-                :value="index"
-                :name="lesson.id"
-                required
-              />{{ answer }}</label
-            >
-          </fieldset>
-          <button class="button secondary" :disabled="p.busy.value">
-            Comprobar y guardar progreso
-          </button>
-        </form>
-      </article>
-    </div></template
-  >
-  <template v-else-if="mode === 'notificaciones'"
+  <template v-if="mode === 'notificaciones'"
     ><button
       class="button secondary"
       :disabled="p.busy.value"
@@ -444,6 +254,51 @@ function position(value: number, key: 'lat' | 'lon') {
           </div>
         </form>
       </div>
+      <h2>Ferias y eventos</h2>
+      <div class="two-columns">
+        <form class="card form-stack" @submit.prevent="createEvent">
+          <h3>Nuevo evento</h3>
+          <label>Nombre<input v-model="event.title" required maxlength="120" /></label>
+          <label>Lugar<input v-model="event.place" required maxlength="120" /></label>
+          <label
+            >Municipio<select v-model="event.municipality" required>
+              <option v-for="m in municipalities" :key="m" :value="m">{{ m }}</option>
+            </select></label
+          >
+          <label>Fecha<input v-model="event.date" type="date" required /></label>
+          <label
+            >Puntos (1 a 100)<input
+              v-model.number="event.points"
+              type="number"
+              min="1"
+              max="100"
+              required
+          /></label>
+          <label
+            >Código para los asistentes<input
+              v-model="event.code"
+              required
+              minlength="4"
+              maxlength="20"
+          /></label>
+          <p class="small muted">Entrega el código solo en el evento. Se guarda cifrado.</p>
+          <button class="button" :disabled="p.busy.value">Crear evento</button>
+        </form>
+        <section class="card">
+          <h3>Programados</h3>
+          <p v-if="!events.length" class="muted">No hay eventos.</p>
+          <article v-for="ev in events" :key="ev.id" class="flow-between" style="padding: 8px 0">
+            <span
+              ><strong>{{ ev.title }}</strong> · {{ ev.date }} · {{ ev.municipality }} · +{{
+                ev.points
+              }}</span
+            >
+            <button class="button secondary" :disabled="p.busy.value" @click="removeEvent(ev.id)">
+              Eliminar
+            </button>
+          </article>
+        </section>
+      </div>
       <h2>Auditoría</h2>
       <ul class="card">
         <li v-for="(entry, index) in admin.audit" :key="index">
@@ -451,76 +306,5 @@ function position(value: number, key: 'lat' | 'lon') {
         </li>
       </ul></template
     ></template
-  >
-  <template v-else-if="mode === 'mapa'"
-    ><p>
-      Ubicaciones indicadas por cada negocio. No se inventan coordenadas ni cifras de
-      emprendimientos.
-    </p>
-    <svg
-      v-if="coords.length"
-      class="flow-map card"
-      viewBox="0 0 600 300"
-      role="img"
-      aria-label="Distribución de ubicaciones registradas, norte arriba y este a la derecha"
-    >
-      <path d="M30 270H570M30 30V270" stroke="#b7cdb9" fill="none" />
-      <a v-for="point in coords" :key="point.id" :href="`/tienda?id=${point.id}`">
-        <circle
-          :cx="position(point.lon, 'lon')"
-          :cy="300 - position(point.lat, 'lat')"
-          r="9"
-          fill="#246a4e"
-        >
-          <title>{{ point.name }}</title>
-        </circle>
-      </a>
-      <text x="12" y="20" fill="#246a4e">N</text>
-    </svg>
-    <p v-else class="card">Todavía no hay negocios con ubicación registrada.</p>
-    <div class="flow-grid">
-      <article v-for="point in coords" :key="point.id" class="card">
-        <h3>{{ point.name }}</h3>
-        <NuxtLink :to="`/tienda?id=${point.id}`">Ver negocio →</NuxtLink>
-        <p>
-          <a
-            :href="`https://www.openstreetmap.org/?mlat=${point.lat}&mlon=${point.lon}#map=17/${point.lat}/${point.lon}`"
-            target="_blank"
-            rel="noopener"
-            >Abrir mapa con calles ↗</a
-          >
-        </p>
-      </article>
-    </div>
-    <NuxtLink class="button secondary" to="/buscar"
-      >Explorar todos los negocios →</NuxtLink
-    ></template
-  >
-  <template v-else-if="mode === 'asistente'"
-    ><form class="card form-stack" @submit.prevent="chat">
-      <h2>Asistente de catálogo</h2>
-      <p>
-        Busca respuestas en datos publicados del negocio: productos, precios, horarios y dirección.
-        Puede usar un modelo de IA local si está configurado. Nunca confirma disponibilidad,
-        reservas ni pagos.
-      </p>
-      <label
-        >Negocio<select v-model="selected" required>
-          <option value="">Selecciona uno</option>
-          <option v-for="s in stores" :key="s.id" :value="s.id">{{ s.name }}</option>
-        </select></label
-      ><label>Tu pregunta<input v-model="question" maxlength="500" required /></label
-      ><button class="button" :disabled="pending">
-        {{ pending ? 'Consultando…' : 'Consultar catálogo' }}
-      </button>
-      <p v-if="responseMode" class="small">
-        {{
-          responseMode === 'ollama'
-            ? 'IA local · verifica los detalles con el negocio'
-            : 'Búsqueda del catálogo publicado'
-        }}
-      </p>
-      <p v-if="response" class="notice flow-pre" role="status">{{ response }}</p>
-    </form></template
   >
 </template>

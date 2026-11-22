@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { createDesign } from '../../src/domain/studio.ts';
-test('explorar desde el acceso muestra solo publicaciones y nunca menús internos', async ({
+import { fits } from './helpers.ts';
+
+test('desde la portada se explora solo lo publicado, sin menús del negocio', async ({
   page,
   request,
 }) => {
@@ -22,41 +24,47 @@ test('explorar desde el acceso muestra solo publicaciones y nunca menús interno
       data: { design: createDesign('Artesanías', `Visible ${suffix}`) },
     })
   ).json();
-  const hidden = await (
-    await request.post('/api/mis-tiendas', {
-      data: { design: createDesign('Artesanías', `Borrador ${suffix}`) },
-    })
-  ).json();
-  expect(hidden.store.id).toBeTruthy();
+  await request.post('/api/mis-tiendas', {
+    data: { design: createDesign('Artesanías', `Borrador ${suffix}`) },
+  });
   expect((await request.post(`/api/mis-tiendas/${live.store.id}/publicar`)).status()).toBe(200);
-  await page.goto('/ingresar');
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('El ecosistema digital');
   await page.getByRole('link', { name: 'Explorar negocios', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Negocios publicados' })).toBeVisible();
-  for (const selector of ['.sidebar', '.topbar', '.bottom-nav', '.demo-banner'])
-    await expect(page.locator(selector)).toHaveCount(0);
-  await page.getByRole('searchbox', { name: 'Buscar negocios o productos' }).fill(suffix);
-  await expect(page.locator('.directory-card')).toHaveCount(1);
-  await expect(page.locator('.directory-card')).toContainText(`Visible ${suffix}`);
-  await expect(page.locator('.directory-card')).not.toContainText('Borrador');
-  await page.locator('.directory-card').click();
+  await expect(page).toHaveURL(/buscar/);
+  await page.getByRole('searchbox', { name: '¿Qué producto o servicio necesitas?' }).fill(suffix);
+  await expect(page.locator('.sx-biz')).toHaveCount(1);
+  await expect(page.locator('.sx-biz')).toContainText(`Visible ${suffix}`);
+  await expect(page.locator('.sx-biz')).not.toContainText('Borrador');
+  await page.locator('.sx-biz h3').getByRole('link').click();
   await expect(page.getByRole('heading', { level: 1, name: `Visible ${suffix}` })).toBeVisible();
-  await expect(page.locator('.sidebar')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Ingresar para continuar' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
+  await expect(page.locator('a[href^="/panel"]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Ingresar', exact: true }).first()).toBeAttached();
+  expect(await fits(page)).toBe(true);
 });
-test('las rutas de herramientas piden sesión y nunca dibujan el panel a visitantes', async ({
-  page,
-}) => {
-  for (const path of ['/inicio', '/panel', '/perfil', '/carrito', '/registro/negocio', '/admin']) {
+
+test('las páginas con cuenta piden sesión y conservan el destino', async ({ page }) => {
+  for (const path of [
+    '/inicio',
+    '/panel',
+    '/perfil',
+    '/carrito',
+    '/puntos',
+    '/escuela',
+    '/admin',
+  ]) {
     await page.goto(path);
-    await expect(page).toHaveURL(/ingresar\/?\?volver=/);
-    await expect(page.locator('.sidebar')).toHaveCount(0);
-    expect(new URL(page.url()).searchParams.get('volver')).toBe(path);
+    // Al arrancar, Nuxt quita y repone la consulta un instante: se espera la dirección final.
+    await expect.poll(() => new URL(page.url()).searchParams.get('volver')).toBe(path);
+    await expect(page).toHaveURL(/ingresar/);
+  }
+  for (const path of ['/buscar', '/sectores', '/mapa']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(new RegExp(path));
   }
 });
-test('si no carga la API, la vitrina informa y permite reintentar sin mostrar ejemplos', async ({
+
+test('si no carga la API, buscar informa y permite reintentar sin mostrar ejemplos', async ({
   page,
 }) => {
   await page.route('**/api/tiendas', (r) =>
@@ -66,8 +74,8 @@ test('si no carga la API, la vitrina informa y permite reintentar sin mostrar ej
       body: JSON.stringify({ error: 'Sin conexión de prueba.' }),
     }),
   );
-  await page.goto('/');
+  await page.goto('/buscar');
   await expect(page.getByRole('alert')).toContainText('No pudimos cargar los negocios');
-  await expect(page.locator('.directory-card')).toHaveCount(0);
+  await expect(page.locator('.sx-biz')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
 });

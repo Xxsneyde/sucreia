@@ -6,6 +6,7 @@ import { imageId, type ImageStorage } from '../images.ts';
 import type { Db } from '../db.ts';
 import { currentUser, requireUser } from '../auth.ts';
 import { HttpError } from '../http.ts';
+import { afterReview, attendEvent, createEvent, deleteEvent, listEvents } from '../rewards.ts';
 import { getStore, listPublishedStores } from '../stores.ts';
 import {
   actOperation,
@@ -233,7 +234,22 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       new Date().toISOString(),
       courierRating,
     );
+    afterReview(db, user.id, op.id, op.storeName);
     res.status(201).json({ ok: true });
+  });
+  // Ferias y eventos: lista pública; asistencia con el código que se entrega en el evento.
+  r.get('/eventos', (_req, res) => res.json({ events: listEvents(db, currentUser(res)?.id) }));
+  r.post('/eventos/:id/asistencia', (req, res) => {
+    attendEvent(db, requireUser(res), req.params.id, req.body?.code);
+    res.status(201).json({ ok: true });
+  });
+  r.post('/admin/eventos', (req, res) =>
+    res.status(201).json({ id: createEvent(db, requireUser(res, 'admin'), req.body) }),
+  );
+  r.delete('/admin/eventos/:id', (req, res) => {
+    requireUser(res, 'admin');
+    deleteEvent(db, req.params.id);
+    res.status(204).end();
   });
   r.put('/negocios/:id/configuracion', (req, res) => {
     const store = owned(db, requireUser(res), req.params.id),
