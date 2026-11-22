@@ -23,7 +23,10 @@ const env = {
 
 test('SMTP valida configuración y exige HTTPS o loopback sin usar datos de las peticiones', async () => {
   assert.equal(smtpConfig({}), undefined);
-  assert.throws(() => smtpConfig({ SMTP_HOST: 'smtp.example.co' }), /Falta configurar/);
+  await assert.rejects(
+    async () => smtpConfig({ SMTP_HOST: 'smtp.example.co' }),
+    /Falta configurar/,
+  );
   for (const PUBLIC_URL of [
     'javascript:alert(1)',
     'http://sitio.example',
@@ -31,8 +34,8 @@ test('SMTP valida configuración y exige HTTPS o loopback sin usar datos de las 
     'https://example.co/ruta',
     'https://example.co?token=x',
   ])
-    assert.throws(() => smtpConfig({ ...env, PUBLIC_URL }));
-  assert.throws(() => smtpConfig({ ...env, SMTP_PORT: '25' }));
+    await assert.rejects(async () => smtpConfig({ ...env, PUBLIC_URL }));
+  await assert.rejects(async () => smtpConfig({ ...env, SMTP_PORT: '25' }));
   assert.equal(smtpConfig({ ...env, SMTP_PORT: '465' })!.secure, true);
   assert.equal(
     smtpConfig({ ...env, PUBLIC_URL: 'http://127.0.0.1:3000' })!.origin,
@@ -64,7 +67,7 @@ test('SMTP genera el enlace del sitio y oculta errores sensibles, sin abrir cone
     async verify() {},
   });
   await assert.rejects(
-    async () => await failed.send('cliente@example.co', 'reset', 'token', '2099-01-01'),
+    async () => failed.send('cliente@example.co', 'reset', 'token', '2099-01-01'),
     (e: unknown) =>
       e instanceof Error &&
       !e.message.includes('secreto') &&
@@ -72,20 +75,20 @@ test('SMTP genera el enlace del sitio y oculta errores sensibles, sin abrir cone
   );
 });
 
-test('bloqueo exclusivo protege datos y libera bloqueos adquiridos parcialmente', () => {
+test('bloqueo exclusivo protege datos y libera bloqueos adquiridos parcialmente', async () => {
   const root = mkdtempSync(join(tmpdir(), 'sucreia-lock-'));
   try {
     const db = join(root, 'db.sqlite'),
       images = join(root, 'images');
     const release = acquireDataLock(db, images);
-    assert.throws(() => acquireDataLock(db, images), /datos están en uso/);
+    await assert.rejects(async () => acquireDataLock(db, images), /datos están en uso/);
     release();
     release();
     const releaseAgain = acquireDataLock(db, images);
     releaseAgain();
     const lock = join(images, '.sucreia.lock');
     writeFileSync(lock, 'otro proceso');
-    assert.throws(() => acquireDataLock(db, images));
+    await assert.rejects(async () => acquireDataLock(db, images));
     assert.equal(existsSync(db + '.lock'), false);
     assert.equal(readFileSync(lock, 'utf8'), 'otro proceso');
   } finally {
@@ -97,16 +100,16 @@ test('backup y restauración conservan tiendas, versiones e imágenes; revocan s
   const root = mkdtempSync(join(tmpdir(), 'sucreia-backup-'));
   const path = join(root, 'live', 'sucreia.db'),
     images = join(root, 'live', 'images');
-  const db = openDb(path);
+  const db = await openDb(path);
   try {
-    const user = createUser(db, {
+    const user = await createUser(db, {
       name: 'Persona',
       email: 'persona@example.co',
       passwordHash: 'no-usado',
       role: 'emprendedor',
     });
-    createSession(db, user.id);
-    issueToken(db, user.id, 'reset');
+    await createSession(db, user.id);
+    await issueToken(db, user.id, 'reset');
     const data =
       'data:image/png;base64,' +
       (
@@ -116,9 +119,9 @@ test('backup y restauración conservan tiendas, versiones e imágenes; revocan s
       ).toString('base64');
     const storage = new ImageStorage(db, images);
     const image = await storage.upload(user.id, data);
-    const store = createStore(db, user.id, { ...createDesign(), logo: image.url });
-    savePublication(db, store.id, publishProject(store).published!);
-    const before = JSON.stringify(getStore(db, store.id));
+    const store = await createStore(db, user.id, { ...createDesign(), logo: image.url });
+    await savePublication(db, store.id, publishProject(store).published!);
+    const before = JSON.stringify(await getStore(db, store.id));
     const release = acquireDataLock(path, images);
     await assert.rejects(createBackup(path, images, join(root, 'locked')), /datos están en uso/);
     release();
@@ -127,19 +130,24 @@ test('backup y restauración conservan tiendas, versiones e imágenes; revocan s
     await assert.rejects(createBackup(path, images, copy), /destino nuevo/);
     const restored = join(root, 'restored');
     assert.equal(restoreBackup(copy, restored).images, 1);
-    assert.throws(() => restoreBackup(copy, restored), /directorio nuevo/);
-    const other = openDb(join(restored, 'sucreia.db'));
+    await assert.rejects(async () => restoreBackup(copy, restored), /directorio nuevo/);
+    const other = await openDb(join(restored, 'sucreia.db'));
     try {
-      assert.equal(JSON.stringify(getStore(other, store.id)), before);
-      assert.equal(other.prepare('SELECT COUNT(*) AS n FROM sessions').get()!.n, 0);
-      assert.equal(other.prepare('SELECT COUNT(*) AS n FROM account_tokens').get()!.n, 0);
-      assert.ok(new ImageStorage(other, join(restored, 'images')).read(image.id).length);
+      assert.equal(JSON.stringify(await getStore(other, store.id)), before);
+      assert.equal((await other.prepare('SELECT COUNT(*) AS n FROM sessions').get())!.n, 0);
+      assert.equal((await other.prepare('SELECT COUNT(*) AS n FROM account_tokens').get())!.n, 0);
+      assert.ok(
+        (await new ImageStorage(other, join(restored, 'images')).read(image.id)).data.length,
+      );
     } finally {
-      other.close();
+      await other.close();
     }
-    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sessions').get()!.n, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM sessions').get())!.n, 1);
     writeFileSync(join(copy, 'images', `${image.id}.webp`), 'alterado');
-    assert.throws(() => restoreBackup(copy, join(root, 'corrupt')), /incompleta|cambió/);
+    await assert.rejects(
+      async () => restoreBackup(copy, join(root, 'corrupt')),
+      /incompleta|cambió/,
+    );
     assert.equal(existsSync(join(root, 'corrupt')), false);
   } finally {
     db.close();
@@ -147,7 +155,7 @@ test('backup y restauración conservan tiendas, versiones e imágenes; revocan s
   }
 });
 
-test('restauración rechaza rutas del manifiesto que escapan del respaldo', () => {
+test('restauración rechaza rutas del manifiesto que escapan del respaldo', async () => {
   const root = mkdtempSync(join(tmpdir(), 'sucreia-manifest-'));
   try {
     mkdirSync(join(root, 'images'));
@@ -159,7 +167,7 @@ test('restauración rechaza rutas del manifiesto que escapan del respaldo', () =
         files: { '../escape': '0'.repeat(64), 'sucreia.db': '0'.repeat(64) },
       }),
     );
-    assert.throws(() => restoreBackup(root, root + '-restored'), /ruta no permitida/);
+    await assert.rejects(async () => restoreBackup(root, root + '-restored'), /ruta no permitida/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

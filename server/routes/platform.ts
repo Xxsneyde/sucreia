@@ -23,12 +23,15 @@ import {
   setSettings,
   settings,
   slots,
+  setAvailability,
+  setLocation,
   state,
   string,
+  tracking,
   transaction,
   type CreateOperation,
 } from '../platform.ts';
-import type { Promotion, Review } from '../../src/domain/platform.ts';
+import { dayNames, type Promotion, type Review } from '../../src/domain/platform.ts';
 export function platformRoutes(db: Db, images: ImageStorage, assistant?: CatalogAI) {
   const r = Router();
   r.use((req, _res, next) => {
@@ -42,27 +45,35 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     }
     next();
   });
-  r.get('/estado', (_req, res) => res.json(state(db, requireUser(res))));
-  r.get('/negocios/:id', (req, res) => {
-    const store = getStore(db, req.params.id);
+  r.get('/estado', async (_req, res) => res.json(await state(db, requireUser(res))));
+  r.get('/negocios/:id', async (req, res) => {
+    const store = await getStore(db, req.params.id);
     if (!store || (!store.published && store.ownerId !== currentUser(res)?.id))
       throw new HttpError(404, 'Negocio no encontrado.');
-    const info = commerceStore(db, store.id);
+    const info = await commerceStore(db, store.id);
     if (store.ownerId !== currentUser(res)?.id) {
       info.views = {};
       info.settings.verificationNote = '';
     }
     res.json(info);
   });
-  r.get('/negocios/:id/horarios', (req, res) => {
-    if (!getStore(db, req.params.id)?.published) throw new HttpError(404, 'Negocio no publicado.');
-    res.json({ slots: slots(db, req.params.id, string(req.query.fecha, 10, 'la fecha')) });
+  r.get('/negocios/:id/horarios', async (req, res) => {
+    if (!(await getStore(db, req.params.id))?.published)
+      throw new HttpError(404, 'Negocio no publicado.');
+    res.json({
+      slots: await slots(
+        db,
+        req.params.id,
+        string(req.query.fecha, 10, 'la fecha'),
+        typeof req.query.servicio === 'string' ? req.query.servicio : undefined,
+      ),
+    });
   });
   const views = new Map<string, number>();
   const aiAttempts = new Map<string, { until: number; count: number }>();
   let aiBusy = false;
-  r.post('/negocios/:id/visita', (req, res) => {
-    const store = getStore(db, req.params.id);
+  r.post('/negocios/:id/visita', async (req, res) => {
+    const store = await getStore(db, req.params.id);
     if (!store?.published) throw new HttpError(404, 'Negocio no publicado.');
     const product = typeof req.body?.productId === 'string' ? req.body.productId : '';
     if (product && !store.published.design.products.some((p) => p.id === product))
@@ -71,20 +82,22 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     if ((views.get(key) ?? 0) < Date.now()) {
       if (views.size > 10000) views.clear();
       views.set(key, Date.now() + 30 * 60000);
-      db.prepare(
-        'INSERT INTO store_views VALUES (?,?,1) ON CONFLICT(store_id,product_id) DO UPDATE SET count=count+1',
-      ).run(store.id, product);
+      await db
+        .prepare(
+          'INSERT INTO store_views VALUES (?,?,1) ON CONFLICT(store_id,product_id) DO UPDATE SET count=store_views.count+1',
+        )
+        .run(store.id, product);
     }
     res.status(204).end();
   });
-  r.post('/operaciones', (req, res) =>
-    res
-      .status(201)
-      .json({ operation: createOperation(db, requireUser(res), req.body as CreateOperation) }),
+  r.post('/operaciones', async (req, res) =>
+    res.status(201).json({
+      operation: await createOperation(db, requireUser(res), req.body as CreateOperation),
+    }),
   );
-  r.post('/operaciones/:id/:action', (req, res) =>
+  r.post('/operaciones/:id/:action', async (req, res) =>
     res.json({
-      operation: actOperation(
+      operation: await actOperation(
         db,
         requireUser(res),
         req.params.id,
@@ -93,27 +106,27 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       ),
     }),
   );
-  r.post('/favoritos/:id', (req, res) => {
+  r.post('/favoritos/:id', async (req, res) => {
     const user = requireUser(res);
-    if (!getStore(db, req.params.id)?.published) throw new HttpError(404, 'Negocio no publicado.');
+    if (!(await getStore(db, req.params.id))?.published)
+      throw new HttpError(404, 'Negocio no publicado.');
     if (
-      db
+      await db
         .prepare('SELECT 1 FROM favorites WHERE user_id=? AND store_id=?')
         .get(user.id, req.params.id)
     )
-      db.prepare('DELETE FROM favorites WHERE user_id=? AND store_id=?').run(
-        user.id,
-        req.params.id,
-      );
-    else db.prepare('INSERT INTO favorites VALUES (?,?)').run(user.id, req.params.id);
+      await db
+        .prepare('DELETE FROM favorites WHERE user_id=? AND store_id=?')
+        .run(user.id, req.params.id);
+    else await db.prepare('INSERT INTO favorites VALUES (?,?)').run(user.id, req.params.id);
     res.status(204).end();
   });
-  r.post('/notificaciones/leidas', (_req, res) => {
-    db.prepare('UPDATE notifications SET is_read=1 WHERE user_id=?').run(requireUser(res).id);
+  r.post('/notificaciones/leidas', async (_req, res) => {
+    await db.prepare('UPDATE notifications SET is_read=1 WHERE user_id=?').run(requireUser(res).id);
     res.status(204).end();
   });
-  r.post('/lecciones/:id', (req, res) => {
-    lessonAnswer(
+  r.post('/lecciones/:id', async (req, res) => {
+    await lessonAnswer(
       db,
       requireUser(res),
       req.params.id,
@@ -124,10 +137,9 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   r.post('/tutor', async (req, res) => {
     const user = requireUser(res);
     const question = string(req.body.question, 500, 'tu pregunta');
-    const completed = db
-      .prepare('SELECT lesson_id FROM learning WHERE user_id=?')
-      .all(user.id)
-      .map((row) => row.lesson_id as string);
+    const completed = (
+      await db.prepare('SELECT lesson_id FROM learning WHERE user_id=?').all(user.id)
+    ).map((row) => row.lesson_id as string);
     const next = courseLessons.find((l) => !completed.includes(l.id));
     const words = question
       .toLowerCase()
@@ -171,43 +183,38 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     }
     res.json({ answer, mode });
   });
-  r.post('/certificado', (_req, res) => {
+  r.post('/certificado', async (_req, res) => {
     const user = requireUser(res);
-    const completed = db
-      .prepare('SELECT lesson_id FROM learning WHERE user_id=?')
-      .all(user.id)
-      .map((row) => row.lesson_id as string);
+    const completed = (
+      await db.prepare('SELECT lesson_id FROM learning WHERE user_id=?').all(user.id)
+    ).map((row) => row.lesson_id as string);
     if (!courseLessons.every((l) => completed.includes(l.id)))
       throw new HttpError(
         409,
         'Completa las lecciones y sus evaluaciones antes de generar la constancia.',
       );
-    db.prepare('INSERT OR IGNORE INTO certificates VALUES (?,?,?,?,?)').run(
-      randomUUID(),
-      user.id,
-      user.name,
-      courseLessons.length,
-      new Date().toISOString(),
-    );
+    await db
+      .prepare('INSERT OR IGNORE INTO certificates VALUES (?,?,?,?,?)')
+      .run(randomUUID(), user.id, user.name, courseLessons.length, new Date().toISOString());
     res.json(
-      db
+      await db
         .prepare('SELECT id,name,lessons,created_at AS at FROM certificates WHERE user_id=?')
         .get(user.id),
     );
   });
-  r.get('/certificados/:id', (req, res) => {
-    const certificate = db
+  r.get('/certificados/:id', async (req, res) => {
+    const certificate = await db
       .prepare('SELECT id,name,lessons,created_at AS at FROM certificates WHERE id=?')
       .get(req.params.id);
     if (!certificate) throw new HttpError(404, 'Constancia no encontrada.');
     res.json(certificate);
   });
-  r.post('/canjes/:id', (req, res) =>
-    res.status(201).json({ coupon: redeem(db, requireUser(res), req.params.id) }),
+  r.post('/canjes/:id', async (req, res) =>
+    res.status(201).json({ coupon: await redeem(db, requireUser(res), req.params.id) }),
   );
-  r.post('/resenas', (req, res) => {
+  r.post('/resenas', async (req, res) => {
     const user = requireUser(res),
-      op = operation(db, string(req.body?.operationId, 80, 'la operación'));
+      op = await operation(db, string(req.body?.operationId, 80, 'la operación'));
     if (
       op.clientId !== user.id ||
       !op.completedAt ||
@@ -216,44 +223,48 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       throw new HttpError(403, 'Solo puedes reseñar operaciones tuyas completadas.');
     const rating = integer(req.body?.rating, 1, 5, 'la calificación'),
       comment = string(req.body?.comment, 500, 'tu reseña');
-    if (db.prepare('SELECT id FROM reviews WHERE operation_id=?').get(op.id))
+    if (await db.prepare('SELECT id FROM reviews WHERE operation_id=?').get(op.id))
       throw new HttpError(409, 'Ya reseñaste esta operación.');
     const courierRating =
       op.courierId && req.body.courierRating !== undefined
         ? integer(req.body.courierRating, 1, 5, 'la calificación de entrega')
         : null;
-    db.prepare(
-      'INSERT INTO reviews (id,operation_id,store_id,user_id,rating,comment,created_at,courier_rating) VALUES (?,?,?,?,?,?,?,?)',
-    ).run(
-      randomUUID(),
-      op.id,
-      op.storeId,
-      user.id,
-      rating,
-      comment,
-      new Date().toISOString(),
-      courierRating,
-    );
-    afterReview(db, user.id, op.id, op.storeName);
+    await db
+      .prepare(
+        'INSERT INTO reviews (id,operation_id,store_id,user_id,rating,comment,created_at,courier_rating) VALUES (?,?,?,?,?,?,?,?)',
+      )
+      .run(
+        randomUUID(),
+        op.id,
+        op.storeId,
+        user.id,
+        rating,
+        comment,
+        new Date().toISOString(),
+        courierRating,
+      );
+    await afterReview(db, user.id, op.id, op.storeName);
     res.status(201).json({ ok: true });
   });
   // Ferias y eventos: lista pública; asistencia con el código que se entrega en el evento.
-  r.get('/eventos', (_req, res) => res.json({ events: listEvents(db, currentUser(res)?.id) }));
-  r.post('/eventos/:id/asistencia', (req, res) => {
-    attendEvent(db, requireUser(res), req.params.id, req.body?.code);
+  r.get('/eventos', async (_req, res) =>
+    res.json({ events: await listEvents(db, currentUser(res)?.id) }),
+  );
+  r.post('/eventos/:id/asistencia', async (req, res) => {
+    await attendEvent(db, requireUser(res), req.params.id, req.body?.code);
     res.status(201).json({ ok: true });
   });
-  r.post('/admin/eventos', (req, res) =>
-    res.status(201).json({ id: createEvent(db, requireUser(res, 'admin'), req.body) }),
+  r.post('/admin/eventos', async (req, res) =>
+    res.status(201).json({ id: await createEvent(db, requireUser(res, 'admin'), req.body) }),
   );
-  r.delete('/admin/eventos/:id', (req, res) => {
+  r.delete('/admin/eventos/:id', async (req, res) => {
     requireUser(res, 'admin');
-    deleteEvent(db, req.params.id);
+    await deleteEvent(db, req.params.id);
     res.status(204).end();
   });
-  r.put('/negocios/:id/configuracion', (req, res) => {
-    const store = owned(db, requireUser(res), req.params.id),
-      old = settings(db, store.id),
+  r.put('/negocios/:id/configuracion', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id),
+      old = await settings(db, store.id),
       v = req.body;
     const opens = integer(v.opens, 0, 23, 'la hora de apertura'),
       closes = integer(v.closes, 1, 24, 'la hora de cierre'),
@@ -268,8 +279,57 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       (longitude !== null && (!Number.isFinite(longitude) || Math.abs(longitude) > 180))
     )
       throw new HttpError(400, 'Revisa las coordenadas.');
-    setSettings(db, store.id, {
+    // Horario por día, cupo y bloqueos (opcionales; si faltan se conservan los anteriores).
+    const week =
+      v.week === undefined
+        ? old.week
+        : (() => {
+            if (!Array.isArray(v.week) || v.week.length !== 7)
+              throw new HttpError(400, 'Revisa el horario de la semana.');
+            return v.week.map(
+              (d: { closed?: unknown; opens?: unknown; closes?: unknown }, i: number) => {
+                const closed = d?.closed === true;
+                const o = integer(d?.opens, 0, 23, `la apertura del ${dayNames[i]}`),
+                  c = integer(d?.closes, 1, 24, `el cierre del ${dayNames[i]}`);
+                if (!closed && c <= o)
+                  throw new HttpError(400, `Revisa el horario del ${dayNames[i]}.`);
+                return { closed, opens: o, closes: c };
+              },
+            );
+          })();
+    const capacity =
+      v.capacity === undefined ? old.capacity : integer(v.capacity, 1, 20, 'las citas simultáneas');
+    const blocks =
+      v.blocks === undefined
+        ? old.blocks
+        : (() => {
+            if (!Array.isArray(v.blocks) || v.blocks.length > 200)
+              throw new HttpError(400, 'Revisa los bloqueos de la agenda.');
+            return v.blocks.map((b: Record<string, unknown>) => {
+              const date = string(b?.date, 10, 'la fecha del bloqueo');
+              const from = typeof b?.from === 'string' ? b.from : '';
+              const to = typeof b?.to === 'string' ? b.to : '';
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+                throw new HttpError(400, 'Revisa la fecha del bloqueo.');
+              if (
+                (from || to) &&
+                (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to) || to <= from)
+              )
+                throw new HttpError(400, 'Revisa las horas del bloqueo.');
+              return {
+                id: typeof b?.id === 'string' && b.id.length <= 60 ? b.id : randomUUID(),
+                date,
+                from,
+                to,
+                note: string(b?.note ?? '', 120, 'la nota del bloqueo', false),
+              };
+            });
+          })();
+    await setSettings(db, store.id, {
       ...old,
+      week,
+      capacity,
+      blocks,
       delivery: v.delivery === true,
       deliveryFee: integer(v.deliveryFee, 0, 500000, 'el costo de domicilio'),
       paymentInstructions: string(v.paymentInstructions, 700, 'las instrucciones de pago', false),
@@ -279,26 +339,27 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       latitude,
       longitude,
     });
-    res.json(commerceStore(db, store.id));
+    res.json(await commerceStore(db, store.id));
   });
-  r.put('/negocios/:id/inventario', (req, res) => {
-    const store = owned(db, requireUser(res), req.params.id);
+  r.put('/negocios/:id/inventario', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
     const productId = string(req.body?.productId, 100, 'el producto');
     if (!store.draft.products.some((p) => p.id === productId))
       throw new HttpError(404, 'Producto no encontrado.');
     if (req.body.quantity === null)
-      db.prepare('DELETE FROM inventory WHERE store_id=? AND product_id=?').run(
-        store.id,
-        productId,
-      );
+      await db
+        .prepare('DELETE FROM inventory WHERE store_id=? AND product_id=?')
+        .run(store.id, productId);
     else
-      db.prepare(
-        'INSERT INTO inventory VALUES (?,?,?) ON CONFLICT(store_id,product_id) DO UPDATE SET quantity=excluded.quantity',
-      ).run(store.id, productId, integer(req.body.quantity, 0, 1000000, 'las existencias'));
-    res.json(commerceStore(db, store.id));
+      await db
+        .prepare(
+          'INSERT INTO inventory VALUES (?,?,?) ON CONFLICT(store_id,product_id) DO UPDATE SET quantity=excluded.quantity',
+        )
+        .run(store.id, productId, integer(req.body.quantity, 0, 1000000, 'las existencias'));
+    res.json(await commerceStore(db, store.id));
   });
-  r.post('/negocios/:id/promociones', (req, res) => {
-    const store = owned(db, requireUser(res), req.params.id);
+  r.post('/negocios/:id/promociones', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
     if (store.published?.design.mode !== 'products')
       throw new HttpError(400, 'Publica un negocio de productos antes de crear bonos.');
     const v = req.body;
@@ -319,27 +380,27 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       expires: new Date(expires).toISOString(),
       active: true,
     };
-    db.prepare('INSERT INTO promotions VALUES (?,?,?)').run(
-      promotion.id,
-      store.id,
-      JSON.stringify(promotion),
-    );
+    await db
+      .prepare('INSERT INTO promotions VALUES (?,?,?)')
+      .run(promotion.id, store.id, JSON.stringify(promotion));
     res.status(201).json({ promotion });
   });
-  r.delete('/promociones/:id', (req, res) => {
-    const row = db.prepare('SELECT store_id,payload FROM promotions WHERE id=?').get(req.params.id);
+  r.delete('/promociones/:id', async (req, res) => {
+    const row = await db
+      .prepare('SELECT store_id,payload FROM promotions WHERE id=?')
+      .get(req.params.id);
     if (!row) throw new HttpError(404, 'Promoción no encontrada.');
-    owned(db, requireUser(res), row.store_id as string);
+    await owned(db, requireUser(res), row.store_id as string);
     const p = JSON.parse(row.payload as string) as Promotion;
     p.active = false;
-    db.prepare('UPDATE promotions SET payload=? WHERE id=?').run(JSON.stringify(p), p.id);
+    await db.prepare('UPDATE promotions SET payload=? WHERE id=?').run(JSON.stringify(p), p.id);
     res.status(204).end();
   });
-  r.post('/negocios/:id/verificacion', (req, res) => {
-    const store = owned(db, requireUser(res), req.params.id);
+  r.post('/negocios/:id/verificacion', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
     if (!store.published)
       throw new HttpError(400, 'Publica tu negocio antes de solicitar verificación.');
-    const cfg = settings(db, store.id);
+    const cfg = await settings(db, store.id);
     if (cfg.verification === 'approved') throw new HttpError(409, 'El negocio ya está verificado.');
     cfg.verification = 'pending';
     cfg.verificationNote = string(
@@ -347,7 +408,7 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       1000,
       'la información para verificar tu negocio',
     );
-    setSettings(db, store.id, cfg);
+    await setSettings(db, store.id, cfg);
     res.status(204).end();
   });
   r.put('/domiciliario', async (req, res) => {
@@ -356,54 +417,68 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     if (!/^\+?[1-9]\d{9,14}$/.test(phone))
       throw new HttpError(400, 'Revisa el número de WhatsApp.');
     const municipality = string(req.body?.municipality, 80, 'tu municipio');
+    const vehicle = string(req.body?.vehicle ?? '', 40, 'el vehículo', false);
     let avatar = typeof req.body.avatar === 'string' ? req.body.avatar : '';
     if (avatar.startsWith('data:')) avatar = (await images.upload(user.id, avatar)).url;
-    if (avatar && (!imageId(avatar) || images.row(imageId(avatar)!)?.owner_id !== user.id))
+    if (avatar && (!imageId(avatar) || (await images.row(imageId(avatar)!))?.owner_id !== user.id))
       throw new HttpError(400, 'Sube tu propia foto para el perfil.');
-    db.prepare(
-      'INSERT INTO couriers (user_id,phone,municipality,approved,avatar) VALUES (?,?,?,0,?) ON CONFLICT(user_id) DO UPDATE SET phone=excluded.phone,municipality=excluded.municipality,avatar=excluded.avatar,approved=0',
-    ).run(user.id, phone, municipality, avatar);
+    await db
+      .prepare(
+        'INSERT INTO couriers (user_id,phone,municipality,approved,avatar,vehicle) VALUES (?,?,?,0,?,?) ON CONFLICT(user_id) DO UPDATE SET phone=excluded.phone,municipality=excluded.municipality,avatar=excluded.avatar,vehicle=excluded.vehicle,approved=0,available=0',
+      )
+      .run(user.id, phone, municipality, avatar, vehicle);
     res.status(204).end();
   });
-  r.get('/admin', (_req, res) => {
+  r.put('/domiciliario/disponible', async (req, res) => {
+    await setAvailability(db, requireUser(res), req.body?.available === true);
+    res.status(204).end();
+  });
+  r.put('/domiciliario/ubicacion', async (req, res) => {
+    await setLocation(db, requireUser(res), req.body?.lat, req.body?.lng);
+    res.status(204).end();
+  });
+  r.get('/operaciones/:id/rastreo', async (req, res) =>
+    res.json(await tracking(db, requireUser(res), req.params.id)),
+  );
+  r.get('/admin', async (_req, res) => {
     requireUser(res, 'admin');
+    const ids = (await db.prepare('SELECT id FROM stores').all()).map((row) => row.id as string);
+    const stores = await Promise.all(ids.map((id) => getStore(db, id)));
     res.json({
-      stores: db
-        .prepare('SELECT id FROM stores')
-        .all()
-        .map((row) => getStore(db, row.id as string)!)
-        .map((s) => ({
-          id: s.id,
-          name: s.published?.design.name || s.draft.name,
-          ownerId: s.ownerId,
-          published: !!s.published,
-          settings: settings(db, s.id),
+      stores: await Promise.all(
+        stores.map(async (s) => ({
+          id: s!.id,
+          name: s!.published?.design.name || s!.draft.name,
+          ownerId: s!.ownerId,
+          published: !!s!.published,
+          settings: await settings(db, s!.id),
         })),
-      couriers: couriers(db),
-      users: (db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n,
-      audit: db
+      ),
+      couriers: await couriers(db),
+      users: (await db.prepare('SELECT COUNT(*) AS n FROM users').get<{ n: number }>())?.n ?? 0,
+      audit: await db
         .prepare(
           'SELECT action,target,note,created_at AS at FROM admin_audit ORDER BY rowid DESC LIMIT 50',
         )
         .all(),
     });
   });
-  r.post('/admin/:type/:id', (req, res) => {
+  r.post('/admin/:type/:id', async (req, res) => {
     const actor = requireUser(res, 'admin');
     const decision = req.body?.approved === true,
       note = string(req.body?.note, 500, 'el motivo de la decisión');
-    transaction(db, () => {
+    await transaction(db, async (db) => {
       if (['suspender', 'reactivar'].includes(req.params.type)) {
-        const store = getStore(db, req.params.id);
+        const store = await getStore(db, req.params.id);
         if (!store) throw new HttpError(404, 'Negocio no encontrado.');
-        const cfg = settings(db, store.id);
+        const cfg = await settings(db, store.id);
         cfg.suspended = req.params.type === 'suspender';
         cfg.verification = 'pending';
         cfg.verificationNote = note;
-        setSettings(db, store.id, cfg);
+        await setSettings(db, store.id, cfg);
         if (cfg.suspended)
-          db.prepare('UPDATE stores SET published_version_id=NULL WHERE id=?').run(store.id);
-        notify(
+          await db.prepare('UPDATE stores SET published_version_id=NULL WHERE id=?').run(store.id);
+        await notify(
           db,
           store.ownerId,
           cfg.suspended
@@ -412,28 +487,27 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
           '/panel/configuracion',
         );
       } else if (req.params.type === 'negocios') {
-        const store = getStore(db, req.params.id);
+        const store = await getStore(db, req.params.id);
         if (!store) throw new HttpError(404, 'Negocio no encontrado.');
         if (!store.published)
           throw new HttpError(400, 'El negocio debe estar publicado para revisar su sello.');
-        const cfg = settings(db, store.id);
+        const cfg = await settings(db, store.id);
         cfg.verification = decision ? 'approved' : 'rejected';
         cfg.verificationNote = note;
-        setSettings(db, store.id, cfg);
-        notify(
+        await setSettings(db, store.id, cfg);
+        await notify(
           db,
           store.ownerId,
           `Verificación de negocio: ${cfg.verification}`,
           '/panel/configuracion',
         );
       } else if (req.params.type === 'domiciliarios') {
-        if (!couriers(db).some((c) => c.id === req.params.id))
+        if (!(await couriers(db)).some((c) => c.id === req.params.id))
           throw new HttpError(404, 'Solicitud no encontrada.');
-        db.prepare('UPDATE couriers SET approved=? WHERE user_id=?').run(
-          decision ? 1 : 0,
-          req.params.id,
-        );
-        notify(
+        await db
+          .prepare('UPDATE couriers SET approved=? WHERE user_id=?')
+          .run(decision ? 1 : 0, req.params.id);
+        await notify(
           db,
           req.params.id,
           decision
@@ -442,21 +516,23 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
           '/domiciliario',
         );
       } else throw new HttpError(404, 'Acción desconocida.');
-      db.prepare('INSERT INTO admin_audit VALUES (?,?,?,?,?,?)').run(
-        randomUUID(),
-        actor.id,
-        `${req.params.type}:${decision}`,
-        req.params.id,
-        note,
-        new Date().toISOString(),
-      );
+      await db
+        .prepare('INSERT INTO admin_audit VALUES (?,?,?,?,?,?)')
+        .run(
+          randomUUID(),
+          actor.id,
+          `${req.params.type}:${decision}`,
+          req.params.id,
+          note,
+          new Date().toISOString(),
+        );
     });
     res.status(204).end();
   });
   // Asistencia local basada exclusivamente en el catálogo: no se presenta como un modelo de IA.
   r.post('/asistente/:id', async (req, res) => {
     const question = string(req.body?.question, 500, 'tu pregunta').toLowerCase();
-    const store = getStore(db, req.params.id);
+    const store = await getStore(db, req.params.id);
     if (!store?.published) throw new HttpError(404, 'Negocio no publicado.');
     const d = store.published.design;
     const words = question

@@ -1,7 +1,8 @@
 // Servidor de SucreIA (Node.js + Express).
 //   Desarrollo: npm run dev:api   (la API en http://127.0.0.1:4000; Nuxt le reenvía /api)
 //   Producción: npm run build && npm start   (API + sitio de Vue en el mismo puerto)
-// Variables: PORT, HOST, DATABASE_PATH (':memory:' para pruebas), COOKIE_SECURE. Con --production (o NODE_ENV=production): cookies solo
+// Variables: PORT, HOST, DATABASE_PATH (':memory:' para pruebas) o DATABASE_URL (Postgres),
+// IMAGES_PATH ('db' = fotos dentro de la base), COOKIE_SECURE. Con --production (o NODE_ENV=production): cookies solo
 // por HTTPS y Express sirve también el sitio compilado.
 import { localCatalogAI } from './catalog-ai.ts';
 import { acquireDataLock } from './data-lock.ts';
@@ -9,7 +10,7 @@ import { smtpConfig, smtpTransport } from './mail.ts';
 import type { Server } from 'node:http';
 import { resolve } from 'node:path';
 import { ImageStorage, migrateImages } from './images.ts';
-import { openDb } from './db.ts';
+import { openDb, type Db } from './db.ts';
 import { createApp } from './app.ts';
 
 const production = process.argv.includes('--production') || process.env.NODE_ENV === 'production';
@@ -23,11 +24,19 @@ const dbPath = dbEnv === ':memory:' ? dbEnv : resolve(dbEnv);
 
 const config = smtpConfig(process.env);
 const assistant = localCatalogAI(process.env);
-const imagesDir = resolve(process.env.IMAGES_PATH ?? 'server/data/images');
-const release = acquireDataLock(dbPath, imagesDir);
-let db: ReturnType<typeof openDb>;
+const databaseUrl = process.env.DATABASE_URL;
+// Con Postgres las fotos van a la base salvo que se indique una carpeta.
+const imagesDir =
+  process.env.IMAGES_PATH === 'db' || (databaseUrl && !process.env.IMAGES_PATH)
+    ? null
+    : resolve(process.env.IMAGES_PATH ?? 'server/data/images');
+// El bloqueo de archivos solo aplica a SQLite + carpeta de fotos en este equipo.
+const release = databaseUrl
+  ? () => {}
+  : acquireDataLock(dbPath, imagesDir ?? resolve('server/data/images'));
+let db: Db;
 try {
-  db = openDb(dbPath);
+  db = await openDb(databaseUrl ?? dbPath);
 } catch (error) {
   release();
   throw error;
@@ -36,7 +45,7 @@ let migration;
 try {
   migration = await migrateImages(new ImageStorage(db, imagesDir));
 } catch (error) {
-  db.close();
+  await db.close();
   release();
   throw error;
 }
@@ -57,16 +66,18 @@ try {
     staticDir: production ? resolve('.output/public') : undefined,
   });
   server = app.listen(port, host, () => {
-    console.log(`SucreIA API en http://${host}:${port}/api  ·  base de datos: ${dbPath}`);
+    console.log(
+      `SucreIA API en http://${host}:${port}/api  ·  base de datos: ${databaseUrl ? 'Postgres' : dbPath}`,
+    );
   });
 } catch (error) {
-  db.close();
+  await db.close();
   release();
   throw error;
 }
 
 server.once('error', () => {
-  db.close();
+  void db.close();
   release();
   console.error('No se pudo abrir el puerto del servidor. Revisa HOST, PORT y los permisos.');
   process.exitCode = 1;
@@ -76,9 +87,10 @@ function stop() {
   if (closing) return;
   closing = true;
   server.close(() => {
-    db.close();
-    release();
-    process.exit(0);
+    void db.close().finally(() => {
+      release();
+      process.exit(0);
+    });
   });
 }
 process.on('SIGINT', stop);

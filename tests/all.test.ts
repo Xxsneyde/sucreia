@@ -11,3 +11,4 @@ import './platform-api.test.ts';
 import './catalog-ai.test.ts';
 import './roles.test.ts';
 import './rewards.test.ts';
+import './logistics.test.ts';

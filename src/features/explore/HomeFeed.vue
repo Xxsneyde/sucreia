@@ -12,6 +12,8 @@ import {
 } from '@lucide/vue';
 import { score, useDirectory } from '@/lib/directory';
 import { usePlatform } from '@/lib/platform-store';
+import { useSession } from '@/lib/session';
+import { isMerchant } from '@/domain/roles';
 import PageBanner from '@/components/sucre/PageBanner.vue';
 import SearchBox from '@/components/sucre/SearchBox.vue';
 import SectorStrip from '@/components/sucre/SectorStrip.vue';
@@ -27,6 +29,9 @@ const featured = computed(() =>
     .slice(0, 3),
 );
 const points = computed(() => p.data.value?.points ?? 0);
+// La Escuela es para emprendedores; a los clientes se les invita a abrir su negocio.
+const session = useSession();
+const merchant = computed(() => !!session.user && isMerchant(session.user.role));
 </script>
 <template>
   <PageBanner
@@ -72,11 +77,20 @@ const points = computed(() => p.data.value?.points ?? 0);
           <span class="small muted">¡Canjéalos por descuentos!</span>
         </div>
       </NuxtLink>
-      <NuxtLink to="/escuela" class="sx-card hf-tile">
+      <NuxtLink v-if="merchant" to="/escuela" class="sx-card hf-tile">
         <GraduationCap :size="30" />
         <div>
           <strong>Escuela del Emprendedor con IA</strong
           ><span class="small muted">Tu ruta de aprendizaje personalizada.</span>
+        </div>
+      </NuxtLink>
+      <NuxtLink v-else to="/panel/configurar" class="sx-card hf-tile hf-invite">
+        <GraduationCap :size="30" />
+        <div>
+          <strong>¿Quieres emprender?</strong
+          ><span class="small muted"
+            >Abre tu negocio en SucreIA y aprende con la Escuela del Emprendedor IA.</span
+          >
         </div>
       </NuxtLink>
       <NuxtLink to="/mapa" class="sx-card hf-tile">
@@ -96,13 +110,13 @@ const points = computed(() => p.data.value?.points ?? 0);
     </aside>
   </div>
 
-  <NuxtLink to="/logistica" class="hf-logistics">
+  <NuxtLink to="/domiciliario" class="hf-logistics">
     <img src="/sucre/repartidor.webp" alt="" />
     <div>
       <h2><Truck :size="30" /> Logística y Entregas Colaborativas</h2>
       <p>
-        Recibe tus compras en casa o en tu negocio con transportadores locales del departamento de
-        Sucre.
+        Recibe tus compras en casa con domiciliarios locales y sigue tu pedido en el mapa. ¿Tienes
+        moto o bicicleta? Reparte y gana por cada entrega.
       </p>
       <ul>
         <li><Zap :size="24" /> Entregas rápidas en todo Sucre</li>
@@ -204,5 +218,8 @@ const points = computed(() => p.data.value?.points ?? 0);
   .hf-logistics ul {
     grid-template-columns: 1fr;
   }
+}
+.hf-invite {
+  border: 2px dashed var(--green);
 }
 </style>

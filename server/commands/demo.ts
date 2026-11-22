@@ -5,13 +5,16 @@
 //   npm run demo -- --confirmar                  (API local en http://127.0.0.1:4000)
 //   npm run demo -- --confirmar --api http://127.0.0.1:4173
 //
-// Solo acepta APIs en 127.0.0.1/localhost: nunca debe ejecutarse contra producción.
+// Por defecto solo acepta APIs en 127.0.0.1/localhost. El sitio compartido de demostración
+// (https://sucreia.vercel.app, decisión del propietario para que el equipo pruebe la plataforma)
+// se llena con --sitio-demo y su URL https. Nunca usarlo en un sitio con clientes reales.
 // Las cuentas usan el dominio @demo.sucreia.local y los contactos son ficticios.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { createDesign, type StoreDesign } from '../../src/domain/studio.ts';
 import type { BusinessMode } from '../../src/domain/types.ts';
+import { centers } from '../../src/domain/geo.ts';
 
 const args = process.argv.slice(2);
 const apiIndex = args.indexOf('--api');
@@ -20,9 +23,11 @@ const api = (apiIndex >= 0 ? (args[apiIndex + 1] ?? '') : 'http://127.0.0.1:4000
   '',
 );
 const host = URL.canParse(api) ? new URL(api).hostname : '';
-if (!args.includes('--confirmar') || !['127.0.0.1', 'localhost'].includes(host)) {
+const local = ['127.0.0.1', 'localhost'].includes(host);
+const shared = args.includes('--sitio-demo') && api.startsWith('https://');
+if (!args.includes('--confirmar') || !(local || shared)) {
   console.error(
-    'Carga datos de demostración en una API LOCAL.\nUso: npm run demo -- --confirmar [--api http://127.0.0.1:4000]',
+    'Carga datos de demostración en una API local (o en el sitio compartido de demostración).\nUso: npm run demo -- --confirmar [--api http://127.0.0.1:4000]\n     npm run demo -- --confirmar --sitio-demo --api https://sucreia.vercel.app',
   );
   process.exit(1);
 }
@@ -815,12 +820,79 @@ async function main() {
     await register('Luis M. (demo)', 'luis@demo.sucreia.local', 'cliente'),
     await register('Sofía G. (demo)', 'sofia@demo.sucreia.local', 'cliente'),
   ];
+  // Logística y agenda de cada negocio (también para los que ya existían): ubicación cerca del
+  // centro de su municipio, horario por día, cupo de citas y duración de cada servicio.
+  async function agenda(owner: Call, storeId: string, demo: Demo, index: number) {
+    const [lat, lng] = centers[demo.municipality] ?? centers.Sincelejo;
+    const angle = index * 2.399,
+      radius = 0.002 + (index % 5) * 0.0012;
+    const settings = (
+      await owner<{ settings: Record<string, unknown> }>('GET', `/plataforma/negocios/${storeId}`)
+    ).settings;
+    const booking = demo.mode === 'booking';
+    await owner('PUT', `/plataforma/negocios/${storeId}/configuracion`, {
+      ...settings,
+      delivery: !!demo.delivery,
+      deliveryFee: demo.delivery ?? 0,
+      opens: 8,
+      closes: booking ? 19 : 18,
+      latitude: +(lat + Math.sin(angle) * radius).toFixed(6),
+      longitude: +(lng + Math.cos(angle) * radius).toFixed(6),
+      ...(booking
+        ? {
+            duration: 30,
+            capacity: index % 2 ? 2 : 1,
+            week: [0, 1, 2, 3, 4, 5, 6].map((d) => ({
+              closed: d === 0,
+              opens: d === 6 ? 8 : 9,
+              closes: d === 6 ? 14 : 19,
+            })),
+          }
+        : {}),
+    });
+    if (!booking) return;
+    const { store } = await owner<{ store: { draft: StoreDesign } }>(
+      'GET',
+      `/mis-tiendas/${storeId}`,
+    );
+    if (store.draft.products.every((x) => x.duration)) return;
+    const draft = {
+      ...store.draft,
+      products: store.draft.products.map((x, i) => ({
+        ...x,
+        duration: x.duration ?? [30, 45, 60, 90][i % 4],
+      })),
+    };
+    await owner('PUT', `/mis-tiendas/${storeId}`, { design: draft });
+    await owner('POST', `/mis-tiendas/${storeId}/publicar`);
+  }
+
   const existing = (await account()<{ stores: { name: string }[] }>('GET', '/tiendas')).stores.map(
     (s) => s.name,
   );
+  const made: Record<
+    string,
+    { owner: Call; id: string; products: { id: string; name: string }[] }
+  > = {};
   for (const demo of demos) {
     if (existing.includes(demo.name)) {
-      console.log(`· ${demo.name}: ya existe, se omite.`);
+      const owner = await register(
+        `${demo.name} (demo)`,
+        `${demo.slug}@demo.sucreia.local`,
+        'emprendedor',
+      );
+      const mine = (
+        await owner<{ stores: { id: string; draft: { name: string } }[] }>('GET', '/mis-tiendas')
+      ).stores.find((x) => x.draft.name === demo.name);
+      if (mine) {
+        await agenda(owner, mine.id, demo, demos.indexOf(demo));
+        const { store } = await owner<{ store: { draft: StoreDesign } }>(
+          'GET',
+          `/mis-tiendas/${mine.id}`,
+        );
+        made[demo.slug] = { owner, id: mine.id, products: store.draft.products };
+      }
+      console.log(`· ${demo.name}: ya existe, se actualizó su ubicación y agenda.`);
       continue;
     }
     const owner = await register(
@@ -859,16 +931,8 @@ async function main() {
       });
     const { store } = await owner<{ store: { id: string } }>('POST', '/mis-tiendas', { design });
     await owner('POST', `/mis-tiendas/${store.id}/publicar`);
-    const settings = (
-      await owner<{ settings: Record<string, unknown> }>('GET', `/plataforma/negocios/${store.id}`)
-    ).settings;
-    await owner('PUT', `/plataforma/negocios/${store.id}/configuracion`, {
-      ...settings,
-      delivery: !!demo.delivery,
-      deliveryFee: demo.delivery ?? 0,
-      opens: 8,
-      closes: 18,
-    });
+    await agenda(owner, store.id, demo, demos.indexOf(demo));
+    made[demo.slug] = { owner, id: store.id, products: design.products };
     if (demo.promo) {
       const expires = new Date(Date.now() + 60 * 86_400_000).toISOString();
       await owner('POST', `/plataforma/negocios/${store.id}/promociones`, {
@@ -924,8 +988,40 @@ async function main() {
     }
     console.log(`✓ ${demo.name}`);
   }
-  // Ferias y eventos: requieren una cuenta administradora (npm run admin, con la API detenida).
+  // Ferias, eventos y domiciliarios necesitan una cuenta administradora: la primera vez se crea
+  // como cliente; se habilita con `npm run admin` (o SQL en Supabase) y se vuelve a ejecutar.
   const admin = await register('Administración (demo)', 'admin@demo.sucreia.local', 'cliente');
+  // Domiciliario de prueba (Sincelejo): la administración lo aprueba para las entregas a domicilio.
+  const courier = await register(
+    'Pedro Domiciliario (demo)',
+    'pedro@demo.sucreia.local',
+    'cliente',
+  );
+  // Registrar de nuevo lo devolvería a revisión: solo se envía si falta el perfil o el vehículo.
+  const profile = (
+    await courier<{ courier: { vehicle?: string } | null }>('GET', '/plataforma/estado')
+  ).courier;
+  if (!profile?.vehicle)
+    await courier('PUT', '/plataforma/domiciliario', {
+      phone: '+573000000000',
+      municipality: 'Sincelejo',
+      vehicle: 'Moto',
+      avatar: '',
+    });
+  try {
+    const me = (
+      await courier<{ courier: { id: string; approved: boolean } }>('GET', '/plataforma/estado')
+    ).courier;
+    if (!me.approved)
+      await admin('POST', `/plataforma/admin/domiciliarios/${me.id}`, {
+        approved: true,
+        note: 'Domiciliario de demostración',
+      });
+    console.log('✓ Domiciliario aprobado (pedro@demo.sucreia.local)');
+  } catch {
+    console.log('· Domiciliario: pendiente de aprobación (falta la cuenta administradora).');
+  }
+  await movimiento();
   const day = (offset: number) =>
     new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(
       new Date(Date.now() + offset * 86_400_000),
@@ -967,6 +1063,82 @@ async function main() {
     console.log(
       '· Ferias y eventos: falta la cuenta administradora. Con la API detenida ejecuta\n  npm run admin -- admin@demo.sucreia.local  y vuelve a correr este comando.',
     );
+  }
+  async function movimiento() {
+    // Movimiento para probar los tableros: pedidos a domicilio esperando domiciliario en
+    // Sincelejo y citas de los próximos días en el spa. Solo si no hay ya algo activo.
+    const shop = made.delicias,
+      spa = made.spa;
+    type Op = { storeId: string; status: string; kind: string; slot: string };
+    const active = async (x: typeof shop) =>
+      (await x.owner<{ sales: Op[] }>('GET', '/plataforma/estado')).sales.filter(
+        (o) =>
+          o.storeId === x.id &&
+          ['pending', 'preparing', 'ready'].includes(o.status) &&
+          o.kind === 'products',
+      ).length;
+    if (shop && (await active(shop)) < 3) {
+      const [lat, lng] = centers.Sincelejo;
+      for (const [i, who] of [1, 2].entries()) {
+        const { operation } = await clients[who]<{ operation: { id: string } }>(
+          'POST',
+          '/plataforma/operaciones',
+          {
+            storeId: shop.id,
+            key: randomUUID(),
+            kind: 'products',
+            items: [{ productId: shop.products[i].id, quantity: 1 + i }],
+            phone: '+573000000000',
+            fulfillment: 'delivery',
+            address: i
+              ? 'Calle 28 # 16-40, barrio La Ford, Sincelejo'
+              : 'Cra. 25 # 22-15, barrio Majagual, Sincelejo',
+            addressLat: lat + (i ? 0.006 : -0.004),
+            addressLng: lng + (i ? -0.005 : 0.007),
+            paymentMethod: 'cash',
+          },
+        );
+        if (i) await shop.owner('POST', `/plataforma/operaciones/${operation.id}/prepare`);
+      }
+      console.log('✓ Pedidos a domicilio en Sincelejo para el domiciliario de prueba');
+    }
+    if (spa) {
+      const future = (await spa.owner<{ sales: Op[] }>('GET', '/plataforma/estado')).sales.filter(
+        (o) =>
+          o.storeId === spa.id &&
+          o.kind === 'booking' &&
+          Date.parse(o.slot) > Date.now() &&
+          ['pending', 'accepted'].includes(o.status),
+      ).length;
+      if (future < 2)
+        for (const [i, who] of [0, 2, 3].entries()) {
+          const offer = spa.products[i % spa.products.length];
+          const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(
+            new Date(Date.now() + (i + 1) * 86_400_000),
+          );
+          const { slots } = await clients[who]<{ slots: string[] }>(
+            'GET',
+            `/plataforma/negocios/${spa.id}/horarios?fecha=${date}&servicio=${offer.id}`,
+          );
+          if (!slots.length) continue;
+          const { operation } = await clients[who]<{ operation: { id: string } }>(
+            'POST',
+            '/plataforma/operaciones',
+            {
+              storeId: spa.id,
+              key: randomUUID(),
+              kind: 'booking',
+              items: [{ productId: offer.id, quantity: 1 }],
+              detail: `${offer.name}: primera vez, por favor.`,
+              phone: '+573000000000',
+              slot: slots[Math.min(slots.length - 1, 2 + i * 3)],
+              paymentMethod: 'cash',
+            },
+          );
+          if (i !== 1) await spa.owner('POST', `/plataforma/operaciones/${operation.id}/confirm`);
+        }
+      console.log('✓ Citas de los próximos días en Armonía Spa');
+    }
   }
   console.log(`\nListo. Cuentas de demostración (contraseña: ${password}):`);
   console.log('  Cliente: ana@demo.sucreia.local · Negocio: delicias@demo.sucreia.local');

@@ -4,7 +4,15 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
-const db = openDb(':memory:');
+import { createUser, hashPassword } from '../server/auth.ts';
+const db = await openDb(':memory:');
+// Administración de la base efímera: aprueba domiciliarios en las pruebas de logística.
+await createUser(db, {
+  email: 'admin@pruebas.co',
+  name: 'Administración de pruebas',
+  passwordHash: await hashPassword('clave-segura-1'),
+  role: 'admin',
+});
 const imagesDir = mkdtempSync(join(tmpdir(), 'sucreia-browser-'));
 const server = createApp({
   db,
@@ -17,7 +25,7 @@ const server = createApp({
 }).listen(4173, '127.0.0.1');
 function stop() {
   server.close(() => {
-    db.close();
+    void db.close();
     rmSync(imagesDir, { recursive: true, force: true });
     process.exit(0);
   });

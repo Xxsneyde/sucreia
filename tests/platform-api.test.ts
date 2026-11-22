@@ -8,8 +8,8 @@ import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
-function fixture() {
-  const db = openDb(':memory:'),
+async function fixture() {
+  const db = await openDb(':memory:'),
     dir = mkdtempSync(join(tmpdir(), 'sucreia-platform-api-')),
     http = httpClient(createApp({ db, imagesDir: dir, localMail: true }));
   function client() {
@@ -47,7 +47,7 @@ function fixture() {
   };
 }
 test('API: compra entre cuentas, gestión, pago, PIN, reseña, puntos, favoritos y aislamiento', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const owner = await f.account('emprendedor'),
       buyer = await f.account(),
@@ -140,12 +140,12 @@ test('API: compra entre cuentas, gestión, pago, PIN, reseña, puntos, favoritos
   }
 });
 test('API: revisión administrativa, evidencia privada y aprobación de domiciliarios', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const owner = await f.account('emprendedor'),
       driver = await f.account(),
       admin = await f.account();
-    f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
+    await f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
     const store = (await owner.call('POST', '/mis-tiendas', { design: createDesign() })).json.store;
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     assert.equal(
@@ -209,7 +209,7 @@ test('API: revisión administrativa, evidencia privada y aprobación de domicili
 });
 
 test('API: convertir cliente, constancia verificable y suspensión que impide republicar', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const owner = await f.account(),
       admin = await f.account();
@@ -238,7 +238,7 @@ test('API: convertir cliente, constancia verificable y suspensión que impide re
       (await f.client()('GET', `/plataforma/certificados/${certificate.json.id}`)).json.name,
       'Nombre actualizado',
     );
-    f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
+    await f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
     const store = (await owner.call('POST', '/mis-tiendas', { design: createDesign() })).json.store;
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     assert.equal(
@@ -268,7 +268,7 @@ test('API: convertir cliente, constancia verificable y suspensión que impide re
 });
 
 test('API: dos clientes simultáneos no venden dos veces la última unidad', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const owner = await f.account('emprendedor'),
       first = await f.account(),

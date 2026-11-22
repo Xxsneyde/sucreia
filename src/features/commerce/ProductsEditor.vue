@@ -162,6 +162,31 @@ const groups = computed(() => [
                 >Disponible cuando publiques tu negocio.</span
               >
             </label>
+            <label v-if="d.mode === 'booking'"
+              >Duración (minutos)
+              <input
+                :value="item.duration ?? ''"
+                type="number"
+                min="10"
+                max="480"
+                step="5"
+                placeholder="La general de tu agenda"
+                @input="
+                  edit(i, {
+                    duration:
+                      ($event.target as HTMLInputElement).value === ''
+                        ? undefined
+                        : Math.min(
+                            480,
+                            Math.max(
+                              10,
+                              Math.round(Number(($event.target as HTMLInputElement).value)),
+                            ),
+                          ),
+                  })
+                "
+              />
+            </label>
           </div>
           <button type="button" class="sx-btn sx-btn--ghost sx-btn--sm pe-del" @click="remove(i)">
             <Trash2 :size="15" /> Quitar

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createDesign } from '../../src/domain/studio.ts';
 import { fits } from './helpers.ts';
 
-test('desde la portada se explora solo lo publicado, sin menús del negocio', async ({
+test('la dirección principal lleva al ingreso; buscar muestra solo lo publicado, sin menús del negocio', async ({
   page,
   request,
 }) => {
@@ -29,8 +29,10 @@ test('desde la portada se explora solo lo publicado, sin menús del negocio', as
   });
   expect((await request.post(`/api/mis-tiendas/${live.store.id}/publicar`)).status()).toBe(200);
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('El ecosistema digital');
-  await page.getByRole('link', { name: 'Explorar negocios', exact: true }).click();
+  await expect(page).toHaveURL(/ingresar/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('¡Bienvenido a SucreIA!');
+  // La imagen del acceso lleva a explorar los negocios sin cuenta.
+  await page.getByRole('link', { name: 'Explorar los negocios de SucreIA' }).click();
   await expect(page).toHaveURL(/buscar/);
   await page.getByRole('searchbox', { name: '¿Qué producto o servicio necesitas?' }).fill(suffix);
   await expect(page.locator('.sx-biz')).toHaveCount(1);

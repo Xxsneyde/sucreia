@@ -55,7 +55,7 @@ export function authRoutes(
   const limitConfirm = attemptLimiter(linkLimit);
   async function send(user: { id: string; email: string }, purpose: 'reset' | 'verify') {
     if (!mailbox) throw new HttpError(503, 'El envío de correos todavía no está configurado.');
-    const { token, expiresAt } = issueToken(db, user.id, purpose);
+    const { token, expiresAt } = await issueToken(db, user.id, purpose);
     await mailbox.send(user.email, purpose, token, expiresAt);
   }
 
@@ -64,7 +64,7 @@ export function authRoutes(
     if (!EMAIL.test(email)) throw new HttpError(400, 'Escribe un correo válido.');
     limitMail(`reset|${req.ip}`);
     if (!mailbox) throw new HttpError(503, 'El envío de correos todavía no está configurado.');
-    const found = findUserByEmail(db, email);
+    const found = await findUserByEmail(db, email);
     if (found) {
       try {
         await send(found, 'reset');
@@ -85,16 +85,11 @@ export function authRoutes(
     if (password.length < 8)
       throw new HttpError(400, 'La contraseña debe tener al menos 8 caracteres.');
     const passwordHash = await hashPassword(password);
-    db.exec('BEGIN');
-    try {
-      const userId = consumeToken(db, token, 'reset');
-      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    await db.transaction(async (tx) => {
+      const userId = await consumeToken(tx, token, 'reset');
+      await tx.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
+      await tx.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    });
     res.json({ message: 'Contraseña actualizada. Inicia sesión con tu nueva contraseña.' });
   });
 
@@ -109,21 +104,15 @@ export function authRoutes(
     });
   });
 
-  router.post('/verificar-correo', (req, res) => {
+  router.post('/verificar-correo', async (req, res) => {
     limitConfirm(`verify|${req.ip}`);
     const token = text(req.body, 'token', 128, 'el enlace');
-    db.exec('BEGIN');
-    try {
-      const userId = consumeToken(db, token, 'verify');
-      db.prepare('UPDATE users SET emailVerifiedAt = ? WHERE id = ?').run(
-        new Date().toISOString(),
-        userId,
-      );
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    await db.transaction(async (tx) => {
+      const userId = await consumeToken(tx, token, 'verify');
+      await tx
+        .prepare('UPDATE users SET emailVerifiedAt = ? WHERE id = ?')
+        .run(new Date().toISOString(), userId);
+    });
     res.json({ message: 'Tu correo quedó verificado.' });
   });
 
@@ -136,11 +125,16 @@ export function authRoutes(
     if (!EMAIL.test(email)) throw new HttpError(400, 'Escribe un correo válido.');
     if (password.length < 8)
       throw new HttpError(400, 'La contraseña debe tener al menos 8 caracteres.');
-    if (findUserByEmail(db, email))
+    if (await findUserByEmail(db, email))
       throw new HttpError(409, 'Ya existe una cuenta con ese correo.');
-    const user = createUser(db, { email, name, role, passwordHash: await hashPassword(password) });
+    const user = await createUser(db, {
+      email,
+      name,
+      role,
+      passwordHash: await hashPassword(password),
+    });
     // Código de quien invitó (opcional): premia al que invita cuando esta cuenta compre.
-    registerReferral(db, user.id, req.body?.referido);
+    await registerReferral(db, user.id, req.body?.referido);
     let verificationSent = false;
     if (mailbox) {
       try {
@@ -150,7 +144,7 @@ export function authRoutes(
         console.warn('No se pudo entregar un correo de verificación.');
       }
     }
-    const session = createSession(db, user.id);
+    const session = await createSession(db, user.id);
     setSessionCookie(res, session.token, session.expires, secureCookies);
     res.status(201).json({ user, verificationSent });
   });
@@ -159,30 +153,32 @@ export function authRoutes(
     const email = text(req.body, 'email', 254, 'el correo').toLowerCase();
     const password = text(req.body, 'password', 200, 'la contraseña');
     limit(`${req.ip}|${email}`);
-    const found = findUserByEmail(db, email);
+    const found = await findUserByEmail(db, email);
     const ok = await verifyPassword(password, found?.password_hash ?? DUMMY_HASH);
     if (!found || !ok) throw new HttpError(401, 'Correo o contraseña incorrectos.');
-    const session = createSession(db, found.id);
+    const session = await createSession(db, found.id);
     setSessionCookie(res, session.token, session.expires, secureCookies);
     const { password_hash: _hash, ...user } = found;
     res.json({ user });
   });
 
-  router.post('/emprender', (_req, res) => {
+  router.post('/emprender', async (_req, res) => {
     const user = requireUser(res);
-    db.prepare("UPDATE users SET role='emprendedor' WHERE id=? AND role='cliente'").run(user.id);
+    await db
+      .prepare("UPDATE users SET role='emprendedor' WHERE id=? AND role='cliente'")
+      .run(user.id);
     res.status(204).end();
   });
-  router.put('/perfil', (req, res) => {
+  router.put('/perfil', async (req, res) => {
     const user = requireUser(res);
     const name = text(req.body, 'name', 80, 'tu nombre');
-    db.prepare('UPDATE users SET name=? WHERE id=?').run(name, user.id);
+    await db.prepare('UPDATE users SET name=? WHERE id=?').run(name, user.id);
     res.status(204).end();
   });
 
-  router.post('/salir', (req, res) => {
+  router.post('/salir', async (req, res) => {
     const token = readCookie(req, SESSION_COOKIE);
-    if (token) deleteSession(db, token);
+    if (token) await deleteSession(db, token);
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.status(204).end();
   });

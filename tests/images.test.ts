@@ -15,16 +15,16 @@ import {
   savePublication,
   deleteStore,
 } from '../server/stores.ts';
-function fixture() {
+async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'sucreia-images-'));
-  const db = openDb(':memory:');
-  const user = createUser(db, {
+  const db = await openDb(':memory:');
+  const user = await createUser(db, {
     email: 'propietario@example.co',
     name: 'Propietario',
     role: 'emprendedor',
     passwordHash: 'no-usado',
   });
-  const other = createUser(db, {
+  const other = await createUser(db, {
     email: 'otro@example.co',
     name: 'Otro',
     role: 'emprendedor',
@@ -54,7 +54,7 @@ async function png(width = 10, height = 10) {
 }
 
 test('subir normaliza, reduce, guarda fuera de SQLite y deduplica por propietario', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const data = await png(2400, 1200);
     const image = await f.storage.upload(f.user.id, data);
@@ -62,13 +62,16 @@ test('subir normaliza, reduce, guarda fuera de SQLite y deduplica por propietari
     assert.equal(image.height, 600);
     assert.equal(validImage(image.url), true);
     assert.equal(existsSync(f.storage.path(image.id)), true);
-    assert.equal((await sharp(f.storage.read(image.id, f.user.id)).metadata()).format, 'webp');
+    assert.equal(
+      (await sharp((await f.storage.read(image.id, f.user.id)).data).metadata()).format,
+      'webp',
+    );
     assert.equal((await f.storage.upload(f.user.id, data)).id, image.id);
     assert.notEqual((await f.storage.upload(f.other.id, data)).id, image.id);
-    assert.equal(f.storage.list(f.user.id).length, 1);
-    assert.throws(() => f.storage.read(image.id), /no encontrada/);
-    assert.throws(() => f.storage.remove(f.other.id, image.id), /no encontrada/);
-    f.storage.remove(f.user.id, image.id);
+    assert.equal((await f.storage.list(f.user.id)).length, 1);
+    await assert.rejects(async () => f.storage.read(image.id), /no encontrada/);
+    await assert.rejects(async () => f.storage.remove(f.other.id, image.id), /no encontrada/);
+    await f.storage.remove(f.user.id, image.id);
     assert.equal(existsSync(f.storage.path(image.id)), false);
   } finally {
     f.close();
@@ -76,7 +79,7 @@ test('subir normaliza, reduce, guarda fuera de SQLite y deduplica por propietari
 });
 
 test('rechaza archivos falsos, formato declarado incorrecto, SVG, exceso de tamaño y rutas ajenas', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     for (const data of [
       'data:image/png;base64,YmFzdXJh',
@@ -85,7 +88,7 @@ test('rechaza archivos falsos, formato declarado incorrecto, SVG, exceso de tama
       'data:image/png;base64,' + 'A'.repeat(12_000_000),
     ])
       await assert.rejects(f.storage.upload(f.user.id, data));
-    assert.equal(f.storage.list(f.user.id).length, 0);
+    assert.equal((await f.storage.list(f.user.id)).length, 0);
     const image = await f.storage.upload(f.other.id, await png());
     await assert.rejects(
       f.storage.externalize(f.user.id, { ...createDesign(), logo: image.url }),
@@ -98,49 +101,53 @@ test('rechaza archivos falsos, formato declarado incorrecto, SVG, exceso de tama
       'javascript:alert(1)',
     ])
       assert.equal(validImage(url), false);
-    assert.throws(() => f.storage.path('../escape'), /no encontrada/);
+    await assert.rejects(async () => f.storage.path('../escape'), /no encontrada/);
   } finally {
     f.close();
   }
 });
 
 test('las fotos de borradores son privadas; publicar permite leer; retirar y versiones protegen el archivo', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const image = await f.storage.upload(f.user.id, await png());
     const design = { ...createDesign('Artesanías', 'Tejidos'), logo: image.url };
-    const store = createStore(f.db, f.user.id, design);
-    assert.throws(() => f.storage.remove(f.user.id, image.id), /borrador/);
-    assert.throws(() => f.storage.read(image.id, f.other.id));
+    const store = await createStore(f.db, f.user.id, design);
+    await assert.rejects(async () => f.storage.remove(f.user.id, image.id), /borrador/);
+    await assert.rejects(async () => f.storage.read(image.id, f.other.id));
     const publication = publishProject(store).published!;
-    savePublication(f.db, store.id, publication);
-    assert.ok(f.storage.read(image.id).length);
-    updateDraft(f.db, store.id, { ...design, logo: '' });
-    assert.throws(() => f.storage.remove(f.user.id, image.id), /versión/);
-    savePublication(f.db, store.id, publishProject(getStore(f.db, store.id)!).published!);
-    assert.throws(() => f.storage.read(image.id));
-    assert.throws(() => f.storage.remove(f.user.id, image.id), /versión/);
-    deleteStore(f.db, store.id);
-    f.storage.remove(f.user.id, image.id);
-    assert.equal(f.storage.list(f.user.id).length, 0);
+    await savePublication(f.db, store.id, publication);
+    assert.ok((await f.storage.read(image.id)).data.length);
+    await updateDraft(f.db, store.id, { ...design, logo: '' });
+    await assert.rejects(async () => f.storage.remove(f.user.id, image.id), /versión/);
+    await savePublication(
+      f.db,
+      store.id,
+      publishProject((await getStore(f.db, store.id))!).published!,
+    );
+    await assert.rejects(async () => f.storage.read(image.id));
+    await assert.rejects(async () => f.storage.remove(f.user.id, image.id), /versión/);
+    await deleteStore(f.db, store.id);
+    await f.storage.remove(f.user.id, image.id);
+    assert.equal((await f.storage.list(f.user.id)).length, 0);
   } finally {
     f.close();
   }
 });
 
 test('migración conserva borrador, publicación, versiones y contenido; es idempotente', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const data = await png();
     const design = createDesign('Artesanías', 'Mi tienda');
     design.logo = data;
     design.products[0].image = data;
     design.content.heroImage = data;
-    const store = createStore(f.db, f.user.id, design);
-    savePublication(f.db, store.id, publishProject(store).published!);
-    const before = getStore(f.db, store.id)!;
+    const store = await createStore(f.db, f.user.id, design);
+    await savePublication(f.db, store.id, publishProject(store).published!);
+    const before = (await getStore(f.db, store.id))!;
     assert.deepEqual(await migrateImages(f.storage), { migrated: 1, skipped: 0 });
-    const after = getStore(f.db, store.id)!;
+    const after = (await getStore(f.db, store.id))!;
     assert.equal(after.id, before.id);
     assert.equal(after.published!.id, before.published!.id);
     assert.equal(after.updatedAt, before.updatedAt);
@@ -158,16 +165,16 @@ test('migración conserva borrador, publicación, versiones y contenido; es idem
 });
 
 test('migración fallida conserva íntegros el borrador y las versiones originales', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const design = { ...createDesign(), logo: await png() };
-    const store = createStore(f.db, f.user.id, design);
+    const store = await createStore(f.db, f.user.id, design);
     const version = publishProject(store).published!;
     version.design.logo = 'data:image/png;base64,YmFzdXJh';
-    savePublication(f.db, store.id, version);
-    const before = JSON.stringify(getStore(f.db, store.id));
+    await savePublication(f.db, store.id, version);
+    const before = JSON.stringify(await getStore(f.db, store.id));
     assert.deepEqual(await migrateImages(f.storage), { migrated: 0, skipped: 1 });
-    assert.equal(JSON.stringify(getStore(f.db, store.id)), before);
+    assert.equal(JSON.stringify(await getStore(f.db, store.id)), before);
   } finally {
     f.close();
   }

@@ -18,7 +18,10 @@ import { ownerStoreRoutes, publicStoreRoutes } from './routes/tiendas.ts';
 
 export interface AppOptions {
   db: Db;
-  imagesDir?: string;
+  /** Carpeta de fotos; `null` las guarda dentro de la base (Vercel, sin disco). */
+  imagesDir?: string | null;
+  /** Detrás de un proxy (Vercel): usar la IP real del visitante en los límites de intentos. */
+  trustProxy?: boolean;
   assistant?: CatalogAI;
   mail?: MailTransport;
   /** Solo para desarrollo local; desactivada por defecto. */
@@ -52,11 +55,12 @@ export function createApp({
   imagesDir = resolve('server/data/images'),
   registrationLimit,
   linkLimit,
+  trustProxy = false,
 }: AppOptions) {
   if (localMail && mail) throw new Error('Elige correo local o SMTP, no ambos.');
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', trustProxy ? true : 'loopback');
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -73,8 +77,10 @@ export function createApp({
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
-  api.get('/salud', (_req, res) => {
-    res.json({ ok: true });
+  api.get('/salud', async (_req, res) => {
+    // Comprueba también la base de datos (útil para saber si Supabase responde).
+    await db.prepare('SELECT 1 AS ok').get();
+    res.json({ ok: true, db: db.dialect });
   });
   const mailbox = localMail ? localMailbox() : undefined;
   if (mailbox)

@@ -9,7 +9,7 @@ fija con el diseño de la presentación y el emprendedor solo llena sus datos, f
 
 | Diapositiva                           | Ruta                                                                   | Componente                                                   |
 | ------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
-| 1. Portada                            | `/`                                                                    | `pages/index.vue`                                            |
+| 1. Portada (retirada el 2026-11-22)   | `/` lleva a `/ingresar` o al espacio de la cuenta                      | `pages/index.vue`                                            |
 | 2. Iniciar sesión / Registrarse       | `/ingresar`                                                            | `layouts/auth.vue`, `features/account/SignIn.vue`            |
 | 3. Buscar negocios                    | `/buscar` (y `/favoritos`)                                             | `features/explore/SearchPage.vue`                            |
 | 4 y 6. Página del negocio             | `/tienda?id=…`                                                         | `features/explore/BusinessPage.vue`                          |

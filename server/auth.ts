@@ -37,10 +37,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-export function createUser(
+export async function createUser(
   db: Db,
   data: { email: string; name: string; passwordHash: string; role: Role },
-): User {
+): Promise<User> {
   const user: User = {
     id: randomUUID(),
     email: data.email,
@@ -48,9 +48,11 @@ export function createUser(
     role: data.role,
     emailVerifiedAt: null,
   };
-  db.prepare(
-    'INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(user.id, user.email, user.name, data.passwordHash, user.role, new Date().toISOString());
+  await db
+    .prepare(
+      'INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    .run(user.id, user.email, user.name, data.passwordHash, user.role, new Date().toISOString());
   return user;
 }
 export function findUserByEmail(db: Db, email: string) {
@@ -58,29 +60,30 @@ export function findUserByEmail(db: Db, email: string) {
     .prepare(
       'SELECT id, email, name, role, emailVerifiedAt, password_hash FROM users WHERE email = ?',
     )
-    .get(email) as (User & { password_hash: string }) | undefined;
+    .get<User & { password_hash: string }>(email);
 }
 
-export function createSession(db: Db, userId: string): { token: string; expires: Date } {
+export async function createSession(
+  db: Db,
+  userId: string,
+): Promise<{ token: string; expires: Date }> {
   const token = randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(
-    hashToken(token),
-    userId,
-    expires.toISOString(),
-  );
+  await db
+    .prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+    .run(hashToken(token), userId, expires.toISOString());
   return { token, expires };
 }
-export function deleteSession(db: Db, token: string) {
-  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+export async function deleteSession(db: Db, token: string) {
+  await db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
 }
-function sessionUser(db: Db, token: string): User | undefined {
+function sessionUser(db: Db, token: string): Promise<User | undefined> {
   return db
     .prepare(
       `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
-    .get(hashToken(token), new Date().toISOString()) as User | undefined;
+    .get<User>(hashToken(token), new Date().toISOString());
 }
 
 /** Lee la cookie de sesión sin dependencias extra. */
@@ -103,10 +106,14 @@ export function setSessionCookie(res: Response, token: string, expires: Date, se
 
 /** Middleware: deja el usuario de la sesión (si hay) en res.locals.user. */
 export function loadUser(db: Db) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const token = readCookie(req, SESSION_COOKIE);
-    res.locals.user = token ? sessionUser(db, token) : undefined;
-    next();
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const token = readCookie(req, SESSION_COOKIE);
+      res.locals.user = token ? await sessionUser(db, token) : undefined;
+      next();
+    } catch (error) {
+      next(error);
+    }
   };
 }
 export function currentUser(res: Response): User | undefined {

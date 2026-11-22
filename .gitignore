@@ -57,3 +57,6 @@ yarn-error.log*
 
 # Copias locales (contienen datos privados)
 /server/backups/
+
+# Compilación para Vercel (npm run build:vercel)
+.vercel

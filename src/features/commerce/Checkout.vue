@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
 import type { CommerceStore } from '@/domain/platform';
 import PageTitle from '@/components/PageTitle.vue';
+import SxMap from '@/components/maps/SxMap.vue';
+import { useDirectory } from '@/lib/directory';
+import { locate } from '@/domain/geo';
 const p = usePlatform(),
   router = useRouter(),
   config = ref<CommerceStore | null>(null),
@@ -17,9 +20,35 @@ const p = usePlatform(),
   couponId = ref(''),
   error = ref('');
 const key = ref('');
+// Punto exacto de entrega: el cliente toca el mapa o usa su ubicación actual.
+const directory = useDirectory();
+const pin = ref<[number, number] | null>(null);
+const locating = ref('');
+const storeCenter = computed<[number, number]>(() => {
+  const b = directory.stores.value.find((s) => s.id === p.cart.value[0]?.businessId);
+  return locate(
+    config.value?.settings.latitude ?? null,
+    config.value?.settings.longitude ?? null,
+    b?.municipality ?? '',
+  );
+});
+function useMyLocation() {
+  if (!navigator.geolocation)
+    return (locating.value = 'Tu navegador no permite compartir la ubicación.');
+  locating.value = 'Buscando tu ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      pin.value = [pos.coords.latitude, pos.coords.longitude];
+      locating.value = '';
+    },
+    () => (locating.value = 'No pudimos leer tu ubicación: toca el mapa donde quieres recibir.'),
+    { enableHighAccuracy: true, timeout: 10000 },
+  );
+}
 onMounted(async () => {
   key.value = crypto.randomUUID();
   await p.refresh();
+  void directory.load();
   if (p.cart.value[0])
     try {
       config.value = await api<CommerceStore>(
@@ -66,6 +95,9 @@ async function checkout() {
       expectedSubtotal: subtotal.value,
       phone: phone.value,
       address: address.value,
+      ...(fulfillment.value === 'delivery' && pin.value
+        ? { addressLat: pin.value[0], addressLng: pin.value[1] }
+        : {}),
       fulfillment: fulfillment.value,
       paymentMethod: paymentMethod.value,
       couponId: couponId.value,
@@ -157,8 +189,27 @@ async function checkout() {
           required
           maxlength="300"
           autocomplete="street-address"
-        /></label
-      ><label
+        />
+      </label>
+      <div v-if="fulfillment === 'delivery'" class="ck-map">
+        <span class="field-label"
+          >Marca en el mapa dónde recibes (así el domiciliario llega directo)</span
+        >
+        <SxMap
+          pick
+          :center="pin ?? storeCenter"
+          :points="pin ? [{ lat: pin[0], lng: pin[1], kind: 'client', label: 'Aquí recibo' }] : []"
+          label="Mapa para elegir el punto de entrega"
+          class="ck-map-box"
+          @pick="(lat, lng) => (pin = [lat, lng])"
+        />
+        <button type="button" class="button secondary" @click="useMyLocation">
+          Usar mi ubicación actual
+        </button>
+        <small v-if="locating" role="status">{{ locating }}</small>
+        <small v-else-if="pin">Punto marcado ✓</small>
+      </div>
+      <label
         >Medio de pago<select v-model="paymentMethod">
           <option value="cash">Efectivo al negocio</option>
           <option v-if="config?.settings.paymentInstructions" value="transfer">
@@ -187,3 +238,12 @@ async function checkout() {
     </form>
   </div>
 </template>
+<style scoped>
+.ck-map {
+  display: grid;
+  gap: 8px;
+}
+.ck-map-box {
+  height: 260px;
+}
+</style>

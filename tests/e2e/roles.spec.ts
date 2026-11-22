@@ -15,16 +15,18 @@ test('cliente: menú de la presentación; administración lo devuelve a su inici
     'Sectores',
     'Mapa de emprendimientos',
     'Descuentos y SucrePuntos',
-    'Logística y entregas',
-    'Escuela del Emprendedor con IA',
     'Recomendaciones IA',
-    'Mis solicitudes',
+    'Mis reservas',
     'Mis compras',
     'Favoritos',
     'Notificaciones',
   ])
     await expect(menu(page).getByRole('link', { name: label, exact: true })).toBeVisible();
   await expect(menu(page).getByText('Mi negocio', { exact: true })).toHaveCount(0);
+  // La Escuela es del emprendedor: al cliente se le invita a abrir su negocio.
+  await expect(menu(page).getByRole('link', { name: /Escuela/ })).toHaveCount(0);
+  await page.goto('/inicio');
+  await expect(page.getByRole('link', { name: /¿Quieres emprender\?/ })).toBeVisible();
   await page.goto('/admin');
   await expect(page).toHaveURL(/inicio/);
 });

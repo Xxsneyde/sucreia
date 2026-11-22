@@ -6,7 +6,7 @@ const session = useSession();
 <template>
   <div class="ax">
     <a class="skip-link" href="#acceso">Saltar al formulario</a>
-    <NuxtLink to="/" class="ax-art" aria-label="SucreIA, portada">
+    <NuxtLink to="/buscar" class="ax-art" aria-label="Explorar los negocios de SucreIA">
       <img
         src="/sucre/acceso-panel.webp"
         alt="SucreIA, el ecosistema digital de emprendimientos de Sucre: negocios con asistente IA, productos y servicios por sector, recomendaciones de la comunidad e impulso a los emprendedores."

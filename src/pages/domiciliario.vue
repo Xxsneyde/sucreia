@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Community from '@/features/commerce/Community.vue';
+import CourierPage from '@/features/community/CourierPage.vue';
 useHead({ title: 'Domiciliario' });
 </script>
-<template><Community /></template>
+<template><CourierPage /></template>

@@ -270,14 +270,15 @@ function openRequest(product?: StoreProduct) {
   requestKey.value = crypto.randomUUID();
   showRequest.value = true;
 }
-watch(date, async (value) => {
+// Los horarios dependen del día y de la duración del servicio elegido.
+watch([date, selected], async ([value]) => {
   slot.value = '';
   if (!value) return;
   try {
     times.value = (
       await api<{ slots: string[] }>(
         'GET',
-        `/plataforma/negocios/${id.value}/horarios?fecha=${value}`,
+        `/plataforma/negocios/${id.value}/horarios?fecha=${value}&servicio=${encodeURIComponent(selected.value)}`,
       )
     ).slots;
   } catch (e) {
@@ -948,7 +949,8 @@ const tabs = computed(() => [
           >Servicio
           <select v-model="selected" required>
             <option v-for="offer in design.products" :key="offer.id" :value="offer.id">
-              {{ offer.name }} · {{ design.mode === 'quote' ? 'A cotizar' : currency(offer.price) }}
+              {{ offer.name }} · {{ design.mode === 'quote' ? 'A cotizar' : currency(offer.price)
+              }}{{ design.mode === 'booking' && offer.duration ? ` · ${offer.duration} min` : '' }}
             </option>
           </select>
         </label>

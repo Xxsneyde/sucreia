@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue';
 import { usePlatform } from '@/lib/platform-store';
 import { statusNames, type Operation } from '@/domain/platform';
 import { currency, whatsappUrl } from '@/domain/rules';
+import TrackingMap from '@/components/maps/TrackingMap.vue';
 const props = defineProps<{ operations: Operation[]; role: 'customer' | 'merchant' | 'courier' }>();
 const platform = usePlatform(),
   notice = ref('');
@@ -142,10 +143,32 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
           >Contactar por WhatsApp ↗</a
         >
       </p>
-      <p v-if="op.status === 'dispatched'">
-        Entrega estimada: {{ op.etaMinutes }} minutos desde el despacho. La hora es estimada; no es
-        un mapa GPS.
+      <p
+        v-if="
+          op.fulfillment === 'delivery' &&
+          ['preparing', 'ready'].includes(op.status) &&
+          !op.courierId
+        "
+        class="small muted"
+      >
+        🛵 Buscando domiciliario en {{ op.storeMunicipality || 'la zona' }}…
       </p>
+      <p v-if="op.status === 'dispatched'">
+        Entrega estimada: {{ op.etaMinutes }} minutos desde que salió del negocio.
+      </p>
+      <details
+        v-if="
+          role !== 'courier' &&
+          op.fulfillment === 'delivery' &&
+          op.courierId &&
+          ['preparing', 'ready', 'dispatched'].includes(op.status)
+        "
+        class="flow-track"
+        :open="role === 'customer'"
+      >
+        <summary>Ver en el mapa</summary>
+        <TrackingMap :operation-id="op.id" />
+      </details>
       <div
         v-if="
           role === 'customer' &&
@@ -194,6 +217,28 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
         >
           Confirmar cita
         </button>
+        <button
+          v-if="op.kind === 'booking' && op.status === 'accepted' && !op.arrivedAt"
+          class="button secondary"
+          :disabled="platform.busy.value"
+          @click="act(op, 'arrive')"
+        >
+          El cliente llegó
+        </button>
+        <button
+          v-if="
+            op.kind === 'booking' &&
+            op.status === 'accepted' &&
+            op.payment === 'pending' &&
+            !op.arrivedAt &&
+            Date.parse(op.slot) <= Date.now()
+          "
+          class="button subtle"
+          :disabled="platform.busy.value"
+          @click="act(op, 'noshow')"
+        >
+          No asistió
+        </button>
         <form
           v-if="op.kind === 'quote' && ['pending', 'quoted'].includes(op.status)"
           class="form-stack"
@@ -211,8 +256,14 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
         <button
           v-if="
             op.payment === 'pending' &&
-            !['completed', 'cancelled', 'refunded'].includes(op.status) &&
-            (op.kind !== 'quote' || op.status === 'accepted')
+            !['completed', 'cancelled', 'refunded', 'no_show'].includes(op.status) &&
+            (op.kind !== 'quote' || op.status === 'accepted') &&
+            !(
+              op.kind === 'products' &&
+              op.fulfillment === 'delivery' &&
+              op.paymentMethod === 'cash' &&
+              op.courierId !== op.ownerId
+            )
           "
           class="button secondary"
           :disabled="platform.busy.value"
@@ -220,27 +271,14 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
         >
           Confirmar pago recibido
         </button>
-        <form
-          v-if="op.status === 'ready' && op.fulfillment === 'delivery'"
-          class="form-stack"
-          @submit.prevent="act(op, 'dispatch')"
+        <button
+          v-if="op.status === 'ready' && op.fulfillment === 'delivery' && !op.courierId"
+          class="button secondary"
+          :disabled="platform.busy.value"
+          @click="act(op, 'dispatch')"
         >
-          <label
-            >Domiciliario<select v-model="form(op.id).courierId" required>
-              <option value="">Selecciona uno aprobado</option>
-              <option v-for="c in platform.data.value?.couriers" :key="c.id" :value="c.id">
-                {{ c.name }} · {{ c.municipality }}
-              </option>
-            </select></label
-          ><label
-            >Minutos estimados<input
-              v-model.number="form(op.id).etaMinutes"
-              type="number"
-              min="1"
-              max="240"
-              required /></label
-          ><button class="button" :disabled="platform.busy.value">Despachar pedido</button>
-        </form>
+          Nadie lo ha tomado: entregarlo yo
+        </button>
         <button
           v-if="
             op.kind !== 'products' &&
@@ -256,8 +294,9 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
         </button>
         <button
           v-if="
-            !['dispatched', 'completed', 'cancelled'].includes(op.status) &&
-            op.payment === 'pending'
+            !['dispatched', 'completed', 'cancelled', 'no_show'].includes(op.status) &&
+            op.payment === 'pending' &&
+            !op.courierId
           "
           class="button subtle"
           :disabled="platform.busy.value"
@@ -282,6 +321,7 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
       <form
         v-if="
           ((role === 'merchant' && op.status === 'ready' && op.fulfillment === 'pickup') ||
+            (role === 'merchant' && op.status === 'dispatched' && op.courierId === op.ownerId) ||
             (role === 'courier' && op.status === 'dispatched')) &&
           op.payment === 'confirmed'
         "
@@ -360,3 +400,11 @@ const date = (iso: string) => new Date(iso).toLocaleString('es-CO', { timeZone: 
     </article>
   </div>
 </template>
+<style scoped>
+.flow-track summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--green-dark, #15803d);
+  margin-bottom: 8px;
+}
+</style>

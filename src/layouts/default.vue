@@ -4,6 +4,9 @@ import { useRoute } from 'vue-router';
 import {
   Bell,
   BookOpen,
+  CalendarDays,
+  ChartNoAxesColumn,
+  WandSparkles,
   ChevronDown,
   ChevronRight,
   CircleUser,
@@ -28,9 +31,17 @@ import {
   X,
 } from '@lucide/vue';
 import { usePlatform } from '@/lib/platform-store';
+import { useStudio } from '@/lib/studio-store';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
-import { isMerchant, modeFor, navFor, type CourierState, type IconName } from '@/domain/roles';
+import {
+  isMerchant,
+  modeFor,
+  navFor,
+  type CourierState,
+  type IconName,
+  type StoreKind,
+} from '@/domain/roles';
 import { requiresSession } from '@/domain/access';
 import LogoutButton from '@/components/LogoutButton.vue';
 import SucreLogo from '@/components/sucre/SucreLogo.vue';
@@ -60,6 +71,9 @@ const icons: Record<IconName, unknown> = {
   settings: Settings,
   shield: ShieldCheck,
   book: BookOpen,
+  calendar: CalendarDays,
+  chart: ChartNoAxesColumn,
+  wand: WandSparkles,
 };
 const route = useRoute();
 const path = usePath();
@@ -81,10 +95,17 @@ const courier = computed<CourierState>(() => {
   const c = platform.data.value?.courier;
   return !c ? 'none' : c.approved ? 'approved' : 'pending';
 });
+const studio = useStudio();
+// Tipo del negocio activo: decide el menú (pedidos, reservas o cotizaciones).
+const kind = computed<StoreKind>(() => {
+  const store = studio.projects.find((p) => p.id === studio.selectedId) ?? studio.projects[0];
+  return store ? store.draft.mode : 'none';
+});
 const nav = computed(() =>
   navFor(
     user.value ? { role: user.value.role, courier: courier.value } : null,
     modeFor(path.value),
+    kind.value,
   ),
 );
 const active = (href: string) => path.value === href;
@@ -103,7 +124,7 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
   <div :class="['sx', { 'sx--banner': banner }]">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <aside :class="['sx-side', { open: drawer }]" aria-label="Menú de SucreIA">
-      <NuxtLink class="sx-side-brand" to="/" aria-label="SucreIA, portada">
+      <NuxtLink class="sx-side-brand" to="/inicio" aria-label="SucreIA, inicio">
         <SucreLogo :size="42" />
         <small>El ecosistema digital de<br />emprendimientos de Sucre</small>
       </NuxtLink>

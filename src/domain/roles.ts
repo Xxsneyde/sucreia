@@ -10,7 +10,7 @@ export interface Viewer {
   courier: CourierState;
 }
 /** Modo del menú para quien tiene negocio: gestionarlo o usar SucreIA como cliente. */
-export type Mode = 'negocio' | 'comprar';
+export type Mode = 'negocio' | 'comprar' | 'entregas';
 
 export type IconName =
   | 'home'
@@ -31,7 +31,10 @@ export type IconName =
   | 'package'
   | 'settings'
   | 'shield'
-  | 'book';
+  | 'book'
+  | 'calendar'
+  | 'chart'
+  | 'wand';
 export interface NavItem {
   href: string;
   label: string;
@@ -44,7 +47,7 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/** Menú principal de la presentación: igual para visitantes, clientes y emprendedores. */
+/** Menú principal (cliente): descubrir, comprar, reservar y sus puntos. */
 const principal: NavSection = {
   id: 'principal',
   title: '',
@@ -54,31 +57,56 @@ const principal: NavSection = {
     { href: '/sectores', label: 'Sectores', icon: 'grid' },
     { href: '/mapa', label: 'Mapa de emprendimientos', icon: 'map' },
     { href: '/puntos', label: 'Descuentos y SucrePuntos', icon: 'tag' },
-    { href: '/logistica', label: 'Logística y entregas', icon: 'truck' },
-    { href: '/escuela', label: 'Escuela del Emprendedor con IA', icon: 'school' },
     { href: '/recomendaciones', label: 'Recomendaciones IA', icon: 'sparkles' },
-    { href: '/solicitudes', label: 'Mis solicitudes', icon: 'bag' },
     { href: '/pedidos', label: 'Mis compras', icon: 'cart' },
+    { href: '/solicitudes', label: 'Mis reservas', icon: 'calendar' },
     { href: '/favoritos', label: 'Favoritos', icon: 'heart' },
     { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
   ],
 };
-const negocio: NavSection = {
-  id: 'negocio',
-  title: 'Mi negocio',
-  items: [
-    { href: '/panel', label: 'Resumen', icon: 'dashboard' },
-    { href: '/panel/perfil', label: 'Datos del negocio', icon: 'store' },
-    { href: '/panel/productos', label: 'Productos y servicios', icon: 'package' },
-    { href: '/panel/pedidos', label: 'Pedidos y solicitudes', icon: 'bag' },
-    { href: '/panel/descuentos', label: 'Descuentos', icon: 'tag' },
-    { href: '/panel/configuracion', label: 'Configuración', icon: 'settings' },
-  ],
-};
+/** Tipo de negocio del emprendedor: cambia su menú y su página de inicio. */
+export type StoreKind = 'products' | 'booking' | 'quote' | 'none';
+function negocio(kind: StoreKind): NavSection {
+  const common = [
+    { href: '/panel/descuentos', label: 'Descuentos y reseñas', icon: 'tag' as const },
+    { href: '/panel/configuracion', label: 'Cobros y entregas', icon: 'settings' as const },
+    { href: '/panel/perfil', label: 'Datos del negocio', icon: 'store' as const },
+    { href: '/escuela', label: 'Escuela del Emprendedor IA', icon: 'school' as const },
+  ];
+  const items: NavItem[] =
+    kind === 'none'
+      ? [
+          { href: '/panel/configurar', label: 'Configurar mi negocio', icon: 'wand' },
+          { href: '/panel/perfil', label: 'Datos del negocio', icon: 'store' },
+          { href: '/escuela', label: 'Escuela del Emprendedor IA', icon: 'school' },
+        ]
+      : kind === 'products'
+        ? [
+            { href: '/panel', label: 'Pedidos', icon: 'dashboard' },
+            { href: '/panel/ventas', label: 'Ventas', icon: 'chart' },
+            { href: '/panel/productos', label: 'Mis productos', icon: 'package' },
+            ...common,
+          ]
+        : kind === 'booking'
+          ? [
+              { href: '/panel', label: 'Reservas de hoy', icon: 'dashboard' },
+              { href: '/panel/agenda', label: 'Agenda', icon: 'calendar' },
+              { href: '/panel/productos', label: 'Mis servicios', icon: 'package' },
+              { href: '/panel/ventas', label: 'Dashboard', icon: 'chart' },
+              ...common,
+            ]
+          : [
+              { href: '/panel', label: 'Solicitudes', icon: 'dashboard' },
+              { href: '/panel/productos', label: 'Mis servicios', icon: 'package' },
+              { href: '/panel/ventas', label: 'Dashboard', icon: 'chart' },
+              ...common,
+            ];
+  return { id: 'negocio', title: 'Mi negocio', items };
+}
 const entregas: NavSection = {
   id: 'entregas',
-  title: 'Entregas',
-  items: [{ href: '/domiciliario', label: 'Mis entregas', icon: 'truck' }],
+  title: 'Logística',
+  items: [{ href: '/domiciliario', label: 'Pedidos en mi zona', icon: 'truck' }],
 };
 const admin: NavSection = {
   id: 'admin',
@@ -98,35 +126,45 @@ export const isMerchant = (role: Role) => role === 'emprendedor' || role === 'ad
 export function navFor(
   viewer: Viewer | null,
   mode: Mode = 'comprar',
+  kind: StoreKind = 'none',
 ): { sections: NavSection[]; mobile: NavItem[] } {
   const sections: NavSection[] = [principal];
   const merchant = !!viewer && isMerchant(viewer.role);
   if (merchant) {
-    if (mode === 'negocio') sections.unshift(negocio);
-    else sections.push(negocio);
+    if (mode === 'negocio') sections.unshift(negocio(kind));
+    else sections.push(negocio(kind));
   }
-  if (viewer && viewer.courier !== 'none') sections.push(entregas);
+  if (viewer && viewer.courier !== 'none') {
+    if (mode === 'entregas') sections.unshift(entregas);
+    else sections.push(entregas);
+  }
   if (viewer?.role === 'admin') sections.push(admin);
   const mobile: NavItem[] =
     merchant && mode === 'negocio'
-      ? [
-          { href: '/panel', label: 'Resumen', icon: 'dashboard' },
-          { href: '/panel/pedidos', label: 'Pedidos', icon: 'bag' },
-          { href: '/panel/productos', label: 'Productos', icon: 'package' },
-          { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
-        ]
-      : [
-          { href: '/inicio', label: 'Inicio', icon: 'home' },
-          { href: '/buscar', label: 'Buscar', icon: 'search' },
-          { href: '/puntos', label: 'Puntos', icon: 'tag' },
-          { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
-        ];
+      ? negocio(kind)
+          .items.slice(0, 3)
+          .concat({ href: '/perfil', label: 'Mi cuenta', icon: 'user' })
+      : viewer && viewer.courier !== 'none' && mode === 'entregas'
+        ? [
+            { href: '/domiciliario', label: 'Mi zona', icon: 'truck' },
+            { href: '/inicio', label: 'Inicio', icon: 'home' },
+            { href: '/notificaciones', label: 'Avisos', icon: 'bell' },
+            { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
+          ]
+        : [
+            { href: '/inicio', label: 'Inicio', icon: 'home' },
+            { href: '/buscar', label: 'Buscar', icon: 'search' },
+            { href: '/pedidos', label: 'Compras', icon: 'cart' },
+            { href: '/perfil', label: 'Mi cuenta', icon: 'user' },
+          ];
   return { sections, mobile };
 }
 
 /** Modo según la página: las del negocio abren el menú del negocio. */
 export function modeFor(path: string): Mode {
-  return /^\/panel(\/|$)/.test(path) ? 'negocio' : 'comprar';
+  if (/^\/(panel|escuela)(\/|$)/.test(path)) return 'negocio';
+  if (/^\/domiciliario(\/|$)/.test(path)) return 'entregas';
+  return 'comprar';
 }
 
 /** Dónde empieza cada rol al ingresar. */

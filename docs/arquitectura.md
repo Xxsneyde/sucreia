@@ -26,7 +26,7 @@ Los pedidos deberían guardar una copia del precio y nombre al comprar. Las mét
 
 Autenticación y autorización se implementarán en servidor. No publicar endpoints administrativos sin comprobación de rol. Solicitudes, productos y pedidos deben filtrarse por la membresía autenticada en cada operación.
 
-El backend es una API de **Node.js + Express** en `server/` (decisión del equipo). El frontend se compila estático con `nuxt generate` y, en producción, el mismo Express lo sirve junto con `/api`: un solo servidor y sin CORS. En desarrollo, Nuxt reenvía `/api` a Express (`devProxy`). La base de datos es SQLite (`node:sqlite`) detrás de repositorios en `server/`, para poder pasar a PostgreSQL sin cambiar las rutas. Las reglas de negocio se reutilizan desde `src/domain`. Ver [api.md](api.md).
+El backend es una API de **Node.js + Express** en `server/` (decisión del equipo). El frontend se compila estático con `nuxt generate` y, en producción, el mismo Express lo sirve junto con `/api`: un solo servidor y sin CORS. En desarrollo, Nuxt reenvía `/api` a Express (`devProxy`). La base de datos se usa a través de `server/db.ts`, con una interfaz asíncrona y dos motores: SQLite (`node:sqlite`) en desarrollo y pruebas, y Postgres (`DATABASE_URL`, Supabase) en Vercel. El SQL se escribe una vez y `toPostgres` traduce las diferencias; `npm run test:postgres` comprueba todo en Postgres embebido. Ver [vercel.md](vercel.md). Las reglas de negocio se reutilizan desde `src/domain`. Ver [api.md](api.md).
 
 Nota: Nuxt usa `src/nuxt-server` como su carpeta de servidor (vacía) para no confundirse con `server/` de Express.
 

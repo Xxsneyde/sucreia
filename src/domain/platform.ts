@@ -9,7 +9,8 @@ export type OperationStatus =
   | 'accepted'
   | 'completed'
   | 'cancelled'
-  | 'refunded';
+  | 'refunded'
+  | 'no_show';
 export const statusNames: Record<OperationStatus, string> = {
   pending: 'Recibido',
   preparing: 'En preparación',
@@ -20,6 +21,7 @@ export const statusNames: Record<OperationStatus, string> = {
   completed: 'Completado',
   cancelled: 'Cancelado',
   refunded: 'Devuelto',
+  no_show: 'No asistió',
 };
 export interface Operation {
   id: string;
@@ -58,6 +60,23 @@ export interface Operation {
   completedAt: string;
   pinAttempts: number;
   pinLockedUntil: number;
+  /** Ubicación de entrega elegida en el mapa (domicilios). */
+  addressLat?: number | null;
+  addressLng?: number | null;
+  /** Punto de recogida (copiado del negocio al crear el pedido). */
+  storeAddress?: string;
+  storeMunicipality?: string;
+  storeLat?: number | null;
+  storeLng?: number | null;
+  /** Etapa del domiciliario: ir al negocio o ir al cliente. */
+  courierStage?: '' | 'to_store' | 'to_client';
+  readyAt?: string;
+  claimedAt?: string;
+  /** Avisos que se envían una sola vez. */
+  unclaimedNotified?: boolean;
+  reminded?: boolean;
+  /** Cita: el cliente llegó al negocio. */
+  arrivedAt?: string;
 }
 export interface StoreSettings {
   suspended: boolean;
@@ -71,6 +90,31 @@ export interface StoreSettings {
   longitude: number | null;
   verification: 'none' | 'pending' | 'approved' | 'rejected';
   verificationNote: string;
+  /** Horario por día (0 = domingo … 6 = sábado). Si falta, se usa opens/closes todos los días. */
+  week?: DaySchedule[];
+  /** Citas que se pueden atender a la misma hora (por ejemplo, dos barberos). */
+  capacity?: number;
+  /** Días u horas sin atención (vacaciones, almuerzo…). */
+  blocks?: ScheduleBlock[];
+}
+export interface DaySchedule {
+  closed: boolean;
+  opens: number;
+  closes: number;
+}
+export interface ScheduleBlock {
+  id: string;
+  /** AAAA-MM-DD */
+  date: string;
+  /** HH:MM; vacíos = todo el día. */
+  from: string;
+  to: string;
+  note: string;
+}
+export const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+/** Horario de un día con el horario general como respaldo. */
+export function daySchedule(s: StoreSettings, day: number): DaySchedule {
+  return s.week?.[day] ?? { closed: false, opens: s.opens, closes: s.closes };
 }
 export const defaultSettings = (): StoreSettings => ({
   suspended: false,
@@ -106,6 +150,12 @@ export interface Courier {
   phone: string;
   municipality: string;
   approved: boolean;
+  vehicle?: string;
+  /** Recibe pedidos de su zona (interruptor «Disponible»). */
+  available?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  locationAt?: string | null;
 }
 export interface Review {
   id: string;
@@ -129,6 +179,8 @@ export interface PlatformState {
   lessons: string[];
   couriers: Courier[];
   courier: Courier | null;
+  /** Domiciliarios disponibles: pedidos a domicilio de su municipio que nadie ha tomado. */
+  pool: Operation[];
   /** Código para invitar amigos y cuántos se registraron / completaron su primera compra. */
   referral: { code: string; invited: number; rewarded: number };
   challenges: ChallengeProgress[];

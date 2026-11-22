@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { openDb } from '../db.ts';
 import { acquireDataLock } from '../data-lock.ts';
+// Habilita una cuenta existente como administradora.
+//   SQLite local (API detenida): npm run admin -- correo
+//   Postgres (Supabase):         DATABASE_URL=… npm run admin -- correo
 const email = process.argv[2]?.trim().toLowerCase();
 if (!email) {
   console.error('Uso: npm run admin -- correo-de-una-cuenta-existente. Detén antes la API.');
@@ -8,16 +11,18 @@ if (!email) {
 } else {
   let release: (() => void) | undefined;
   try {
+    const url = process.env.DATABASE_URL;
     const path = resolve(process.env.DATABASE_PATH ?? 'server/data/sucreia.db');
-    release = acquireDataLock(path, resolve(process.env.IMAGES_PATH ?? 'server/data/images'));
-    const db = openDb(path);
+    if (!url)
+      release = acquireDataLock(path, resolve(process.env.IMAGES_PATH ?? 'server/data/images'));
+    const db = await openDb(url ?? path);
     try {
-      const user = db.prepare('SELECT id FROM users WHERE email=?').get(email);
+      const user = await db.prepare('SELECT id FROM users WHERE email=?').get(email);
       if (!user) throw new Error('Crea primero la cuenta desde el sitio.');
-      db.prepare("UPDATE users SET role='admin' WHERE id=?").run(user.id);
+      await db.prepare("UPDATE users SET role='admin' WHERE id=?").run(user.id);
       console.log('Cuenta habilitada como administradora. Cierra y vuelve a iniciar sesión.');
     } finally {
-      db.close();
+      await db.close();
     }
   } catch (e) {
     console.error((e as Error).message);

@@ -13,8 +13,8 @@ import { createDesign } from '../src/domain/studio.ts';
 let db: Db;
 let dispatch: ReturnType<typeof httpClient>;
 const imagesDir = mkdtempSync(join(tmpdir(), 'sucreia-api-'));
-before(() => {
-  db = openDb(':memory:');
+before(async () => {
+  db = await openDb(':memory:');
   dispatch = httpClient(createApp({ db, imagesDir, localMail: true }));
 });
 after(() => {
@@ -100,7 +100,9 @@ test('el registro valida datos y no permite crear administradores', async () => 
   const admin = await call('POST', '/auth/registro', { ...base, role: 'admin' });
   assert.equal(admin.json.user.role, 'cliente');
   assert.equal((await client()('POST', '/auth/registro', base)).status, 409);
-  const stored = db.prepare('SELECT password_hash FROM users WHERE email = ?').get(base.email) as {
+  const stored = (await db
+    .prepare('SELECT password_hash FROM users WHERE email = ?')
+    .get(base.email)) as {
     password_hash: string;
   };
   assert.match(stored.password_hash, /^scrypt\$/);
@@ -228,11 +230,11 @@ const tokenFrom = (mail: { path: string }) =>
 test('verificar correo: hash en base, propósito separado, un solo uso y reenvío', async () => {
   const { call, email } = await account('cliente');
   const first = tokenFrom(await mailFor(email, 'Verifica tu correo'));
-  const stored = db
+  const stored = (await db
     .prepare(
       'SELECT token_hash FROM account_tokens WHERE user_id = (SELECT id FROM users WHERE email = ?)',
     )
-    .get(email)!;
+    .get(email))!;
   assert.notEqual(stored.token_hash, first);
   assert.equal(
     (await call('POST', '/auth/restablecer', { token: first, password: 'otra-clave-2' })).status,
@@ -257,9 +259,11 @@ test('recuperación genérica, caducidad, validación y revocación de todas las
   const unknown = await anon('POST', '/auth/recuperar', { email: 'no-registrado@example.co' });
   assert.deepEqual(unknown, known);
   const expired = tokenFrom(await mailFor(email, 'Recupera tu contraseña'));
-  db.prepare(
-    "UPDATE account_tokens SET expires_at = '2000-01-01T00:00:00.000Z' WHERE purpose = 'reset'",
-  ).run();
+  await db
+    .prepare(
+      "UPDATE account_tokens SET expires_at = '2000-01-01T00:00:00.000Z' WHERE purpose = 'reset'",
+    )
+    .run();
   assert.equal(
     (await anon('POST', '/auth/restablecer', { token: expired, password: 'nueva-clave-2' })).status,
     400,
@@ -288,7 +292,7 @@ test('recuperación genérica, caducidad, validación y revocación de todas las
 });
 
 test('la bandeja local está apagada por defecto; no simula envíos sin proveedor', async () => {
-  const isolated = openDb(':memory:');
+  const isolated = await openDb(':memory:');
   const call = httpClient(createApp({ db: isolated }));
   try {
     assert.equal((await call('GET', '/api/desarrollo/correos')).status, 404);

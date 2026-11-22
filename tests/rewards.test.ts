@@ -10,8 +10,8 @@ import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
 import { levelFor, REWARDS } from '../src/domain/rewards.ts';
 
-function fixture() {
-  const db = openDb(':memory:'),
+async function fixture() {
+  const db = await openDb(':memory:'),
     dir = mkdtempSync(join(tmpdir(), 'sucreia-rewards-')),
     http = httpClient(createApp({ db, imagesDir: dir, localMail: true }));
   function client() {
@@ -84,7 +84,7 @@ const state = async (a: { call: (m: string, p: string) => Promise<{ json: any }>
   (await a.call('GET', '/plataforma/estado')).json;
 
 test('SucrePuntos: reseña +20 una sola vez, referido +30 en la primera compra y retos +50', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const owner = await f.account('emprendedor');
     const ana = await f.account();
@@ -130,10 +130,10 @@ test('SucrePuntos: reseña +20 una sola vez, referido +30 en la primera compra y
 });
 
 test('ferias y eventos: solo la administración los crea; el código correcto suma puntos una vez', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     const admin = await f.account();
-    f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
+    await f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
     const ana = await f.account();
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(
       new Date(),
@@ -199,7 +199,38 @@ test('ferias y eventos: solo la administración los crea; el código correcto su
   }
 });
 
-test('niveles de SucrePuntos según el saldo', () => {
+test('las visitas repetidas a un negocio suman sin error (también en Postgres)', async () => {
+  const f = await fixture();
+  try {
+    const owner = await f.account('emprendedor');
+    const design = createDesign('Gastronomía y Alimentos', 'Visitas');
+    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
+    const visitor = await f.account();
+    // Cada cuenta nueva usa la misma IP de prueba: se limpia el límite entre visitas.
+    for (const product of [design.products[0].id, design.products[1].id])
+      assert.equal(
+        (
+          await visitor.call('POST', `/plataforma/negocios/${store.id}/visita`, {
+            productId: product,
+          })
+        ).status,
+        204,
+      );
+    await f.db.prepare('UPDATE store_views SET count=count+0').run();
+    await f.db
+      .prepare(
+        'INSERT INTO store_views VALUES (?,?,1) ON CONFLICT(store_id,product_id) DO UPDATE SET count=store_views.count+1',
+      )
+      .run(store.id, design.products[0].id);
+    const info = (await owner.call('GET', `/plataforma/negocios/${store.id}`)).json;
+    assert.equal(info.views[design.products[0].id], 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('niveles de SucrePuntos según el saldo', async () => {
   assert.equal(levelFor(0).level.name, 'Explorador');
   assert.equal(levelFor(3999).next?.name, 'Emprendedor');
   assert.equal(levelFor(4000).level.name, 'Emprendedor');

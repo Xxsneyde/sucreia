@@ -19,6 +19,8 @@ export interface StoreProduct {
   image: string;
   /** Grupo del catálogo («Tortas», «Postres»…); vacío o ausente = sin grupo. */
   category?: string;
+  /** Servicios con reserva: duración en minutos (si falta, la general del negocio). */
+  duration?: number;
 }
 /** Textos e imágenes de la página. Cada estilo los presenta a su manera. */
 export interface StoreContent {
@@ -279,7 +281,12 @@ export function isDesign(v: unknown): v is StoreDesign {
         p.price >= 0 &&
         p.price <= 1e9 &&
         validImage(p.image) &&
-        (p.category === undefined || short(p.category, 60)),
+        (p.category === undefined || short(p.category, 60)) &&
+        (p.duration === undefined ||
+          (typeof p.duration === 'number' &&
+            Number.isInteger(p.duration) &&
+            p.duration >= 10 &&
+            p.duration <= 480)),
     )
   )
     return false;

@@ -19,16 +19,10 @@ interface VersionRow {
   published_at: string;
 }
 
-function versions(db: Db, storeId: string): StoreVersion[] {
-  const rows = db
-    .prepare(
-      'SELECT id, design, published_at FROM store_versions WHERE store_id = ? ORDER BY published_at DESC, rowid DESC',
-    )
-    .all(storeId) as unknown as VersionRow[];
-  return rows.map((v) => ({ id: v.id, at: v.published_at, design: JSON.parse(v.design) }));
+function toVersion(v: VersionRow): StoreVersion {
+  return { id: v.id, at: v.published_at, design: JSON.parse(v.design) };
 }
-function toProject(db: Db, row: StoreRow): StoreProject & { ownerId: string } {
-  const all = versions(db, row.id);
+function toProject(row: StoreRow, all: StoreVersion[]): StoreProject & { ownerId: string } {
   return {
     id: row.id,
     ownerId: row.owner_id,
@@ -39,75 +33,92 @@ function toProject(db: Db, row: StoreRow): StoreProject & { ownerId: string } {
     versions: all,
   };
 }
-
-export function getStore(db: Db, id: string) {
-  const row = db.prepare('SELECT * FROM stores WHERE id = ?').get(id) as StoreRow | undefined;
-  return row ? toProject(db, row) : undefined;
+/** Convierte filas de tiendas en proyectos con UNA consulta para todas sus versiones. */
+async function withVersions(db: Db, rows: StoreRow[]) {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const found = await db
+    .prepare(
+      `SELECT id, store_id, design, published_at FROM store_versions WHERE store_id IN (${ids.map(() => '?').join(',')}) ORDER BY published_at DESC, rowid DESC`,
+    )
+    .all<VersionRow & { store_id: string }>(...ids);
+  const byStore = new Map<string, StoreVersion[]>();
+  for (const v of found) {
+    const list = byStore.get(v.store_id) ?? [];
+    list.push(toVersion(v));
+    byStore.set(v.store_id, list);
+  }
+  return rows.map((r) => toProject(r, byStore.get(r.id) ?? []));
 }
-export function listStoresByOwner(db: Db, ownerId: string) {
-  const rows = db
+
+export async function getStore(db: Db, id: string) {
+  const row = await db.prepare('SELECT * FROM stores WHERE id = ?').get<StoreRow>(id);
+  return row ? (await withVersions(db, [row]))[0] : undefined;
+}
+export async function listStoresByOwner(db: Db, ownerId: string) {
+  const rows = await db
     .prepare('SELECT * FROM stores WHERE owner_id = ? ORDER BY updated_at DESC')
-    .all(ownerId) as unknown as StoreRow[];
-  return rows.map((r) => toProject(db, r));
+    .all<StoreRow>(ownerId);
+  return withVersions(db, rows);
 }
-export function listPublishedStores(db: Db) {
-  const rows = db
+export async function listPublishedStores(db: Db) {
+  const rows = await db
     .prepare('SELECT * FROM stores WHERE published_version_id IS NOT NULL ORDER BY updated_at DESC')
-    .all() as unknown as StoreRow[];
-  return rows.map((r) => toProject(db, r));
+    .all<StoreRow>();
+  return withVersions(db, rows);
 }
-export function countStoresByOwner(db: Db, ownerId: string): number {
+export async function countStoresByOwner(db: Db, ownerId: string): Promise<number> {
   return (
-    db.prepare('SELECT COUNT(*) AS n FROM stores WHERE owner_id = ?').get(ownerId) as { n: number }
-  ).n;
+    (
+      await db
+        .prepare('SELECT COUNT(*) AS n FROM stores WHERE owner_id = ?')
+        .get<{ n: number }>(ownerId)
+    )?.n ?? 0
+  );
 }
 
-export function createStore(db: Db, ownerId: string, design: StoreDesign) {
+export async function createStore(db: Db, ownerId: string, design: StoreDesign) {
   const id = `tienda-${randomUUID()}`;
   const now = new Date().toISOString();
-  db.prepare(
-    'INSERT INTO stores (id, owner_id, draft, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(id, ownerId, JSON.stringify(design), now, now);
-  return getStore(db, id)!;
+  await db
+    .prepare(
+      'INSERT INTO stores (id, owner_id, draft, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(id, ownerId, JSON.stringify(design), now, now);
+  return (await getStore(db, id))!;
 }
-export function updateDraft(db: Db, id: string, design: StoreDesign) {
-  db.prepare('UPDATE stores SET draft = ?, updated_at = ? WHERE id = ?').run(
-    JSON.stringify(design),
-    new Date().toISOString(),
-    id,
-  );
-  return getStore(db, id)!;
+export async function updateDraft(db: Db, id: string, design: StoreDesign) {
+  await db
+    .prepare('UPDATE stores SET draft = ?, updated_at = ? WHERE id = ?')
+    .run(JSON.stringify(design), new Date().toISOString(), id);
+  return (await getStore(db, id))!;
 }
 /** Guarda la versión publicada (calculada por publishProject) y conserva solo las últimas 8. */
-export function savePublication(db: Db, id: string, version: StoreVersion) {
-  db.exec('BEGIN');
-  try {
-    db.prepare(
-      'INSERT INTO store_versions (id, store_id, design, published_at) VALUES (?, ?, ?, ?)',
-    ).run(version.id, id, JSON.stringify(version.design), version.at);
-    db.prepare('UPDATE stores SET published_version_id = ?, updated_at = ? WHERE id = ?').run(
-      version.id,
-      version.at,
-      id,
-    );
-    db.prepare(
-      `DELETE FROM store_versions WHERE store_id = ? AND id NOT IN (
+export async function savePublication(db: Db, id: string, version: StoreVersion) {
+  await db.transaction(async (tx) => {
+    await tx
+      .prepare(
+        'INSERT INTO store_versions (id, store_id, design, published_at) VALUES (?, ?, ?, ?)',
+      )
+      .run(version.id, id, JSON.stringify(version.design), version.at);
+    await tx
+      .prepare('UPDATE stores SET published_version_id = ?, updated_at = ? WHERE id = ?')
+      .run(version.id, version.at, id);
+    await tx
+      .prepare(
+        `DELETE FROM store_versions WHERE store_id = ? AND id NOT IN (
          SELECT id FROM store_versions WHERE store_id = ? ORDER BY published_at DESC, rowid DESC LIMIT ?)`,
-    ).run(id, id, MAX_VERSIONS);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
-  return getStore(db, id)!;
+      )
+      .run(id, id, MAX_VERSIONS);
+  });
+  return (await getStore(db, id))!;
 }
-export function unpublish(db: Db, id: string) {
-  db.prepare('UPDATE stores SET published_version_id = NULL, updated_at = ? WHERE id = ?').run(
-    new Date().toISOString(),
-    id,
-  );
-  return getStore(db, id)!;
+export async function unpublish(db: Db, id: string) {
+  await db
+    .prepare('UPDATE stores SET published_version_id = NULL, updated_at = ? WHERE id = ?')
+    .run(new Date().toISOString(), id);
+  return (await getStore(db, id))!;
 }
-export function deleteStore(db: Db, id: string) {
-  db.prepare('DELETE FROM stores WHERE id = ?').run(id);
+export async function deleteStore(db: Db, id: string) {
+  await db.prepare('DELETE FROM stores WHERE id = ?').run(id);
 }
