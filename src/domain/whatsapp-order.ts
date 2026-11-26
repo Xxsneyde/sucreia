@@ -38,3 +38,11 @@ export function orderLink(phone: string | null | undefined, message: string): st
   const digits = whatsappDigits(phone);
   return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : null;
 }
+
+/** Pedido por WhatsApp como se guarda y lo devuelve GET /api/plataforma/compras-whatsapp. */
+export interface WhatsappOrderRecord extends WhatsappOrder {
+  storeId: string;
+  clientName: string;
+  lines: { productId: string; name: string; price: number; quantity: number }[];
+  createdAt: string;
+}

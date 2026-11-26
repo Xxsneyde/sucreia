@@ -19,7 +19,22 @@ const mode = computed(() => route.path.replace(/\/+$/, '').slice(1)),
   message = ref(''),
   courier = ref({ phone: '', municipality: '', avatar: '' });
 const admin = ref<{
-  stores: { id: string; name: string; published: boolean; settings: StoreSettings }[];
+  stores: {
+    id: string;
+    name: string;
+    published: boolean;
+    settings: StoreSettings;
+    /** Registro del negocio: pending = esperando la aprobación de la administración. */
+    registration: 'none' | 'pending' | 'approved' | 'rejected';
+    details: {
+      name: string;
+      category: string;
+      municipality: string;
+      whatsapp: string;
+      description: string;
+    };
+  }[];
+  pqrs: { id: string; kind: string; email: string; message: string }[];
   couriers: Courier[];
   users: number;
   audit: { action: string; target: string; note: string; at: string }[];
@@ -65,8 +80,9 @@ async function decide(type: string, id: string, approved: boolean, event: Event)
     note = (new FormData(f).get('note') as string) || '';
   try {
     const submitted = (event as SubmitEvent).submitter as HTMLButtonElement | null;
-    const actualType =
-      submitted?.value === 'suspend'
+    const actualType = submitted?.value.startsWith('registration-')
+      ? 'registro'
+      : submitted?.value === 'suspend'
         ? 'suspender'
         : submitted?.value === 'reactivate'
           ? 'reactivar'
@@ -192,12 +208,21 @@ async function removeEvent(id: string) {
             decide(
               'negocios',
               s.id,
-              ($event.submitter as HTMLButtonElement).value === 'yes',
+              ['yes', 'registration-yes'].includes(($event.submitter as HTMLButtonElement).value),
               $event,
             )
           "
         >
-          <h3>{{ s.name }}</h3>
+          <h3>{{ s.details.name }}</h3>
+          <p>{{ s.details.category }} · {{ s.details.municipality }} · {{ s.details.whatsapp }}</p>
+          <p>{{ s.details.description }}</p>
+          <div v-if="s.registration === 'pending'" class="flow-actions">
+            <button class="button" value="registration-yes" :disabled="p.busy.value">
+              Aceptar registro</button
+            ><button class="button secondary" value="registration-no" :disabled="p.busy.value">
+              Rechazar registro
+            </button>
+          </div>
           <p>
             {{ verificationNames[s.settings.verification] }} · {{ s.settings.verificationNote }}
           </p>
@@ -220,6 +245,15 @@ async function removeEvent(id: string) {
           </div>
         </form>
       </div>
+      <section class="sx-card">
+        <h2>Peticiones, quejas, reclamos y sugerencias</h2>
+        <p v-if="!admin.pqrs.length">Aún no hay solicitudes.</p>
+        <article v-for="q in admin.pqrs" :key="q.id">
+          <strong>{{ q.kind }} · {{ q.email }}</strong>
+          <p>{{ q.message }}</p>
+          <small>Radicado {{ q.id }}</small>
+        </article>
+      </section>
       <h2>Domiciliarios</h2>
       <div class="flow-grid">
         <form

@@ -6,7 +6,7 @@ import { usePlatform } from '@/lib/platform-store';
 import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
 import { verificationNames } from '@/domain/platform';
-import type { CommerceStore } from '@/domain/platform';
+import type { CommerceStore, Promotion } from '@/domain/platform';
 import OperationList from './OperationList.vue';
 import PageTitle from '@/components/PageTitle.vue';
 const route = useRoute(),
@@ -27,12 +27,29 @@ const tab = computed(() =>
           ? 'settings'
           : 'dashboard',
 );
+// Promoción en edición ('' = nueva).
+const editing = ref('');
+function editPromotion(promo: Promotion) {
+  editing.value = promo.id;
+  promotion.value = {
+    title: promo.title,
+    cost: promo.cost,
+    percent: promo.percent,
+    // Fecha en Colombia (UTC−5) para el campo de fecha.
+    expires: new Date(Date.parse(promo.expires) - 5 * 3_600_000).toISOString().slice(0, 10),
+  };
+}
+function resetPromotion() {
+  editing.value = '';
+  promotion.value = { title: '', cost: 10, percent: 10, expires: '' };
+}
 const meta = ref<CommerceStore | null>(null),
   evidence = ref(''),
   promotion = ref({ title: '', percent: 10, cost: 10, expires: '' });
 watch(
   () => store.value?.id,
   async (id) => {
+    resetPromotion();
     if (id)
       try {
         meta.value = await api<CommerceStore>('GET', `/plataforma/negocios/${id}`);
@@ -95,11 +112,16 @@ async function stock(productId: string, event: Event) {
 }
 async function promote() {
   try {
-    await p.run('POST', `/negocios/${store.value!.id}/promociones`, {
-      ...promotion.value,
-      expires: new Date(promotion.value.expires + 'T23:59:00-05:00').toISOString(),
-    });
-    message.value = 'Promoción publicada.';
+    await p.run(
+      editing.value ? 'PUT' : 'POST',
+      `/negocios/${store.value!.id}/promociones${editing.value ? '/' + editing.value : ''}`,
+      {
+        ...promotion.value,
+        expires: new Date(promotion.value.expires + 'T23:59:00-05:00').toISOString(),
+      },
+    );
+    message.value = editing.value ? 'Promoción actualizada.' : 'Promoción publicada.';
+    resetPromotion();
   } catch (e) {
     message.value = (e as Error).message;
   }
@@ -232,8 +254,9 @@ async function deactivate(id: string) {
             required /></label
         ><label>Vigente hasta<input v-model="promotion.expires" type="date" required /></label
         ><button class="button" :disabled="p.busy.value || !store.published">
-          Publicar promoción
+          {{ editing ? 'Guardar cambios' : 'Publicar promoción' }}
         </button>
+        <button v-if="editing" type="button" @click="resetPromotion">Cancelar edición</button>
       </form>
       <section class="card">
         <h2>Bonos activos</h2>
@@ -241,6 +264,14 @@ async function deactivate(id: string) {
           v-for="promo in p.data.value?.promotions.filter((c) => c.storeId === store?.id)"
           :key="promo.id"
         >
+          <button
+            v-if="promo.active"
+            type="button"
+            class="button secondary"
+            @click="editPromotion(promo)"
+          >
+            Editar promoción
+          </button>
           <h3>{{ promo.title }}</h3>
           <p>{{ promo.percent }} % · {{ promo.cost }} puntos</p>
           <button class="button secondary" :disabled="p.busy.value" @click="deactivate(promo.id)">
