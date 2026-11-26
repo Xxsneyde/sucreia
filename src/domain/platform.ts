@@ -202,3 +202,10 @@ export const verificationNames = {
   approved: 'Verificado',
   rejected: 'Requiere corrección',
 } as const;
+
+/** PQRS: tipos de solicitud, adjuntos permitidos y número de radicado visible. */
+export const pqrsKinds = ['Petición', 'Queja', 'Reclamo', 'Sugerencia'] as const;
+export type PqrsKind = (typeof pqrsKinds)[number];
+export const pqrsFileMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
+export const pqrsFileMaxBytes = 5 * 1024 * 1024;
+export const radicado = (id: string): string => id.slice(0, 8).toUpperCase();

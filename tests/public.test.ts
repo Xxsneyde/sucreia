@@ -12,20 +12,25 @@ import {
   unpublish,
 } from '../server/stores.ts';
 import { createDesign, publishProject, toBusiness } from '../src/domain/studio.ts';
-test('vitrina, acceso y tiendas públicas no requieren sesión; todas las herramientas sí', async () => {
+test('portada, acceso, tiendas y páginas informativas no requieren sesión; todo lo demás sí', async () => {
   for (const path of [
     '/',
-    '/buscar/',
     '/ingresar',
     '/recuperar',
     '/tienda',
-    '/sectores',
-    '/mapa/',
+    '/emprender',
+    '/terminos',
+    '/quienes-somos',
+    '/pqrs',
     '/verificar-correo',
     '/correo-local',
   ])
     assert.equal(requiresSession(path), false, path);
   for (const path of [
+    '/buscar/',
+    '/mapa/',
+    '/sectores',
+    '/registro-negocio',
     '/inicio',
     '/panel/',
     '/panel/pedidos',

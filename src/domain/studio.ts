@@ -1,5 +1,5 @@
 import type { Business, BusinessMode } from './types.ts';
-import { sectorFor } from './sectors.ts';
+import { sectorArtwork, sectorFor, sectors, subcategoriesFor } from './sectors.ts';
 import {
   areaFor,
   designChoices,
@@ -21,6 +21,10 @@ export interface StoreProduct {
   category?: string;
   /** Servicios con reserva: duración en minutos (si falta, la general del negocio). */
   duration?: number;
+  /** Hasta dos fotos más del producto. */
+  gallery?: string[];
+  /** Ficha técnica: hasta ocho pares «Material: Algodón». */
+  details?: { label: string; value: string }[];
 }
 /** Textos e imágenes de la página. Cada estilo los presenta a su manera. */
 export interface StoreContent {
@@ -40,6 +44,8 @@ export interface StoreDesign {
   name: string;
   /** Área del emprendimiento (ver areas en designs.ts). */
   category: string;
+  /** Subcategoría del sector (ver subcategories.ts); vacía = sin elegir. */
+  subcategory?: string;
   municipality: string;
   description: string;
   whatsapp: string;
@@ -47,6 +53,10 @@ export interface StoreDesign {
   phone?: string;
   /** Correo de contacto del negocio (opcional). */
   email?: string;
+  /** Redes sociales (opcionales). */
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
   address: string;
   hours: string;
   logo: string;
@@ -183,6 +193,7 @@ export function toBusiness(p: StoreProject): Business | null {
     id: p.id,
     name: d.name,
     category: d.category,
+    subcategory: d.subcategory,
     municipality: d.municipality,
     description: d.description || d.content.heroText,
     mode: d.mode,
@@ -195,7 +206,30 @@ export function toBusiness(p: StoreProject): Business | null {
     local: true,
     cover: d.content.heroImage,
     logo: d.logo,
+    address: d.address,
+    hours: d.hours,
+    minPrice: d.products.length ? Math.min(...d.products.map((x) => x.price)) : 0,
   };
+}
+
+/** Lo que falta para enviar el registro del negocio a revisión de la administración. */
+export function registrationErrors(d: StoreDesign): string[] {
+  const real = (src: string) => !!src && !src.startsWith('/art/');
+  const errors: string[] = [];
+  if (!d.name.trim()) errors.push('Falta el nombre del negocio.');
+  if (!d.address.trim()) errors.push('Falta la dirección del negocio.');
+  if (!/^\+?[1-9]\d{9,14}$/.test(d.whatsapp))
+    errors.push('Falta un WhatsApp válido con código de país.');
+  if (!real(d.logo)) errors.push('Falta el logo.');
+  if (!real(d.content.heroImage)) errors.push('Falta la foto de portada.');
+  if (d.products.length < 3) errors.push('Agrega al menos tres productos o servicios.');
+  if (d.products.some((p) => !p.description.trim()))
+    errors.push('Cada producto o servicio necesita una descripción.');
+  if (d.products.some((p) => !real(p.image)))
+    errors.push('Cada producto o servicio necesita su foto.');
+  if (d.mode !== 'quote' && d.products.some((p) => !(p.price > 0)))
+    errors.push('Cada producto o servicio necesita su precio.');
+  return errors;
 }
 /** Página pública de un negocio publicado en SucreIA. */
 export function businessHref(id: string) {
@@ -215,11 +249,14 @@ export function contrast(a: string, b: string) {
 export function onColor(background: string) {
   return contrast(background, '#ffffff') >= contrast(background, '#18251c') ? '#ffffff' : '#18251c';
 }
+/** Ilustraciones de sector que se aceptan como imagen provisional. */
+const sectorImages = new Set(sectors.map((s) => sectorArtwork(s.id)));
 export function validImage(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length < 1_500_000 &&
     (value === '' ||
+      sectorImages.has(value) ||
       /^\/art\/(craft|food|beauty|service|hero)\.svg$/.test(value) ||
       /^\/api\/imagenes\/[a-f0-9]{64}\.webp$/.test(value) ||
       /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value))
@@ -255,7 +292,13 @@ export function isDesign(v: unknown): v is StoreDesign {
     !['name', 'category', 'municipality', 'description', 'whatsapp', 'address', 'hours'].every(
       (k) => short(v[k]),
     ) ||
-    !['phone', 'email'].every((k) => v[k] === undefined || short(v[k], 200))
+    (v.subcategory !== undefined &&
+      v.subcategory !== '' &&
+      (typeof v.subcategory !== 'string' ||
+        !subcategoriesFor(String(v.category)).includes(v.subcategory))) ||
+    !['phone', 'email', 'instagram', 'facebook', 'tiktok'].every(
+      (k) => v[k] === undefined || short(v[k], 200),
+    )
   )
     return false;
   if (
@@ -282,6 +325,14 @@ export function isDesign(v: unknown): v is StoreDesign {
         p.price <= 1e9 &&
         validImage(p.image) &&
         (p.category === undefined || short(p.category, 60)) &&
+        (p.gallery === undefined ||
+          (Array.isArray(p.gallery) &&
+            p.gallery.length <= 2 &&
+            p.gallery.every((g) => g !== '' && validImage(g)))) &&
+        (p.details === undefined ||
+          (Array.isArray(p.details) &&
+            p.details.length <= 8 &&
+            p.details.every((d) => record(d) && short(d.label, 60) && short(d.value, 300)))) &&
         (p.duration === undefined ||
           (typeof p.duration === 'number' &&
             Number.isInteger(p.duration) &&

@@ -1,6 +1,7 @@
-// Sectores y subregiones de Sucre tal como aparecen en la presentación de SucreIA.
-// El sector se guarda en `design.category`; las categorías anteriores (Artesanías,
-// Gastronomía…) se traducen con sectorFor para no romper tiendas ya creadas.
+// Sectores y subregiones de Sucre. El sector se guarda en `design.category`; las
+// categorías anteriores (Artesanías, Gastronomía…) se traducen con sectorFor para no romper
+// tiendas ya creadas.
+import { catalog } from './subcategories.ts';
 
 export interface Sector {
   /** Nombre completo; es el valor que se guarda en la tienda. */
@@ -14,7 +15,13 @@ export interface Sector {
   area: string;
 }
 
-export const sectors: Sector[] = [
+export interface Subregion {
+  id: string;
+  color: string;
+  municipalities: string[];
+}
+
+const definitions: Sector[] = [
   {
     id: 'Gastronomía y Alimentos',
     lines: ['Gastronomía', 'y Alimentos'],
@@ -79,6 +86,76 @@ export const sectors: Sector[] = [
     area: 'Servicios',
   },
   {
+    id: 'Comercio y tiendas',
+    lines: ['Comercio', 'y tiendas'],
+    icon: 'store',
+    color: '#0891b2',
+    area: 'Otro',
+  },
+  {
+    id: 'Transporte y logística',
+    lines: ['Transporte', 'y logística'],
+    icon: 'truck',
+    color: '#475569',
+    area: 'Servicios',
+  },
+  {
+    id: 'Fotografía y producción audiovisual',
+    lines: ['Fotografía', 'y producción audiovisual'],
+    icon: 'camera',
+    color: '#7c3aed',
+    area: 'Servicios',
+  },
+  {
+    id: 'Floristerías y regalos',
+    lines: ['Floristerías', 'y regalos'],
+    icon: 'gift',
+    color: '#db2777',
+    area: 'Artesanías',
+  },
+  {
+    id: 'Mascotas y animales',
+    lines: ['Mascotas', 'y animales'],
+    icon: 'paw',
+    color: '#b45309',
+    area: 'Otro',
+  },
+  {
+    id: 'Bebidas y licorerías',
+    lines: ['Bebidas', 'y licorerías'],
+    icon: 'wine',
+    color: '#be123c',
+    area: 'Gastronomía',
+  },
+  {
+    id: 'Decoración y artículos para el hogar',
+    lines: ['Decoración', 'y artículos para el hogar'],
+    icon: 'sofa',
+    color: '#0d9488',
+    area: 'Artesanías',
+  },
+  {
+    id: 'Eventos y entretenimiento',
+    lines: ['Eventos', 'y entretenimiento'],
+    icon: 'party',
+    color: '#ea580c',
+    area: 'Servicios',
+  },
+  {
+    id: 'Educación y formación',
+    lines: ['Educación', 'y formación'],
+    icon: 'graduation',
+    color: '#1d4ed8',
+    area: 'Servicios',
+  },
+  {
+    id: 'Servicios personales y domésticos',
+    lines: ['Servicios', 'personales y domésticos'],
+    icon: 'spray',
+    color: '#4d7c0f',
+    area: 'Servicios',
+  },
+  {
     id: 'Otros Sectores',
     lines: ['Otros', 'Sectores'],
     icon: 'more',
@@ -86,7 +163,12 @@ export const sectors: Sector[] = [
     area: 'Otro',
   },
 ];
-
+/** Sectores con el nombre en mayúscula inicial, que es el valor que se guarda en la tienda. */
+export const sectors: Sector[] = definitions.map((s) => ({
+  ...s,
+  id: sentenceCase(s.id),
+  lines: [s.lines[0], s.lines[1].toLocaleLowerCase('es')] as [string, string],
+}));
 const legacy: Record<string, string> = {
   Gastronomía: 'Gastronomía y Alimentos',
   Turismo: 'Turismo y Hospedaje',
@@ -97,19 +179,13 @@ const legacy: Record<string, string> = {
   Servicios: 'Servicios Profesionales',
   Otro: 'Otros Sectores',
 };
-
-/** Sector de una categoría guardada (incluye los nombres anteriores). */
+/** Sector de una categoría guardada (incluye los nombres anteriores y otras mayúsculas). */
 export function sectorFor(category: string): Sector {
-  const id = legacy[category] ?? category;
-  return sectors.find((s) => s.id === id) ?? sectors[sectors.length - 1];
+  const id = Object.hasOwn(legacy, category) ? legacy[category] : category;
+  return (
+    sectors.find((s) => sentenceCase(s.id) === sentenceCase(id)) ?? sectors[sectors.length - 1]
+  );
 }
-
-export interface Subregion {
-  id: string;
-  color: string;
-  municipalities: string[];
-}
-
 /** Las cinco subregiones de Sucre y sus 26 municipios. */
 export const subregions: Subregion[] = [
   {
@@ -130,13 +206,12 @@ export const subregions: Subregion[] = [
       'San Juan de Betulia',
       'San Pedro',
       'Sincé',
-      'Sincelejo',
     ],
   },
   {
     id: 'Montes de María',
     color: '#3b82f6',
-    municipalities: ['Chalán', 'Colosó', 'Morroa', 'Ovejas'],
+    municipalities: ['Chalán', 'Colosó', 'Morroa', 'Ovejas', 'Sincelejo'],
   },
   {
     id: 'Mojana',
@@ -149,18 +224,33 @@ export const subregions: Subregion[] = [
     municipalities: ['Caimito', 'La Unión', 'San Benito Abad', 'San Marcos'],
   },
 ];
-
 export const municipalities = subregions
   .flatMap((s) => s.municipalities)
   .sort((a, b) => a.localeCompare(b, 'es'));
-
 const aliases: Record<string, string> = {
+  Toluviejo: 'Tolú Viejo',
+  'San Antonio de Palmito': 'Palmito',
   Tolú: 'Santiago de Tolú',
   'San Benito': 'San Benito Abad',
 };
-
 /** Subregión de un municipio (null si no es de Sucre o está mal escrito). */
 export function subregionFor(municipality: string): Subregion | null {
   const name = aliases[municipality.trim()] ?? municipality.trim();
   return subregions.find((s) => s.municipalities.includes(name)) ?? null;
+}
+/** «Gastronomía Y Alimentos» → «Gastronomía y alimentos». */
+export function sentenceCase(value: string): string {
+  const text = value.trim().toLocaleLowerCase('es');
+  return text.charAt(0).toLocaleUpperCase('es') + text.slice(1);
+}
+/** Ilustración del sector en /art/sectores (o la genérica de servicios). */
+export function sectorArtwork(category: string): string {
+  const key = sentenceCase(sectorFor(category).id);
+  if (!Object.hasOwn(catalog, key)) return '/art/service.svg';
+  const slug = key.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replaceAll(' ', '-');
+  return '/art/sectores/' + slug + '.svg';
+}
+/** Subcategorías sugeridas para el sector de una categoría guardada. */
+export function subcategoriesFor(category: string): string[] {
+  return catalog[sentenceCase(sectorFor(category).id)] ?? [];
 }

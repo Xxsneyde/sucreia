@@ -54,6 +54,7 @@ export function matches(b: Business, query: string) {
     [
       b.name,
       b.category,
+      b.subcategory,
       b.municipality,
       b.description,
       ...b.products.map((p) => `${p.name} ${p.description}`),

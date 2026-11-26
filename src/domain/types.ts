@@ -10,6 +10,7 @@ export interface Business {
   id: string;
   name: string;
   category: string;
+  subcategory?: string;
   municipality: string;
   description: string;
   mode: BusinessMode;
@@ -24,6 +25,10 @@ export interface Business {
   logo?: string;
   /** Número de reseñas publicadas (solo en el listado de la API). */
   reviewCount?: number;
+  address?: string;
+  hours?: string;
+  /** Precio más bajo del catálogo (0 si no hay productos). */
+  minPrice?: number;
 }
 export interface CartLine {
   businessId: string;

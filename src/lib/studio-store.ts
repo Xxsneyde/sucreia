@@ -22,6 +22,8 @@ function clone<T>(value: T): T {
 
 const SELECTED_KEY = 'sucreia:tienda-activa';
 const SAVE_DELAY = 500;
+/** Versión de los términos y condiciones que se acepta al registrar un negocio. */
+export const TERMS_VERSION = '2026-11-23';
 
 const projects = shallowRef<StoreProject[]>([]);
 const publicStores = shallowRef<Business[]>([]);
@@ -228,8 +230,10 @@ const store = {
     saveStatus.value = 'saved';
   },
   select,
-  async create(design: StoreDesign): Promise<string> {
+  /** Crea un negocio. acceptTerms: la persona aceptó los términos vigentes al registrarlo. */
+  async create(design: StoreDesign, acceptTerms = false): Promise<string> {
     const { store: created } = await api<{ store: StoreProject }>('POST', '/mis-tiendas', {
+      termsVersion: acceptTerms ? TERMS_VERSION : undefined,
       design: await prepareDesignImages(clone(design)),
     });
     projects.value = [created, ...projects.value];
@@ -269,11 +273,11 @@ const store = {
     const v = projects.value.find((p) => p.id === id)?.versions.find((v) => v.id === versionId);
     if (v) store.update(id, clone(v.design));
   },
-  async duplicate(id: string): Promise<string> {
+  async duplicate(id: string, acceptTerms = false): Promise<string> {
     const p = projects.value.find((p) => p.id === id);
     if (!p) throw new Error('Tienda no encontrada.');
     await flush(id);
-    return store.create({ ...clone(p.draft), name: `${p.draft.name} · copia` });
+    return store.create({ ...clone(p.draft), name: `${p.draft.name} · copia` }, acceptTerms);
   },
   async remove(id: string) {
     clearTimeout(pending.get(id));
@@ -289,12 +293,12 @@ const store = {
     await Promise.all(projects.value.map((p) => save(p.id).catch(() => {})));
   },
   /** Sube a la cuenta las tiendas guardadas en este navegador y las borra de aquí. */
-  async importLegacy(): Promise<number> {
+  async importLegacy(acceptTerms = false): Promise<number> {
     const designs = await legacyDesigns();
     let imported = 0;
     for (const design of designs) {
       try {
-        await store.create(design);
+        await store.create(design, acceptTerms);
         imported++;
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) break; // límite de tiendas

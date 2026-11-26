@@ -34,5 +34,7 @@ export function nextStatus(status: OrderStatus): OrderStatus {
 }
 export function whatsappUrl(phone: string | null, businessName: string): string | null {
   if (!phone || !/^\+?[1-9]\d{9,14}$/.test(phone)) return null;
-  return `https://wa.me/${phone.replace('+', '')}?text=${encodeURIComponent(`Hola, quiero información de ${businessName} en SucreIA.`)}`;
+  // Un celular colombiano escrito sin indicativo (3001234567) se completa con el 57.
+  const digits = /^3\d{9}$/.test(phone) ? '57' + phone : phone.replace('+', '');
+  return `https://wa.me/${digits}?text=${encodeURIComponent(`Hola, quiero información de ${businessName} en SucreIA.`)}`;
 }

@@ -49,10 +49,10 @@ test('cada sector genera un documento válido, publicable y con su forma de aten
     assert.equal(d.mode, areaFor(sector.area).mode);
   }
   // Las categorías anteriores se guardan con el sector equivalente.
-  assert.equal(createDesign('Belleza').category, 'Belleza y Bienestar');
+  assert.equal(createDesign('Belleza').category, 'Belleza y bienestar');
   assert.equal(createDesign('Belleza').mode, 'booking');
   assert.equal(createDesign('Servicios').mode, 'quote');
-  assert.equal(createDesign('Área inexistente').category, 'Otros Sectores');
+  assert.equal(createDesign('Área inexistente').category, 'Otros sectores');
 });
 
 test('cada área ofrece los siete estilos, con sus tres recomendados primero', () => {
@@ -271,8 +271,8 @@ test('solo las publicaciones se muestran en el catálogo local', () => {
   assert.equal(business.local, true);
   assert.equal(business.verified, false);
   assert.equal(business.rating, 0);
-  // «Artesanías» se guarda en el sector Moda y Confección y usa su ilustración.
-  assert.equal(business.category, 'Moda y Confección');
+  // «Artesanías» se guarda en el sector Moda y confección y usa su ilustración.
+  assert.equal(business.category, 'Moda y confección');
   assert.equal(business.theme, 'beauty');
   assert.equal(businessHref(business.id), '/tienda?id=local-test');
   assert.equal(businessHref('tienda-1'), '/tienda?id=tienda-1');

@@ -9,6 +9,11 @@ export interface SessionUser {
   name: string;
   role: Role;
   emailVerifiedAt: string | null;
+  /** Nombre, cédula y dirección guardados: puede usar la plataforma. */
+  profileComplete: boolean;
+  /** Por dónde confirma su cuenta: enlace al correo o código por mensaje de texto. */
+  verifyChannel: 'email' | 'sms';
+  phone: string | null;
 }
 
 const user = ref<SessionUser | null>(null);
@@ -63,10 +68,14 @@ const session = {
   },
   async register(data: {
     email: string;
-    name: string;
+    name?: string;
     password: string;
     role: Role;
     referido?: string;
+    documentNumber?: string;
+    address?: string;
+    verifyBy?: 'email' | 'sms';
+    phone?: string;
   }) {
     await load();
     const result = await api<{ user: SessionUser; verificationSent: boolean }>(
@@ -77,7 +86,13 @@ const session = {
     user.value = result.user;
     emailNotice.value = result.verificationSent
       ? ''
-      : 'Tu cuenta está creada. Aún no se pudo enviar la verificación; puedes solicitarla desde tu perfil.';
+      : data.verifyBy === 'sms'
+        ? 'No pudimos enviar el mensaje de texto. Pide otro código con el botón de abajo.'
+        : 'No pudimos enviar el correo de confirmación. Pide otro enlace con el botón de abajo.';
+  },
+  /** Reemplaza la cuenta con la respuesta de la API (por ejemplo, al completar el perfil). */
+  setUser(value: SessionUser | null) {
+    user.value = value;
   },
   async logout() {
     await api('POST', '/auth/salir');
