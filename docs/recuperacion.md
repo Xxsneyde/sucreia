@@ -8,7 +8,7 @@ El 26 de noviembre de 2026 se perdió el código local más reciente, que nunca 
 
 ## No desplegar todavía
 
-Hasta terminar la fase 4, el frontend del repo está a medio camino: el menú (`src/layouts/default.vue`) todavía usa funciones que cambiaron en la fase 1. **No subas este repo a Hostinger** hasta que este documento diga que el build está completo y probado. Lo que está publicado hoy sigue funcionando.
+Hasta terminar la fase 4, el frontend del repo está a medio camino: compila, pero varias páginas todavía son la versión anterior y faltan `emprender`, `registro-negocio`, `completar-perfil`, `admin/negocios`, `admin/pqrs` y `panel/negocios`. El backend del repo (fase 5) tampoco tiene aún las rutas nuevas (PQRS, asistente, compras por WhatsApp). **No subas este repo a Hostinger** hasta que este documento diga que el build está completo y probado. Lo que está publicado hoy sigue funcionando.
 
 ## Fases
 
@@ -16,7 +16,7 @@ Hasta terminar la fase 4, el frontend del repo está a medio camino: el menú (`
 | ---- | ---------------------------------------------------------- | --------- |
 | 0    | Imágenes publicadas (`public/`)                            | Hecha     |
 | 1    | Lógica compartida (`src/domain`, `src/lib`, middleware)    | Hecha     |
-| 2    | Estructura general: layout, menú, buscador, pie, asistente | Pendiente |
+| 2    | Estructura general: layout, menú, buscador, pie, asistente | Hecha     |
 | 3    | Componentes nuevos y modificados                           | Pendiente |
 | 4    | Páginas (incluidas las 6 nuevas)                           | Pendiente |
 | 5    | Backend en TypeScript (`server/`)                          | Pendiente |
@@ -55,7 +55,28 @@ Comprobado igual a lo publicado, sin cambios: `src/lib/api.ts`, `src/lib/images.
 
 Validación de la fase 1: TypeScript de `src/domain`, `src/lib`, pruebas y servidor sin errores (solo queda `src/layouts/default.vue`, que es de la fase 2). Pruebas de dominio: 49 de 49 correctas.
 
+### Fase 2 — estructura general
+
+1. `src/assets/css/sucre.css`: reconstruido desde el CSS publicado (campos de formulario, botones, menú lateral, fondo de la iguana). Es la salida del compilador, sin los comentarios originales.
+2. `src/domain/studio.ts`: `socialUrl` (enlaces seguros a Instagram, Facebook y TikTok) y `thumbnail` (fotos de 480 px)
+3. `src/domain/platform.ts`: estados y tipos de PQRS, `weekSummary`/`hourLabel` (horario legible), `rankByRating`
+4. `src/domain/types.ts`: `image` en los productos
+5. `src/domain/roles.ts`: `newTab` en los enlaces y `modeHome`
+6. `src/domain/brain/help.ts`: `assistantIntro` (saludo y sugerencias por rol)
+7. `src/lib/location.ts` (nuevo): ubicación del celular con mensajes claros
+8. `src/components/sucre/SucreLogo.vue`: usa el ícono de `public/marca`
+9. `src/components/sucre/ChatCard.vue` (usa 2): respuestas con enlaces, botón y sugerencias
+10. `src/components/sucre/AssistantFab.vue` (usa 6, 7 y 9): pregunta a `POST /api/asistente`
+11. `src/components/sucre/FloatingCart.vue` (nuevo; usa 2): carrito flotante que envía el pedido por WhatsApp (`POST /api/plataforma/compras-whatsapp`)
+12. `src/components/sucre/PqrsThread.vue` (nuevo; usa 3): conversación de un caso de PQRS
+13. `src/pages/quienes-somos.vue`, `src/pages/terminos.vue`, `src/pages/pqrs.vue` (nuevas; el pie de página las enlaza)
+14. `src/layouts/default.vue` (usa todo lo anterior): menú por rol, buscador solo en la vista de cliente, pie con enlaces, carrito flotante y asistente (que no aparece en el mapa)
+15. Se borra `src/lib/assistant.ts` (lo reemplaza `src/domain/brain`)
+
+Comprobado igual a lo publicado, sin cambios: `src/layouts/auth.vue`, `src/components/sucre/SearchBox.vue`, `src/components/LogoutButton.vue`, `src/assets/css/motion.css`.
+
+Validación de la fase 2: TypeScript del frontend, las pruebas y el servidor sin errores; `npm run build` correcto. El CSS global compilado coincide con el publicado (solo difieren prefijos de navegador que agrega el compilador). El HTML generado del marco (menú, barra superior, pie) es idéntico al publicado en todas las páginas existentes, y `quienes-somos`, `terminos` y `pqrs` coinciden completas. Las páginas que piden cuenta solo generan el marco antes de ingresar; su contenido se compara con el JavaScript publicado en las fases 3 y 4.
+
 ## Diferencias que no se pudieron confirmar
 
 - `canOpen` en `roles.ts` se conservó del código anterior (lo usan las pruebas); en lo publicado no aparece.
-- `src/lib/assistant.ts` (respuestas del asistente anterior) quedó sin cambios: en lo publicado el asistente usa `src/domain/brain`. Se decide en la fase 2 al reconstruir el botón del asistente.

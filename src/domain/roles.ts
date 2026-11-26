@@ -43,6 +43,8 @@ export interface NavItem {
   icon: IconName;
   /** Otras páginas en las que este enlace se marca como activo. */
   also?: string[];
+  /** Abrir en una pestaña nueva. */
+  newTab?: boolean;
 }
 export interface NavSection {
   id: 'principal' | 'explorar' | 'negocio' | 'admin';
@@ -227,6 +229,10 @@ export function isRetired(path: string): boolean {
   return retiredPaths.some((base) => clean === base || clean.startsWith(base + '/'));
 }
 
+/** Inicio de cada vista (el logo del menú lleva aquí). */
+export function modeHome(_mode: Mode): string {
+  return '/buscar';
+}
 /** Dónde empieza cada rol al ingresar: todos empiezan buscando negocios. */
 export function roleHome(_role: Role): string {
   return '/buscar';

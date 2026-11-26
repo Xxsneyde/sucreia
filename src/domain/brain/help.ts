@@ -275,3 +275,44 @@ export function answerHelp(question: string, role: BrainRole): Reply | undefined
   }
   return best?.topic.answer;
 }
+
+/** Saludo, temas y sugerencias con que abre el Asistente SucreIA, según el rol. */
+export function assistantIntro(role: BrainRole): {
+  greeting: string;
+  bullets: string[];
+  suggestions: string[];
+} {
+  if (role === 'admin')
+    return {
+      greeting: '¡Hola! 👋 Soy el asistente de SucreIA. Puedo ayudarte con:',
+      bullets: [
+        'Aprobar o revisar negocios',
+        'Exportar la información legal',
+        'PQRS y verificación',
+      ],
+      suggestions: ['¿Cómo exporto a Excel?', '¿Dónde apruebo negocios?', 'Barbería en Sincelejo'],
+    };
+  if (role === 'emprendedor')
+    return {
+      greeting: '¡Hola! 👋 Soy el asistente de SucreIA. Puedo ayudarte a:',
+      bullets: [
+        'Registrar y publicar tus negocios',
+        'Editar productos, fotos y datos',
+        'Encontrar otros negocios para comprar',
+      ],
+      suggestions: [
+        '¿Cómo agrego productos?',
+        '¿Por qué rechazaron mi registro?',
+        'Torta de cumpleaños',
+      ],
+    };
+  return {
+    greeting: '¡Hola! 👋 Soy el asistente de SucreIA. Puedo ayudarte a:',
+    bullets: [
+      'Encontrar productos y servicios',
+      'Buscar por municipio, precio o categoría',
+      'Explicarte cómo comprar por WhatsApp',
+    ],
+    suggestions: ['Torta de cumpleaños', 'Barbería para reservar', 'Almuerzo de menos de 20 mil'],
+  };
+}

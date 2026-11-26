@@ -1,15 +1,39 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Bot, X } from '@lucide/vue';
-import { useDirectory } from '@/lib/directory';
-import { answerDirectory } from '@/lib/assistant';
+import { api } from '@/lib/api';
+import { useSession } from '@/lib/session';
+import { currentLocation } from '@/lib/location';
+import { assistantIntro } from '@/domain/brain/help';
+import type { BrainContext, BrainRole, Reply } from '@/domain/brain/types';
 import ChatCard from './ChatCard.vue';
 // «Asistente SucreIA — ¿Te ayudo a encontrar lo que necesitas?» (esquina inferior derecha).
+// Pregunta a POST /api/asistente, que responde con los negocios publicados y recuerda la
+// conversación en `context` («el segundo», «más baratos»…).
 const open = ref(false);
-const directory = useDirectory();
-async function ask(q: string) {
-  await directory.load();
-  return answerDirectory(q, directory.stores.value);
+const session = useSession();
+const role = computed<BrainRole>(() => session.user?.role ?? 'visitante');
+const intro = computed(() => assistantIntro(role.value));
+let context: BrainContext = {};
+let location: { lat: number; lng: number } | null = null;
+async function locate() {
+  if (location) return;
+  try {
+    const here = await currentLocation();
+    location = { lat: here.lat, lng: here.lng };
+  } catch {
+    // Sin ubicación se busca igual, sin ordenar por distancia.
+  }
+}
+async function ask(question: string): Promise<Reply> {
+  if (/cerca de m[ií]|cerca a m[ií]|m[aá]s cerca|por aqu[ií]/i.test(question)) await locate();
+  const result = await api<{ reply: Reply; context: BrainContext }>('POST', '/asistente', {
+    question,
+    context,
+    location,
+  });
+  context = result.context;
+  return result.reply;
 }
 </script>
 <template>
@@ -25,17 +49,20 @@ async function ask(q: string) {
     </button>
     <ChatCard
       title="Asistente SucreIA"
-      greeting="¡Hola! 👋 Soy el asistente de SucreIA. Puedo ayudarte a:"
-      :bullets="[
-        'Encontrar productos y servicios',
-        'Buscar por sector o municipio',
-        'Resolver dudas sobre puntos y entregas',
-      ]"
+      :greeting="intro.greeting"
+      :bullets="intro.bullets"
+      :suggestions="intro.suggestions"
       :ask="ask"
-      note="Responde con los negocios publicados en SucreIA."
+      note="Responde con la ayuda de SucreIA y los negocios publicados."
     />
   </div>
-  <button v-else type="button" class="sx-fab" @click="open = true">
+  <button
+    v-else
+    type="button"
+    class="sx-fab"
+    aria-label="Abrir el Asistente SucreIA"
+    @click="open = true"
+  >
     <span class="sx-bot"><Bot :size="24" /></span>
     <div>
       <strong>Asistente SucreIA</strong>

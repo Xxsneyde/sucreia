@@ -6,18 +6,19 @@ import {
   BookOpen,
   CalendarDays,
   ChartNoAxesColumn,
-  WandSparkles,
   ChevronDown,
   ChevronRight,
   CircleUser,
   GraduationCap,
   Heart,
   House,
+  Inbox,
   LayoutDashboard,
   LayoutGrid,
   MapPin,
   Menu,
   Package,
+  Rocket,
   Search,
   Settings,
   ShieldCheck,
@@ -28,6 +29,7 @@ import {
   Tag,
   Truck,
   UserRound,
+  WandSparkles,
   X,
 } from '@lucide/vue';
 import { usePlatform } from '@/lib/platform-store';
@@ -35,11 +37,14 @@ import { useStudio } from '@/lib/studio-store';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
 import {
-  isMerchant,
-  modeFor,
+  canBuyRole,
+  defaultMode,
+  modeHome,
+  modeNames,
   navFor,
-  type CourierState,
   type IconName,
+  type Mode,
+  type NavItem,
   type StoreKind,
 } from '@/domain/roles';
 import { requiresSession } from '@/domain/access';
@@ -47,11 +52,13 @@ import LogoutButton from '@/components/LogoutButton.vue';
 import SucreLogo from '@/components/sucre/SucreLogo.vue';
 import SearchBox from '@/components/sucre/SearchBox.vue';
 import AssistantFab from '@/components/sucre/AssistantFab.vue';
+import FloatingCart from '@/components/sucre/FloatingCart.vue';
 
 // Marco de la presentación: menú lateral azul, barra superior y contenido.
-// Visitantes y cuentas ven el mismo menú; lo personal aparece después de montar
+// Cada rol tiene su menú; lo personal aparece después de montar
 // (el HTML generado no conoce la sesión y debe coincidir con el primer render).
 const icons: Record<IconName, unknown> = {
+  rocket: Rocket,
   home: House,
   search: Search,
   grid: LayoutGrid,
@@ -74,6 +81,7 @@ const icons: Record<IconName, unknown> = {
   calendar: CalendarDays,
   chart: ChartNoAxesColumn,
   wand: WandSparkles,
+  inbox: Inbox,
 };
 const route = useRoute();
 const path = usePath();
@@ -91,10 +99,7 @@ watch(path, () => {
   menu.value = false;
 });
 const user = computed(() => (mounted.value ? session.user : null));
-const courier = computed<CourierState>(() => {
-  const c = platform.data.value?.courier;
-  return !c ? 'none' : c.approved ? 'approved' : 'pending';
-});
+const mode = computed<Mode>(() => (user.value ? defaultMode(user.value.role) : 'comprar'));
 const studio = useStudio();
 // Tipo del negocio activo: decide el menú (pedidos, reservas o cotizaciones).
 const kind = computed<StoreKind>(() => {
@@ -102,29 +107,27 @@ const kind = computed<StoreKind>(() => {
   return store ? store.draft.mode : 'none';
 });
 const nav = computed(() =>
-  navFor(
-    user.value ? { role: user.value.role, courier: courier.value } : null,
-    modeFor(path.value),
-    kind.value,
-  ),
+  navFor(user.value ? { role: user.value.role, courier: 'none' } : null, mode.value, kind.value),
 );
-const active = (href: string) => path.value === href;
+const active = (item: NavItem) => path.value === item.href || !!item.also?.includes(path.value);
+// En el mapa el asistente flotante taparía los controles.
+const onMap = computed(() => /^\/mapa(\/|$)/.test(path.value));
 const unread = computed(() => (user.value ? platform.unread.value : 0));
-const cartCount = computed(() =>
-  user.value ? platform.cart.value.reduce((n, l) => n + l.quantity, 0) : 0,
-);
 const firstName = computed(() => user.value?.name.trim().split(/\s+/)[0] ?? '');
 const banner = computed(() => route.meta.banner === true);
 // Las páginas con cuenta dependen de la sesión: se dibujan después de montar.
 const privatePage = computed(() => requiresSession(path.value));
 const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPath)}`);
+const buyer = computed(() => !!user.value && canBuyRole(user.value.role));
+// El buscador de arriba es de la vista de cliente (y siempre en Buscar negocios).
+const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.test(path.value));
 </script>
 
 <template>
   <div :class="['sx', { 'sx--banner': banner }]">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <aside :class="['sx-side', { open: drawer }]" aria-label="Menú de SucreIA">
-      <NuxtLink class="sx-side-brand" to="/inicio" aria-label="SucreIA, inicio">
+      <NuxtLink class="sx-side-brand" :to="modeHome(mode)" aria-label="SucreIA, inicio">
         <SucreLogo :size="42" />
         <small>El ecosistema digital de<br />emprendimientos de Sucre</small>
       </NuxtLink>
@@ -135,8 +138,9 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
             v-for="item in section.items"
             :key="item.href"
             :to="item.href"
-            :class="{ active: active(item.href) }"
-            :aria-current="active(item.href) ? 'page' : undefined"
+            :target="item.newTab ? '_blank' : undefined"
+            :class="{ active: active(item) }"
+            :aria-current="active(item) ? 'page' : undefined"
           >
             <component :is="icons[item.icon]" :size="21" :stroke-width="1.9" />
             <span>{{ item.label }}</span>
@@ -146,7 +150,7 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
           </NuxtLink>
         </div>
       </nav>
-      <NuxtLink class="sx-side-account" :to="user ? '/perfil' : login" style="margin-top: auto">
+      <NuxtLink class="sx-side-account" :to="user ? '/perfil' : login">
         <CircleUser :size="24" />
         <span>{{ user ? 'Mi cuenta' : 'Ingresar' }}</span>
         <ChevronRight :size="18" />
@@ -165,17 +169,12 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
         >
           <X v-if="drawer" :size="22" /><Menu v-else :size="22" />
         </button>
-        <SearchBox label="" placeholder="¿Qué producto o servicio necesitas en Sucre?" />
+        <SearchBox
+          v-if="showSearch"
+          label=""
+          placeholder="¿Qué producto o servicio necesitas en Sucre?"
+        />
         <div class="sx-top-end">
-          <NuxtLink
-            v-if="user"
-            class="sx-iconbtn"
-            to="/carrito"
-            :aria-label="`Carrito: ${cartCount} productos`"
-          >
-            <ShoppingCart :size="21" />
-            <span v-if="cartCount" class="sx-badge">{{ cartCount }}</span>
-          </NuxtLink>
           <NuxtLink
             v-if="user"
             class="sx-iconbtn"
@@ -200,11 +199,10 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
                 <ChevronDown :size="17" />
               </button>
               <div v-if="menu" class="sx-menu">
-                <NuxtLink to="/perfil"><CircleUser :size="18" /> Mi cuenta</NuxtLink>
-                <NuxtLink v-if="isMerchant(user.role)" to="/panel"
-                  ><Store :size="18" /> Mi negocio</NuxtLink
+                <p class="sx-menu-note">Cuenta de {{ modeNames[mode].toLowerCase() }}</p>
+                <NuxtLink v-if="buyer" to="/pedidos"
+                  ><ShoppingCart :size="18" /> Mis compras</NuxtLink
                 >
-                <NuxtLink to="/pedidos"><ShoppingCart :size="18" /> Mis compras</NuxtLink>
                 <LogoutButton />
               </div>
             </template>
@@ -219,6 +217,11 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
       <footer class="sx-footer">
         SucreIA · El ecosistema digital de emprendimientos de Sucre. Pagos acordados con cada
         negocio; sin cobros automáticos.
+        <nav aria-label="Información de SucreIA">
+          <NuxtLink to="/quienes-somos">Quiénes somos</NuxtLink> ·
+          <NuxtLink to="/terminos">Términos y condiciones</NuxtLink> ·
+          <NuxtLink to="/pqrs">PQRS</NuxtLink>
+        </nav>
       </footer>
     </div>
     <nav class="sx-bottom" aria-label="Navegación en celular">
@@ -226,12 +229,14 @@ const login = computed(() => `/ingresar?volver=${encodeURIComponent(route.fullPa
         v-for="item in nav.mobile"
         :key="item.href"
         :to="item.href"
-        :class="{ active: active(item.href) }"
+        :target="item.newTab ? '_blank' : undefined"
+        :class="{ active: active(item) }"
       >
         <component :is="icons[item.icon]" :size="20" />
         <span>{{ item.label }}</span>
       </NuxtLink>
     </nav>
-    <AssistantFab />
+    <FloatingCart v-if="buyer" />
+    <AssistantFab v-if="!onMap" />
   </div>
 </template>

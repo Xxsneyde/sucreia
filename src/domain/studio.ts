@@ -453,3 +453,46 @@ function isVersion(v: unknown): v is StoreVersion {
 }
 
 export { styles, type StyleId };
+
+// --- Redes sociales e imágenes reducidas ---------------------------------------------------
+
+export type SocialNetwork = 'instagram' | 'facebook' | 'tiktok';
+const socialNetworks: Record<SocialNetwork, { host: string; profile: (user: string) => string }> = {
+  instagram: { host: 'instagram.com', profile: (u) => `https://www.instagram.com/${u}` },
+  facebook: { host: 'facebook.com', profile: (u) => `https://www.facebook.com/${u}` },
+  tiktok: { host: 'tiktok.com', profile: (u) => `https://www.tiktok.com/@${u}` },
+};
+/**
+ * Enlace seguro a la red social del negocio. Acepta «@usuario», «usuario» o la dirección del
+ * perfil; cualquier otro sitio devuelve '' para no enlazar a páginas ajenas.
+ */
+export function socialUrl(network: SocialNetwork, value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '';
+  const { host, profile } = socialNetworks[network];
+  if (/^https?:\/\//i.test(raw) || raw.includes(host))
+    try {
+      const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+      const hostname = url.hostname.toLowerCase();
+      if (
+        (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+        (hostname !== host &&
+          !hostname.endsWith(`.${host}`) &&
+          (network !== 'facebook' || hostname !== 'fb.com'))
+      )
+        return '';
+      url.protocol = 'https:';
+      return url.href;
+    } catch {
+      return '';
+    }
+  const user = raw.replace(/^@+/, '');
+  return /^[A-Za-z0-9._-]{1,60}$/.test(user) ? profile(user) : '';
+}
+/** Versión de 480 px de una foto subida (para miniaturas); otras imágenes quedan igual. */
+export function thumbnail(src: string | null | undefined): string {
+  const value = src ?? '';
+  return /^\/api\/imagenes\/[a-f0-9]{64}\.webp$/.test(value)
+    ? value.replace(/\.webp$/, '-480.webp')
+    : value;
+}

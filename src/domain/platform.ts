@@ -209,3 +209,94 @@ export type PqrsKind = (typeof pqrsKinds)[number];
 export const pqrsFileMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
 export const pqrsFileMaxBytes = 5 * 1024 * 1024;
 export const radicado = (id: string): string => id.slice(0, 8).toUpperCase();
+export type PqrsStatus = 'pending' | 'answered' | 'closed';
+export const pqrsStatusNames: Record<PqrsStatus, string> = {
+  pending: 'Pendiente',
+  answered: 'Caso abierto',
+  closed: 'Resuelto',
+};
+export interface PqrsFile {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  /** null = adjunto de la solicitud inicial. */
+  messageId: string | null;
+}
+export interface PqrsMessage {
+  id: string;
+  fromAdmin: boolean;
+  author: string;
+  body: string;
+  createdAt: string;
+}
+/** Caso de PQRS como lo devuelve la API (/plataforma/pqrs y /admin/pqrs). */
+export interface PqrsCase {
+  id: string;
+  kind: PqrsKind;
+  message: string;
+  status: PqrsStatus;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  messages: PqrsMessage[];
+  files: PqrsFile[];
+  /** Solo en la vista de la administración. */
+  user?: { id: string; name: string; email: string; role: string };
+}
+
+// --- Horario legible y orden del catálogo --------------------------------------------------
+
+/** Días de lunes a domingo (índices de dayNames). */
+export const weekOrder = [1, 2, 3, 4, 5, 6, 0];
+/** 9 → «9:00 a. m.», 12 → «12:00 m.», 18 → «6:00 p. m.». */
+export function hourLabel(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  return h === 12 ? '12:00 m.' : `${h % 12 || 12}:00 ${h < 12 ? 'a. m.' : 'p. m.'}`;
+}
+/** «Lunes a viernes, 8:00 a. m. a 6:00 p. m. · Sábado, 9:00 a. m. a 1:00 p. m.» */
+export function weekSummary(week: (DaySchedule | null | undefined)[]): string {
+  const key = (d: DaySchedule | null | undefined) =>
+    !d || d.closed ? '' : `${d.opens}-${d.closes}`;
+  const runs: { from: number; to: number; day: DaySchedule }[] = [];
+  for (const i of weekOrder) {
+    const day = week[i];
+    if (!day || day.closed) continue;
+    const last = runs.at(-1);
+    const previous = weekOrder[weekOrder.indexOf(i) - 1];
+    if (last && last.to === previous && key(week[last.from]) === key(day)) last.to = i;
+    else runs.push({ from: i, to: i, day });
+  }
+  if (!runs.length) return '';
+  return runs
+    .map(({ from, to, day }) => {
+      const days =
+        from === 1 && to === 0
+          ? 'Todos los días'
+          : from === to
+            ? dayNames[from]
+            : `${dayNames[from]} ${weekOrder.indexOf(to) - weekOrder.indexOf(from) === 1 ? 'y' : 'a'} ${dayNames[to].toLocaleLowerCase('es')}`;
+      return `${days}, ${hourLabel(day.opens)} a ${hourLabel(day.closes)}`;
+    })
+    .join(' · ');
+}
+/**
+ * Productos con reseñas primero (mejor calificación y más reseñas); los demás conservan el
+ * orden del catálogo.
+ */
+export function rankByRating<T extends { id: string }>(
+  products: T[],
+  stats: Record<string, { rating: number; count: number }> | undefined,
+): T[] {
+  const statOf = (p: T) => stats?.[p.id];
+  return products
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const x = statOf(a.p),
+        y = statOf(b.p);
+      if (x && y) return y.rating - x.rating || y.count - x.count || a.i - b.i;
+      if (x || y) return x ? -1 : 1;
+      return a.i - b.i;
+    })
+    .map((e) => e.p);
+}
