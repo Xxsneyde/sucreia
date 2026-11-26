@@ -15,7 +15,7 @@ const emit = defineEmits<{ pick: [sector: string] }>();
         :to="{ path: '/buscar', query: { sector: s.id } }"
       >
         <SectorIcon :sector="s.id" :size="28" />
-        <span>{{ s.lines[0] }}<br />{{ s.lines[1] }}</span>
+        <span>{{ s.lines[0] }}<br />{{ s.lines[1].toLocaleLowerCase('es') }}</span>
       </NuxtLink>
       <button
         v-else
@@ -26,7 +26,7 @@ const emit = defineEmits<{ pick: [sector: string] }>();
         @click="emit('pick', active === s.id ? '' : s.id)"
       >
         <SectorIcon :sector="s.id" :size="28" />
-        <span>{{ s.lines[0] }}<br />{{ s.lines[1] }}</span>
+        <span>{{ s.lines[0] }}<br />{{ s.lines[1].toLocaleLowerCase('es') }}</span>
       </button>
     </template>
   </div>

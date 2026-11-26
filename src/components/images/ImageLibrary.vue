@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumbnail } from '@/domain/studio';
 import { ref } from 'vue';
 import { api } from '@/lib/api';
 import type { LibraryImage } from '@/lib/images';
@@ -57,7 +58,7 @@ async function remove(image: LibraryImage) {
           :aria-label="`Usar imagen ${index + 1}`"
           @click="emit('choose', image.url)"
         >
-          <img :src="image.url" alt="" loading="lazy" />
+          <img :src="thumbnail(image.url)" alt="" loading="lazy" />
           <span>Usar imagen {{ index + 1 }}</span>
         </button>
         <small

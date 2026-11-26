@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumbnail } from '@/domain/studio';
 import { reactive, ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
 import { usePlatform } from '@/lib/platform-store';
@@ -167,7 +168,7 @@ const shortDate = (iso: string) =>
         </p>
         <img
           v-if="op.courierAvatar"
-          :src="op.courierAvatar"
+          :src="thumbnail(op.courierAvatar)"
           :alt="`Foto de ${op.courierName}`"
           width="64"
           height="64"

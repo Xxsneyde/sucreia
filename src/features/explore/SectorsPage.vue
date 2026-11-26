@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { ArrowRight } from '@lucide/vue';
-import { sectors } from '@/domain/sectors';
+import { sectors, sentenceCase } from '@/domain/sectors';
 import { useDirectory } from '@/lib/directory';
 import PageBanner from '@/components/sucre/PageBanner.vue';
 import SearchBox from '@/components/sucre/SearchBox.vue';
@@ -32,7 +32,7 @@ const counts = computed(() => {
       <span class="sc-icon" :style="{ background: `${s.color}1a` }"
         ><SectorIcon :sector="s.id" :size="34"
       /></span>
-      <h2>{{ s.id }}</h2>
+      <h2>{{ sentenceCase(s.id) }}</h2>
       <span class="muted"
         >{{ counts[s.id] ?? 0 }}
         {{ (counts[s.id] ?? 0) === 1 ? 'emprendimiento' : 'emprendimientos' }}</span

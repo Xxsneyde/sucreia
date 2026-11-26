@@ -3,11 +3,13 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Bot, CalendarDays, FileText, Heart, MapPin, ShoppingCart } from '@lucide/vue';
 import type { Business } from '@/domain/types';
-import { sectorFor } from '@/domain/sectors';
-import { businessHref } from '@/domain/studio';
+import { sectorFor, sentenceCase } from '@/domain/sectors';
+import { businessHref, thumbnail } from '@/domain/studio';
 import { useSession } from '@/lib/session';
 import { usePlatform } from '@/lib/platform-store';
+import { canBuyRole } from '@/domain/roles';
 import StarRating from './StarRating.vue';
+import VerifiedBadge from './VerifiedBadge.vue';
 // Tarjeta de resultado de la presentación (foto, sector, logo, valoración, Bot IA y acción).
 const props = defineProps<{ business: Business }>();
 const session = useSession();
@@ -42,7 +44,7 @@ async function toggle() {
     <div class="sx-biz-media">
       <NuxtLink :to="href" tabindex="-1" aria-hidden="true">
         <img
-          :src="business.cover || `/art/${business.theme}.svg`"
+          :src="thumbnail(business.cover) || `/art/${business.theme}.svg`"
           :class="{ art: art(business.cover) }"
           alt=""
           loading="lazy"
@@ -50,6 +52,7 @@ async function toggle() {
       </NuxtLink>
       <span class="sx-biz-tag">{{ sector.id }}</span>
       <button
+        v-if="!session.user || canBuyRole(session.user.role)"
         type="button"
         :class="['sx-heart', { on: favorite }]"
         :aria-pressed="favorite"
@@ -66,12 +69,13 @@ async function toggle() {
     <div class="sx-biz-body">
       <div class="sx-biz-id">
         <span class="sx-logo">
-          <img v-if="business.logo" :src="business.logo" alt="" loading="lazy" />
+          <img v-if="business.logo" :src="thumbnail(business.logo)" alt="" loading="lazy" />
           <template v-else>{{ business.name.slice(0, 1) }}</template>
         </span>
         <div style="min-width: 0">
           <h3>
-            <NuxtLink :to="href">{{ business.name }}</NuxtLink>
+            <NuxtLink :to="href">{{ sentenceCase(business.name) }}</NuxtLink
+            ><VerifiedBadge v-if="business.verified" :size="17" />
           </h3>
           <span class="sx-place"><MapPin :size="13" /> {{ business.municipality }}, Sucre</span>
           <StarRating :rating="business.rating" :count="business.reviewCount ?? 0" />

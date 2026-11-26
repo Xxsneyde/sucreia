@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumbnail } from '@/domain/studio';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { usePlatform } from '@/lib/platform-store';
@@ -271,7 +272,7 @@ async function removeEvent(id: string) {
         >
           <img
             v-if="c.avatar"
-            :src="c.avatar"
+            :src="thumbnail(c.avatar)"
             :alt="`Foto de ${c.name}`"
             width="72"
             height="72"
