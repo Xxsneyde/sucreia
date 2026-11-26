@@ -1,0 +1,17 @@
+{
+  "name": "sucreia",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "main": "server.mjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "sharp": "0.35.5",
+    "nodemailer": "10.6.1"
+  }
+}

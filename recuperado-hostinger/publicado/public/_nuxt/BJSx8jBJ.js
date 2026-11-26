@@ -1,0 +1,1 @@
+var e=`/panel/configurar`;function t(){try{return window.open(``,`_blank`)}catch{return null}}function n(e){return!e||e.closed?!1:(e.location.href=`/registro-negocio`,!0)}function r(e){if(typeof BroadcastChannel>`u`)return()=>{};let t=new BroadcastChannel(`sucreia`);return t.onmessage=t=>{t.data?.type===`registro-enviado`&&e()},()=>t.close()}export{n as i,r as n,t as r,e as t};

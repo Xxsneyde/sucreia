@@ -1,0 +1,1 @@
+import"./DwXIy7yQ.js";import{b as e}from"./3G4mkBp1.js";import{N as t}from"./DxiUQiCP.js";var n=t({__name:`[...ruta]`,setup(t){throw e({statusCode:404,statusMessage:`Página no encontrada`,fatal:!0})}});export{n as default};
