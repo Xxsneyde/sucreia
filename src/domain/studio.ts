@@ -73,6 +73,10 @@ export interface StoreVersion {
 }
 export interface StoreProject {
   id: string;
+  /** Registro del negocio ante la administración (solo en tiendas de la API). */
+  registration?: 'none' | 'pending' | 'approved' | 'rejected';
+  /** Se pidió publicar y la administración aún no responde. */
+  publicationRequested?: boolean;
   createdAt: string;
   updatedAt: string;
   draft: StoreDesign;

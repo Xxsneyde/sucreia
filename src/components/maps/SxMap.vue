@@ -32,7 +32,10 @@ const emoji = { store: '🏪', client: '🏠', courier: '🛵' };
 function draw() {
   if (!map || !L || !layer) return;
   layer.clearLayers();
-  for (const p of props.points)
+  for (const p of props.points) {
+    // El nombre va como texto, no como HTML: puede venir de lo que escribió un negocio.
+    const tooltip = document.createElement('span');
+    tooltip.textContent = p.label;
     L.marker([p.lat, p.lng], {
       title: p.label,
       icon: L.divIcon({
@@ -42,8 +45,9 @@ function draw() {
         iconAnchor: [18, 34],
       }),
     })
-      .bindTooltip(p.label)
+      .bindTooltip(tooltip)
       .addTo(layer);
+  }
   if (props.points.length > 1)
     map.fitBounds(L.latLngBounds(props.points.map((p) => [p.lat, p.lng])), {
       padding: [40, 40],

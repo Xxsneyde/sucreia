@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ExternalLink, EyeOff, Plus, Send, Store } from '@lucide/vue';
+import { ExternalLink, EyeOff, Plus, Send } from '@lucide/vue';
 import { useStudio } from '@/lib/studio-store';
-import { createDesign, publicationErrors, type StoreDesign } from '@/domain/studio';
+import {
+  publicationErrors,
+  socialUrl,
+  type SocialNetwork,
+  type StoreDesign,
+} from '@/domain/studio';
 import type { BusinessMode } from '@/domain/types';
-import { municipalities, sectors } from '@/domain/sectors';
+import {
+  municipalities,
+  sectors,
+  sentenceCase,
+  subcategoriesFor,
+  subregionFor,
+} from '@/domain/sectors';
 import ImageField from '@/components/images/ImageField.vue';
 import PageTitle from '@/components/PageTitle.vue';
 
-// Datos del negocio: reemplaza al Estudio. El emprendedor llena sus datos y fotos, y su página
-// pública sale con el diseño de la presentación (features/explore/BusinessPage.vue).
+// Datos del negocio: el emprendedor llena sus datos y fotos, y su página pública sale con el
+// diseño de la presentación (features/explore/BusinessPage.vue). Un negocio nuevo se registra
+// desde /panel/configurar; la administración aprueba el registro antes de publicarlo.
 const studio = useStudio();
 const store = computed(
   () => studio.projects.find((s) => s.id === studio.selectedId) ?? studio.projects[0],
@@ -55,7 +67,11 @@ async function publish() {
     set({
       content: { ...d.value!.content, promises: d.value!.content.promises.filter((x) => x.trim()) },
     });
-    await studio.publish(store.value.id);
+    const result = await studio.publish(store.value.id);
+    if (!result.published) {
+      message.value = 'Solicitud enviada. Administración revisará tu negocio antes de publicarlo.';
+      return;
+    }
     message.value = 'Tu negocio está publicado. Así lo ven los clientes en SucreIA.';
   } catch (e) {
     message.value = (e as Error).message;
@@ -77,38 +93,17 @@ async function unpublish() {
   }
 }
 
-// --- Crear un negocio --------------------------------------------------------------------
-const creating = ref(false);
-const draft = ref({
-  name: '',
-  sector: sectors[0].id,
-  municipality: 'Sincelejo',
-  mode: 'products' as BusinessMode,
-});
-async function create() {
-  busy.value = true;
-  message.value = '';
-  try {
-    const base = createDesign(draft.value.sector, draft.value.name.trim());
-    base.municipality = draft.value.municipality;
-    base.mode = draft.value.mode;
-    if (draft.value.mode === 'quote')
-      base.products = base.products.map((x) => ({ ...x, price: 0 }));
-    await studio.create(base);
-    creating.value = false;
-    message.value =
-      'Creamos tu negocio con productos de ejemplo. Cámbialos por los tuyos antes de publicar.';
-  } catch (e) {
-    message.value = (e as Error).message;
-  } finally {
-    busy.value = false;
-  }
-}
 const modes: { id: BusinessMode; label: string }[] = [
   { id: 'products', label: 'Vendo productos (pedidos con carrito)' },
   { id: 'booking', label: 'Ofrezco servicios con cita o reserva' },
   { id: 'quote', label: 'Trabajo por cotización' },
 ];
+const networks: { id: SocialNetwork; label: string; placeholder: string }[] = [
+  { id: 'instagram', label: 'Instagram', placeholder: '@mi.negocio' },
+  { id: 'facebook', label: 'Facebook', placeholder: 'facebook.com/minegocio' },
+  { id: 'tiktok', label: 'TikTok', placeholder: '@minegocio' },
+];
+const invalidSocial = (id: SocialNetwork) => !!d.value?.[id]?.trim() && !socialUrl(id, d.value[id]);
 </script>
 
 <template>
@@ -125,8 +120,8 @@ const modes: { id: BusinessMode; label: string }[] = [
             ? 'No se pudo guardar'
             : 'Cambios guardados'
       }}</span>
-      <NuxtLink v-if="store.published" class="sx-btn sx-btn--ghost" :to="`/tienda?id=${store.id}`"
-        ><ExternalLink :size="17" /> Ver mi página</NuxtLink
+      <NuxtLink v-if="store.published" class="sx-btn sx-btn--ghost" :to="`/tienda?id=${store.id}`">
+        <ExternalLink :size="17" /> Ver mi página</NuxtLink
       >
       <button
         type="button"
@@ -138,60 +133,18 @@ const modes: { id: BusinessMode; label: string }[] = [
       </button>
     </div>
   </PageTitle>
-
   <p v-if="message" class="notice" role="status">{{ message }}</p>
   <p v-if="studio.error" class="notice" role="alert">{{ studio.error }}</p>
-
   <p v-if="!studio.ready" class="loader" role="status">Cargando tu negocio…</p>
 
-  <form
-    v-else-if="!store || creating"
-    class="sx-card form-stack be-create"
-    @submit.prevent="create"
-  >
-    <div class="be-create-head">
-      <span class="sx-bot"><Store :size="24" /></span>
-      <div>
-        <h2>{{ store ? 'Crear otro negocio' : 'Crea tu negocio en SucreIA' }}</h2>
-        <p class="muted" style="margin: 0">
-          Empieza con lo básico; después agregas fotos, contacto y productos.
-        </p>
-      </div>
-    </div>
-    <label
-      >Nombre del negocio<input
-        v-model="draft.name"
-        required
-        maxlength="80"
-        placeholder="Ej.: Delicias de Sucre"
-    /></label>
-    <div class="be-two">
-      <label
-        >Sector
-        <select v-model="draft.sector">
-          <option v-for="s in sectors" :key="s.id" :value="s.id">{{ s.id }}</option>
-        </select>
-      </label>
-      <label
-        >Municipio
-        <select v-model="draft.municipality">
-          <option v-for="m in municipalities" :key="m" :value="m">{{ m }}</option>
-        </select>
-      </label>
-    </div>
-    <fieldset>
-      <legend><strong>¿Cómo atiendes a tus clientes?</strong></legend>
-      <label v-for="m in modes" :key="m.id"
-        ><input v-model="draft.mode" type="radio" :value="m.id" /> {{ m.label }}</label
-      >
-    </fieldset>
-    <div class="be-row">
-      <button class="sx-btn" :disabled="busy">{{ busy ? 'Creando…' : 'Crear mi negocio' }}</button>
-      <button v-if="store" type="button" class="sx-btn sx-btn--ghost" @click="creating = false">
-        Cancelar
-      </button>
-    </div>
-  </form>
+  <section v-else-if="!store" class="sx-card form-stack be-create">
+    <h2>Aún no registras tu negocio</h2>
+    <p class="muted">
+      Llena el registro con tus datos, fotos y documentos. La administración lo revisa antes de
+      publicarlo.
+    </p>
+    <NuxtLink class="sx-btn" to="/panel/configurar">Abrir el formulario de registro</NuxtLink>
+  </section>
 
   <div v-else-if="d" class="be-grid">
     <div class="be-main">
@@ -201,19 +154,27 @@ const modes: { id: BusinessMode; label: string }[] = [
           :value="store.id"
           @change="studio.select(($event.target as HTMLSelectElement).value)"
         >
-          <option v-for="s in studio.projects" :key="s.id" :value="s.id">
-            {{ s.draft.name || 'Sin nombre' }}
+          <option v-for="p in studio.projects" :key="p.id" :value="p.id">
+            {{ p.draft.name || 'Sin nombre' }}
           </option>
         </select>
       </label>
 
       <section class="sx-card form-stack">
         <h2>Identidad</h2>
+        <p v-if="store?.registration === 'pending'">
+          Registro pendiente de aprobación administrativa.
+        </p>
+        <p v-if="store?.registration === 'rejected'">
+          Registro rechazado. Revisa tus notificaciones, ajusta los datos y vuelve a solicitar la
+          publicación.
+        </p>
         <label
           >Nombre del negocio<input
             :value="d.name"
             required
             maxlength="80"
+            @blur="set({ name: sentenceCase(d.name) })"
             @input="set({ name: ($event.target as HTMLInputElement).value })"
         /></label>
         <div class="be-two">
@@ -221,14 +182,29 @@ const modes: { id: BusinessMode; label: string }[] = [
             >Sector
             <select
               :value="d.category"
-              @change="set({ category: ($event.target as HTMLSelectElement).value })"
+              @change="
+                set({ subcategory: '', category: ($event.target as HTMLSelectElement).value })
+              "
             >
-              <option v-for="s in sectors" :key="s.id" :value="s.id">{{ s.id }}</option>
+              <option v-for="s in sectors" :key="s.id" :value="s.id">
+                {{ sentenceCase(s.id) }}
+              </option>
               <option v-if="!sectors.some((s) => s.id === d!.category)" :value="d.category">
                 {{ d.category }}
               </option>
-            </select>
-          </label>
+            </select></label
+          >
+          <label
+            >Subcategoría
+            <select
+              :value="d.subcategory || ''"
+              @change="set({ subcategory: ($event.target as HTMLSelectElement).value })"
+            >
+              <option value="">Sin especificar</option>
+              <option v-for="s in subcategoriesFor(d.category)" :key="s">{{ s }}</option>
+            </select></label
+          >
+          <small>Subregión · {{ subregionFor(d.municipality)?.id }}</small>
           <label
             >Municipio
             <select
@@ -239,8 +215,8 @@ const modes: { id: BusinessMode; label: string }[] = [
               <option v-if="!municipalities.includes(d.municipality)" :value="d.municipality">
                 {{ d.municipality }}
               </option>
-            </select>
-          </label>
+            </select></label
+          >
         </div>
         <label
           >Cómo atiendes
@@ -249,8 +225,8 @@ const modes: { id: BusinessMode; label: string }[] = [
             @change="set({ mode: ($event.target as HTMLSelectElement).value as BusinessMode })"
           >
             <option v-for="m in modes" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
-        </label>
+          </select></label
+        >
         <label
           >Descripción corta
           <textarea
@@ -261,18 +237,19 @@ const modes: { id: BusinessMode; label: string }[] = [
           />
           <span class="field-help"
             >Aparece en la portada de tu página y en los resultados de búsqueda.</span
-          >
-        </label>
+          ></label
+        >
         <div class="be-two">
           <ImageField
             label="Logo"
+            crop
             :model-value="d.logo"
-            @update:model-value="set({ logo: $event })"
+            @update:model-value="(v: string) => set({ logo: v })"
           />
           <ImageField
             label="Foto de portada"
             :model-value="d.content.heroImage"
-            @update:model-value="setContent({ heroImage: $event })"
+            @update:model-value="(v: string) => setContent({ heroImage: v })"
           />
         </div>
       </section>
@@ -291,7 +268,7 @@ const modes: { id: BusinessMode; label: string }[] = [
         <ImageField
           label="Foto de tu proceso o local"
           :model-value="d.content.storyImage"
-          @update:model-value="setContent({ storyImage: $event })"
+          @update:model-value="(v: string) => setContent({ storyImage: v })"
         />
         <div>
           <span class="field-label">Destacados (hasta 4)</span>
@@ -345,6 +322,38 @@ const modes: { id: BusinessMode; label: string }[] = [
               @input="set({ hours: ($event.target as HTMLInputElement).value })"
           /></label>
         </div>
+        <fieldset class="be-social">
+          <legend>Redes sociales (opcional)</legend>
+          <p class="field-help">
+            Escribe tu usuario (por ejemplo @mi.negocio) o pega el enlace de tu perfil. Aparecen en
+            tu página para que los clientes te sigan.
+          </p>
+          <div class="be-three">
+            <label v-for="n in networks" :key="n.id"
+              >{{ n.label }}
+              <input
+                :value="d[n.id] ?? ''"
+                maxlength="200"
+                :placeholder="n.placeholder"
+                :aria-invalid="invalidSocial(n.id)"
+                @input="
+                  set({ [n.id]: ($event.target as HTMLInputElement).value.trim() || undefined })
+                "
+              />
+              <span v-if="invalidSocial(n.id)" class="field-error"
+                >Revisa este dato: usa tu usuario o un enlace de {{ n.label }}.</span
+              >
+              <a
+                v-else-if="socialUrl(n.id, d[n.id])"
+                class="field-help"
+                :href="socialUrl(n.id, d[n.id])"
+                target="_blank"
+                rel="noopener"
+                >Probar enlace</a
+              >
+            </label>
+          </div>
+        </fieldset>
         <label
           >Dirección<input
             :value="d.address"
@@ -364,7 +373,9 @@ const modes: { id: BusinessMode; label: string }[] = [
               ? changed
                 ? 'Publicado · con cambios sin publicar'
                 : 'Publicado'
-              : 'Borrador'
+              : store.publicationRequested
+                ? 'En revisión para publicar'
+                : 'Inactivo'
           }}</span>
         </p>
         <template v-if="errors.length">
@@ -376,89 +387,138 @@ const modes: { id: BusinessMode; label: string }[] = [
         <p v-else class="small muted">Todo listo para publicar.</p>
         <NuxtLink to="/panel/productos" class="sx-link">Editar productos y servicios →</NuxtLink>
         <button
-          v-if="store.published"
+          v-if="store.published || store.publicationRequested"
           type="button"
           class="sx-btn sx-btn--ghost sx-btn--block"
           style="margin-top: 14px"
           :disabled="busy"
           @click="unpublish"
         >
-          <EyeOff :size="17" /> Retirar publicación
+          <EyeOff :size="17" /> {{ store.published ? 'Retirar publicación' : 'Dejar inactivo' }}
         </button>
       </section>
-      <button type="button" class="sx-btn sx-btn--ghost sx-btn--block" @click="creating = true">
-        <Plus :size="17" /> Crear otro negocio
-      </button>
+      <NuxtLink class="sx-btn sx-btn--ghost sx-btn--block" to="/panel/configurar">
+        <Plus :size="17" /> Registrar otro negocio
+      </NuxtLink>
     </aside>
   </div>
 </template>
 
 <style scoped>
 .be-actions {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  display: flex;
 }
 .be-grid {
-  display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 18px;
   align-items: start;
+  gap: 18px;
+  display: grid;
 }
 .be-main,
 .be-side {
-  display: grid;
   gap: 16px;
+  display: grid;
 }
 .be-side {
   position: sticky;
   top: 12px;
 }
-.be-two {
+.be-social {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px 14px;
   display: grid;
+}
+.be-social label {
+  text-align: left;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+}
+.be-social input {
+  border: 1.5px solid var(--field-border);
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+}
+.be-social input[aria-invalid='true'] {
+  border-color: #d93025;
+}
+.be-social a.field-help {
+  font-weight: 500;
+}
+.be-social legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+.be-social .field-help {
+  margin: 0;
+}
+.be-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  display: grid;
+}
+@media (width<=760px) {
+  .be-three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.be-two {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
+  display: grid;
 }
 .be-four {
-  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  display: grid;
 }
 .be-pick {
-  display: grid;
   gap: 6px;
   font-weight: 600;
+  display: grid;
 }
 .be-pick select {
+  border: 1.5px solid var(--field-border);
+  border-radius: 12px;
   min-height: 42px;
-  border: 1px solid #d7e0ec;
-  border-radius: 10px;
   padding: 0 10px;
 }
 .be-errors {
+  color: #b45309;
   margin: 0 0 10px;
   padding-left: 18px;
   font-size: 13px;
-  color: #b45309;
 }
 .sx-tag.off {
-  background: #fff4d6;
   color: #92400e;
+  background: #fff4d6;
 }
 .be-create {
   max-width: 720px;
 }
 .be-create-head {
-  display: flex;
-  gap: 14px;
   align-items: center;
+  gap: 14px;
+  display: flex;
 }
 .be-row {
-  display: flex;
   gap: 10px;
+  display: flex;
 }
-@media (max-width: 1000px) {
+@media (width<=1000px) {
   .be-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -466,9 +526,9 @@ const modes: { id: BusinessMode; label: string }[] = [
     position: static;
   }
 }
-@media (max-width: 600px) {
-  .be-two,
-  .be-four {
+@media (width<=600px) {
+  .be-four,
+  .be-two {
     grid-template-columns: minmax(0, 1fr);
   }
 }

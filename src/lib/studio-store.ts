@@ -252,7 +252,8 @@ const store = {
       setTimeout(() => void save(id).catch(() => {}), SAVE_DELAY),
     );
   },
-  async publish(id: string) {
+  /** Publica o, si falta la aprobación del registro, envía el negocio a revisión. */
+  async publish(id: string): Promise<StoreProject> {
     await flush(id);
     const { store: published } = await api<{ store: StoreProject }>(
       'POST',
@@ -260,6 +261,7 @@ const store = {
     );
     replace(published);
     await loadPublic();
+    return published;
   },
   async unpublish(id: string) {
     const { store: updated } = await api<{ store: StoreProject }>(
