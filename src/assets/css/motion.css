@@ -1,0 +1,299 @@
+/*
+ * Movimiento y microinteracciones de SucreIA.
+ * Reconstruido desde el build publicado en Hostinger (01a215af, 26/11/2026).
+ * La regla global de prefers-reduced-motion en sucre.css desactiva todo esto.
+ */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --stagger: 45ms;
+}
+
+/* ---------- Keyframes ---------- */
+
+@keyframes sx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes sx-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sx-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@keyframes sx-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes sx-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+@keyframes sx-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@keyframes sx-badge {
+  from {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes sx-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes sx-ring {
+  from {
+    box-shadow: 0 0 0 0 rgb(34 177 76 / 45%);
+  }
+  to {
+    box-shadow: 0 0 0 16px rgb(34 177 76 / 0%);
+  }
+}
+
+/* ---------- Entrada de página ---------- */
+
+.ax-inner,
+.page-title,
+.rg-main > *,
+.sx-banner {
+  animation: sx-rise 0.45s var(--ease-out) backwards;
+}
+
+.sx-main .card,
+.sx-main .empty,
+.sx-main .sx-card {
+  animation: sx-rise 0.45s var(--ease-out) backwards;
+  animation-delay: 60ms;
+}
+
+/* ---------- Listas escalonadas ---------- */
+
+:is(
+    .sx-biz,
+    .flow-item,
+    .pe-item,
+    .pq-case,
+    .mb-list > li,
+    .xp-regions li,
+    .ss-row > button,
+    .bp-product,
+    .bp-mini
+  ) {
+  animation: sx-rise 0.42s var(--ease-out) backwards;
+}
+
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(2) {
+  animation-delay: calc(var(--stagger));
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(3) {
+  animation-delay: calc(var(--stagger) * 2);
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(4) {
+  animation-delay: calc(var(--stagger) * 3);
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(5) {
+  animation-delay: calc(var(--stagger) * 4);
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(6) {
+  animation-delay: calc(var(--stagger) * 5);
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(7) {
+  animation-delay: calc(var(--stagger) * 6);
+}
+:is(.sx-biz, .flow-item, .pe-item, .pq-case, .mb-list > li, .xp-regions li, .ss-row > button, .bp-product, .bp-mini):nth-child(n + 8) {
+  animation-delay: calc(var(--stagger) * 7);
+}
+
+/* ---------- Acordeones (flujo, pedidos, PQRS) ---------- */
+
+.flow-body,
+.pe-body,
+.pq-body {
+  animation: sx-unfold 0.3s var(--ease-out) backwards;
+}
+
+.flow-summary,
+.pe-summary,
+.pq-summary {
+  transition: background-color 0.18s ease-out;
+}
+
+.flow-chevron,
+.pe-chevron,
+.pq-chevron {
+  transition: transform 0.3s var(--ease-spring);
+}
+
+/* ---------- Wizard y avisos ---------- */
+
+.bp-main > section,
+.wz-body > .form-stack,
+.wz-body > div:not(.wz-bar):not(.wz-nav) {
+  animation: sx-fade 0.35s var(--ease-out) backwards;
+}
+
+.wz-track i {
+  transition: width 0.5s var(--ease-out);
+}
+
+.fc-sent,
+.notice,
+.wz-done,
+p.field-error {
+  animation: sx-slide-in 0.3s var(--ease-out) backwards;
+}
+
+/* ---------- Chat ---------- */
+
+.sx-bubble {
+  animation: sx-pop 0.32s var(--ease-out) backwards;
+}
+
+.sx-bubble.mine {
+  animation-name: sx-slide-left;
+}
+
+.sx-chat-links li,
+.sx-chat-suggest button {
+  animation: sx-pop 0.3s var(--ease-out) backwards;
+}
+.sx-chat-links li:nth-child(2),
+.sx-chat-suggest button:nth-child(2) {
+  animation-delay: 60ms;
+}
+.sx-chat-links li:nth-child(3),
+.sx-chat-suggest button:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.sx-chat-links li:nth-child(n + 4),
+.sx-chat-suggest button:nth-child(n + 4) {
+  animation-delay: 0.18s;
+}
+
+/* ---------- Estados, badges, FAB y menús ---------- */
+
+.loader,
+[role='status'].loader {
+  animation: sx-breathe 1.4s ease-in-out infinite;
+}
+
+.sx-badge {
+  animation: sx-badge 0.45s var(--ease-spring) backwards;
+}
+
+.sx-fab {
+  animation:
+    sx-pop 0.5s var(--ease-out) 0.4s backwards,
+    sx-ring 1.6s ease-out 1.2s 2;
+}
+
+.sx-fab-panel {
+  transform-origin: bottom right;
+  animation: sx-pop 0.3s var(--ease-out) backwards;
+}
+
+.sx-menu {
+  transform-origin: top right;
+  animation: sx-pop 0.22s var(--ease-out) backwards;
+}
+
+/* ---------- Navegación y pestañas ---------- */
+
+.sx-nav a {
+  transition:
+    background 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+
+.sx-nav a:hover:not(.active) {
+  transform: translateX(3px);
+}
+
+.sx-tabs a,
+.sx-tabs button {
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+/* ---------- Respuesta al toque ---------- */
+
+.ax-social:active:not(:disabled),
+.button:active:not(:disabled),
+.sx-btn:active:not(:disabled),
+.sx-tabs button:active {
+  transition-duration: 80ms;
+  transform: scale(0.97);
+}
+
+:is(.ax-roles label, .form-stack label:has(> input[type='radio']), .pq-kinds label, .wz-modes button) {
+  transition:
+    border-color 0.18s ease-out,
+    background-color 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+
+:is(
+    .ax-roles label:active,
+    .form-stack label:has(> input[type='radio']):active,
+    .pq-kinds label:active,
+    .wz-modes button:active
+  ) {
+  transform: scale(0.985);
+}
+
+/* ---------- Hover ---------- */
+
+.sx-chat-suggest button,
+.xp-regions button {
+  transition:
+    transform 0.18s ease-out,
+    background-color 0.18s ease-out,
+    border-color 0.18s ease-out;
+}
+
+.sx-chat-suggest button:hover,
+.xp-regions button:hover {
+  transform: translateY(-2px);
+}
+
+.sx-biz-media {
+  overflow: hidden;
+}
+
+.sx-biz-media img {
+  transition: transform 0.5s var(--ease-out);
+}
+
+.sx-biz:hover .sx-biz-media img {
+  transform: scale(1.04);
+}

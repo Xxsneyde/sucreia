@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   ssr: true,
   devtools: { enabled: false },
   telemetry: false,
-  css: ['@/assets/css/fonts.css', '@/assets/css/sucre.css'],
+  css: ['@/assets/css/fonts.css', '@/assets/css/sucre.css', '@/assets/css/motion.css'],
   app: {
     head: {
       htmlAttrs: { lang: 'es' },
