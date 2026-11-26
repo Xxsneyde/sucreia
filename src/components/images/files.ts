@@ -28,7 +28,7 @@ export async function readImage(file: File): Promise<string> {
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const result = canvas.toDataURL('image/webp', 0.8);
+    const result = canvas.toDataURL('image/webp', 0.9);
     if (result.length > 1_400_000)
       throw new Error('La imagen es demasiado pesada. Prueba una más pequeña.');
     return result;

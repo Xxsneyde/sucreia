@@ -1,65 +1,125 @@
 <script setup lang="ts">
 import { roleHome } from '@/domain/roles';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { internalReturn } from '@/domain/navigation';
+import { profileGate } from '@/domain/access';
 import LogoutButton from '@/components/LogoutButton.vue';
-import { Eye, EyeOff, Gift, Lock, Mail, Store, ShoppingBag, UserRound } from '@lucide/vue';
+import {
+  Eye,
+  EyeOff,
+  Gift,
+  Lock,
+  Mail,
+  MessageSquareText,
+  ShoppingBag,
+  Smartphone,
+  Store,
+} from '@lucide/vue';
+import { api } from '@/lib/api';
 import { useSession, type Role } from '@/lib/session';
 
+// Iniciar sesión o registrarse. El registro pide correo y contraseña; el nombre, la cédula y la
+// dirección se piden después en /completar-perfil. La cuenta se confirma por correo o por SMS.
 const session = useSession();
 const route = useRoute();
 const router = useRouter();
 const mode = ref<'ingresar' | 'registro'>('ingresar');
-// La página se genera sin la parte «?…» de la dirección; se lee al montar para que el HTML
+// La página se genera sin la parte «?…» de la dirección; se lee al navegar para que el HTML
 // generado y el primer render del navegador coincidan.
-onMounted(() => {
+function readQuery() {
   rememberBack();
   const params = new URLSearchParams(window.location.search);
-  const ref = (typeof route.query.ref === 'string' && route.query.ref) || params.get('ref') || '';
-  if (route.query.cuenta === 'nueva' || params.get('cuenta') === 'nueva' || ref)
-    mode.value = 'registro';
+  const read = (key: string) =>
+    (typeof route.query[key] === 'string' && (route.query[key] as string)) || params.get(key) || '';
+  const ref = read('ref');
+  if (read('cuenta') === 'nueva' || ref) mode.value = 'registro';
   if (/^[A-Za-z0-9]{6}$/.test(ref)) referral.value = ref.toUpperCase();
-  if (route.query.salida === '1') notice.value = 'Cerraste tu sesión correctamente.';
+  if (read('salida') === '1') notice.value = 'Cerraste tu sesión correctamente.';
+  if (read('confirmado') === '1') {
+    mode.value = 'ingresar';
+    if (read('correo')) email.value = read('correo');
+    notice.value = '¡Tu cuenta quedó confirmada! Ingresa con tu correo y contraseña.';
+  }
+  googleResult(read('google'));
+}
+/** ¿Está activa la confirmación por SMS en el servidor? */
+const smsEnabled = ref(false);
+async function loadSms() {
+  try {
+    smsEnabled.value = (await api<{ enabled: boolean }>('GET', '/auth/sms/estado')).enabled;
+  } catch {
+    smsEnabled.value = false;
+  }
+}
+onMounted(() => {
+  void loadGoogle();
+  void loadSms();
+  readQuery();
 });
+watch(
+  () => route.fullPath,
+  () => readQuery(),
+);
+// --- Ingreso con Google (si el servidor tiene la cuenta configurada) ------------------------
+const googleEnabled = ref(false);
+const googleErrors: Record<string, string> = {
+  error: 'No pudimos ingresar con Google. Inténtalo de nuevo.',
+  cancelado: 'Cancelaste el ingreso con Google.',
+  'sin-correo': 'Tu cuenta de Google no tiene un correo verificado.',
+};
+async function loadGoogle() {
+  try {
+    googleEnabled.value = (await api<{ enabled: boolean }>('GET', '/auth/google/estado')).enabled;
+  } catch {
+    googleEnabled.value = false;
+  }
+}
+let shownGoogle = '';
+function googleResult(code: string) {
+  if (!code || shownGoogle === code) return;
+  shownGoogle = code;
+  if (googleErrors[code]) error.value = googleErrors[code];
+}
+function google() {
+  const url = new URL('/api/auth/google', window.location.origin);
+  url.searchParams.set('rol', mode.value === 'registro' ? role.value : 'cliente');
+  if (back.value) url.searchParams.set('volver', back.value);
+  window.location.href = url.href;
+}
 const email = ref('');
-const name = ref('');
 const password = ref('');
 const role = ref<Role>('emprendedor');
 const busy = ref(false);
 const show = ref(false);
 const referral = ref('');
+const verifyBy = ref<'email' | 'sms'>('email');
+const phone = ref('');
 const error = ref('');
 const notice = ref('');
-
-/**
- * Destino al terminar (solo rutas internas de SucreIA). Se guarda en la pestaña al verlo: rara vez,
- * con el equipo muy cargado, la dirección pierde «?volver=» durante el arranque y así no se pierde.
- */
-const RETURN_KEY = 'sucreia:volver';
+// Destino después de ingresar: ?volver=… o el que se guardó antes de ir a Google (2 minutos).
+const BACK_KEY = 'sucreia:volver';
 const savedBack = ref('');
 const back = computed(() => internalReturn(route.query.volver) || savedBack.value);
 function rememberBack() {
   try {
-    const fromUrl = internalReturn(new URLSearchParams(window.location.search).get('volver'));
-    if (fromUrl)
-      sessionStorage.setItem(RETURN_KEY, JSON.stringify({ to: fromUrl, at: Date.now() }));
-    const saved = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? 'null') as {
-      to?: string;
-      at?: number;
+    const target = internalReturn(new URLSearchParams(window.location.search).get('volver'));
+    if (target) sessionStorage.setItem(BACK_KEY, JSON.stringify({ to: target, at: Date.now() }));
+    const saved = JSON.parse(sessionStorage.getItem(BACK_KEY) ?? 'null') as {
+      to: unknown;
+      at: number;
     } | null;
-    // Solo un destino reciente (2 minutos): uno viejo no debe llevar a un lugar inesperado.
     if (saved?.at && Date.now() - saved.at < 120_000) savedBack.value = internalReturn(saved.to);
-    else sessionStorage.removeItem(RETURN_KEY);
+    else sessionStorage.removeItem(BACK_KEY);
   } catch {
-    /* sin almacenamiento: se usa solo la dirección */
+    // Sin almacenamiento de sesión se usa solo ?volver=.
   }
 }
 function forgetBack() {
   try {
-    sessionStorage.removeItem(RETURN_KEY);
+    sessionStorage.removeItem(BACK_KEY);
   } catch {
-    /* nada que borrar */
+    // Nada que borrar.
   }
 }
 async function submit() {
@@ -72,14 +132,20 @@ async function submit() {
     else
       await session.register({
         email: email.value,
-        name: name.value,
         password: password.value,
         role: role.value,
         ...(referral.value.trim() ? { referido: referral.value.trim().toUpperCase() } : {}),
+        verifyBy: verifyBy.value,
+        ...(verifyBy.value === 'sms' ? { phone: phone.value } : {}),
       });
-    const destination = back.value || roleHome(session.user!.role);
+    // Primero confirmar la cuenta o completar el perfil, si falta.
+    const gate = profileGate(session.user, '/');
+    if (gate) {
+      await router.push(gate);
+      return;
+    }
     forgetBack();
-    await router.push(destination);
+    await router.push(back.value || roleHome(session.user!.role));
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -139,11 +205,6 @@ async function submit() {
   </section>
   <form v-else class="ax-form" @submit.prevent="submit">
     <template v-if="mode === 'registro'">
-      <label class="ax-field">
-        <UserRound :size="20" aria-hidden="true" />
-        <span class="sr-only">Tu nombre</span>
-        <input v-model="name" required maxlength="80" autocomplete="name" placeholder="Tu nombre" />
-      </label>
       <fieldset class="ax-roles">
         <legend>¿Cómo usarás SucreIA?</legend>
         <label :class="{ on: role === 'emprendedor' }">
@@ -157,64 +218,138 @@ async function submit() {
           <span><strong>Quiero comprar</strong> Productos y servicios locales</span>
         </label>
       </fieldset>
-      <label class="ax-field">
-        <Gift :size="20" aria-hidden="true" />
-        <span class="sr-only">Código de invitación (opcional)</span>
-        <input
-          v-model="referral"
-          maxlength="6"
-          autocomplete="off"
-          placeholder="Código de invitación (opcional)"
-          style="text-transform: uppercase"
-        />
-      </label>
-    </template>
-    <label class="ax-field">
-      <Mail :size="20" aria-hidden="true" />
-      <span class="sr-only">Correo electrónico</span>
-      <input
-        v-model="email"
-        type="email"
-        required
-        maxlength="254"
-        autocomplete="email"
-        placeholder="Correo electrónico"
-      />
-    </label>
-    <div class="ax-field">
-      <Lock :size="20" aria-hidden="true" />
-      <label for="ax-clave" class="sr-only">Contraseña</label>
-      <input
-        id="ax-clave"
-        v-model="password"
-        :type="show ? 'text' : 'password'"
-        required
-        :minlength="mode === 'registro' ? 8 : 1"
-        maxlength="200"
-        placeholder="Contraseña"
-        :autocomplete="mode === 'registro' ? 'new-password' : 'current-password'"
-        :aria-describedby="mode === 'registro' ? 'clave-ayuda' : undefined"
-      />
-      <button
-        type="button"
-        class="ax-eye"
-        :aria-label="show ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-        :aria-pressed="show"
-        @click="show = !show"
+      <section
+        v-if="role === 'emprendedor'"
+        class="ax-needs"
+        aria-label="Lo que pediremos de tu negocio"
       >
-        <EyeOff v-if="show" :size="20" /><Eye v-else :size="20" />
-      </button>
+        <ol class="ax-flow">
+          <li><span>1</span> Crea tu cuenta.</li>
+          <li><span>2</span> Confirma tu cuenta (por correo o mensaje de texto) e ingresa.</li>
+          <li><span>3</span> Registra tu negocio (se abre en una pestaña nueva).</li>
+        </ol>
+        <p>Ten a la mano lo que la administración de SucreIA revisará antes de publicarlo:</p>
+        <ul>
+          <li>Documento de identidad del titular o representante legal</li>
+          <li>RUT y certificado bancario</li>
+          <li>
+            Cámara de Comercio (obligatoria para persona jurídica; opcional si eres persona natural
+            y la tienes)
+          </li>
+          <li>Logo y foto de portada (mínimo 360 × 360 px)</li>
+          <li>Nombre, descripción, precio y foto de cada producto o servicio</li>
+          <li>Dirección, horario y WhatsApp donde recibirás los pedidos</li>
+        </ul>
+      </section>
+      <div class="ax-f">
+        <label for="ax-codigo" class="ax-label">Código de invitación (opcional)</label>
+        <div class="ax-field">
+          <Gift :size="18" aria-hidden="true" />
+          <input
+            id="ax-codigo"
+            v-model="referral"
+            maxlength="6"
+            autocomplete="off"
+            placeholder="Ej.: AB12CD"
+            style="text-transform: uppercase"
+          />
+        </div>
+      </div>
+    </template>
+    <div class="ax-f">
+      <label for="ax-correo" class="ax-label">Correo electrónico</label>
+      <div class="ax-field">
+        <Mail :size="18" aria-hidden="true" />
+        <input
+          id="ax-correo"
+          v-model="email"
+          type="email"
+          required
+          maxlength="254"
+          autocomplete="email"
+          placeholder="tu@correo.com"
+        />
+      </div>
     </div>
-    <span v-if="mode === 'registro'" id="clave-ayuda" class="small muted"
-      >Mínimo 8 caracteres.</span
+    <div class="ax-f">
+      <label for="ax-clave" class="ax-label">Contraseña</label>
+      <div class="ax-field">
+        <Lock :size="18" aria-hidden="true" />
+        <input
+          id="ax-clave"
+          v-model="password"
+          :type="show ? 'text' : 'password'"
+          required
+          :minlength="mode === 'registro' ? 8 : 1"
+          maxlength="200"
+          :placeholder="mode === 'registro' ? 'Crea una contraseña' : 'Tu contraseña'"
+          :autocomplete="mode === 'registro' ? 'new-password' : 'current-password'"
+          :aria-describedby="mode === 'registro' ? 'clave-ayuda' : undefined"
+        />
+        <button
+          type="button"
+          class="ax-eye"
+          :aria-label="show ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          :aria-pressed="show"
+          @click="show = !show"
+        >
+          <EyeOff v-if="show" :size="19" /><Eye v-else :size="19" />
+        </button>
+      </div>
+      <span v-if="mode === 'registro'" id="clave-ayuda" class="ax-help">Mínimo 8 caracteres.</span>
+    </div>
+    <NuxtLink v-if="mode !== 'registro'" to="/recuperar" class="ax-forgot"
+      >¿Olvidaste tu contraseña?</NuxtLink
     >
-    <NuxtLink v-else to="/recuperar" class="ax-forgot">¿Olvidaste tu contraseña?</NuxtLink>
+    <fieldset v-if="mode === 'registro'" class="ax-roles ax-verify">
+      <legend>¿Cómo confirmas tu cuenta?</legend>
+      <label :class="{ on: verifyBy === 'email' }">
+        <input v-model="verifyBy" type="radio" value="email" />
+        <Mail :size="20" />
+        <span><strong>Por correo</strong> Te enviamos un enlace</span>
+      </label>
+      <label :class="{ on: verifyBy === 'sms', off: !smsEnabled }">
+        <input v-model="verifyBy" type="radio" value="sms" :disabled="!smsEnabled" />
+        <MessageSquareText :size="20" />
+        <span
+          ><strong>Por mensaje de texto</strong>
+          {{ smsEnabled ? 'Te enviamos un código' : 'Próximamente' }}</span
+        >
+      </label>
+    </fieldset>
+    <div v-if="mode === 'registro' && verifyBy === 'sms'" class="ax-f">
+      <label for="ax-celular" class="ax-label">Celular</label>
+      <div class="ax-field">
+        <Smartphone :size="18" aria-hidden="true" />
+        <span class="ax-prefix" aria-hidden="true">+57</span>
+        <input
+          id="ax-celular"
+          v-model="phone"
+          type="tel"
+          inputmode="tel"
+          required
+          maxlength="16"
+          autocomplete="tel-national"
+          placeholder="300 123 4567"
+          aria-describedby="ax-celular-ayuda"
+        />
+      </div>
+      <span id="ax-celular-ayuda" class="ax-help"
+        >Te llegará un código de 6 dígitos por mensaje de texto.</span
+      >
+    </div>
     <p v-if="error" role="alert" class="field-error">{{ error }}</p>
-    <button class="sx-btn sx-btn--navy sx-btn--block ax-submit" :disabled="busy || !session.ready">
+    <button class="sx-btn sx-btn--block ax-submit" :disabled="busy || !session.ready">
       {{ busy ? 'Un momento…' : mode === 'ingresar' ? 'Iniciar sesión' : 'Crear mi cuenta' }}
     </button>
     <div class="ax-or"><span>O continúa con</span></div>
-    <button type="button" class="ax-social" disabled aria-describedby="social-pronto">
+    <button
+      type="button"
+      class="ax-social"
+      :disabled="!googleEnabled"
+      :aria-describedby="googleEnabled ? undefined : 'social-pronto'"
+      @click="google"
+    >
       <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
         <path
           fill="#FFC107"
@@ -233,32 +368,34 @@ async function submit() {
           d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"
         />
       </svg>
-      Iniciar sesión con Google
+      {{ mode === 'registro' ? 'Registrarme con Google' : 'Iniciar sesión con Google' }}
     </button>
-    <button type="button" class="ax-social ax-facebook" disabled aria-describedby="social-pronto">
-      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill="#fff" />
-        <path
-          fill="#1877F2"
-          d="M13.4 24v-8.4h2.8l.4-3.3h-3.2v-2.1c0-.9.3-1.6 1.6-1.6h1.7V5.7c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.2v3.3H10V24h3.4Z"
-        />
-      </svg>
-      Iniciar sesión con Facebook
-    </button>
-    <p id="social-pronto" class="small muted ax-center">
-      <span class="sx-soon">Próximamente</span> El acceso con Google y Facebook se activará cuando
-      la plataforma tenga esas cuentas configuradas.
+    <p v-if="!googleEnabled" id="social-pronto" class="small muted ax-center">
+      <span class="sx-soon">Próximamente</span>
+      El acceso con Google se activará cuando la plataforma tenga esa cuenta configurada.
     </p>
     <p class="ax-center ax-switch">
       <template v-if="mode === 'ingresar'"
         >¿Aún no tienes una cuenta?
-        <button type="button" @click="((mode = 'registro'), (error = ''))">
+        <button
+          type="button"
+          @click="
+            mode = 'registro';
+            error = '';
+          "
+        >
           Regístrate aquí
         </button></template
       >
       <template v-else
         >¿Ya tienes una cuenta?
-        <button type="button" @click="((mode = 'ingresar'), (error = ''))">
+        <button
+          type="button"
+          @click="
+            mode = 'ingresar';
+            error = '';
+          "
+        >
           Inicia sesión
         </button></template
       >
@@ -268,26 +405,81 @@ async function submit() {
 </template>
 
 <style scoped>
-.ax-tabs {
+.ax-needs {
+  background: var(--green-soft);
+  color: var(--ink);
+  border-radius: 14px;
+  gap: 6px;
+  padding: 12px 14px;
+  font-size: 13px;
   display: grid;
+}
+.ax-flow {
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0;
+  font-weight: 600;
+  list-style: none;
+  display: grid;
+}
+.ax-flow li {
+  align-items: center;
+  gap: 10px;
+  display: flex;
+}
+.ax-flow span {
+  background: var(--green);
+  color: #fff;
+  border-radius: 50%;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  display: grid;
+}
+.ax-needs p {
+  color: var(--text);
+  margin: 0;
+}
+.ax-needs ul {
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+}
+.ax-tabs {
+  background: #e3eaf4;
+  border-radius: 12px;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 5px;
   margin-bottom: 26px;
-  border: 1px solid #dfe6f0;
-  border-radius: 14px;
-  background: #f4f7fb;
+  padding: 4px;
+  display: grid;
 }
 .ax-tabs button {
-  min-height: 48px;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 500;
+  color: #475569;
+  border-radius: 9px;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+.ax-tabs button:hover:not(.on) {
   color: var(--ink);
 }
+.ax-tabs button:not(.on) {
+  background: 0 0;
+}
 .ax-tabs .on {
-  background: linear-gradient(90deg, #0d3480, #0a2a6b);
-  color: #fff;
+  color: #0a2357;
+  background: #fff;
+  box-shadow:
+    0 1px 2px #102a5a1f,
+    0 2px 8px #102a5a1a;
 }
 .ax-title {
   text-align: center;
@@ -295,153 +487,214 @@ async function submit() {
   font-weight: 700;
 }
 .ax-title span {
-  font-style: italic;
   background: linear-gradient(90deg, #1565c0, #22b14c);
+  color: #0000;
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  font-style: italic;
 }
 .ax-lead {
-  margin: 10px auto 24px;
-  max-width: 420px;
   text-align: center;
-  font-size: 15px;
   color: #475569;
+  max-width: 420px;
+  margin: 10px auto 24px;
+  font-size: 15px;
 }
 .ax-form {
-  display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  gap: 18px;
+  display: grid;
+}
+.ax-f {
+  gap: 7px;
+  display: grid;
+}
+.ax-label {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ax-help {
+  color: var(--muted);
+  font-size: 12.5px;
 }
 .ax-field {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 54px;
-  padding: 0 14px 0 18px;
-  border: 1px solid #d5deea;
-  border-radius: 14px;
+  color: #6b7c96;
   background: #fff;
-  color: #475569;
+  border: 1.5px solid #d3deec;
+  border-radius: 12px;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 4px 0 14px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  display: flex;
+}
+.ax-field:hover:not(:focus-within) {
+  border-color: #b6c6dc;
 }
 .ax-field:focus-within {
   border-color: var(--blue);
-  box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.12);
+  color: var(--blue);
+  box-shadow: 0 0 0 4px #1565c024;
 }
 .ax-field input {
-  flex: 1;
   width: 100%;
   min-width: 0;
+  min-height: 46px;
+  color: var(--ink);
+  background: 0 0;
   border: 0;
   outline: none;
-  background: transparent;
+  flex: 1;
   font-size: 15px;
-  color: var(--ink);
+}
+.ax-field input::placeholder {
+  color: #8a99b0;
+  text-transform: none;
 }
 .ax-eye {
-  display: grid;
+  color: #475569;
+  border-radius: 10px;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  color: #334155;
+  width: 44px;
+  height: 44px;
+  display: grid;
+}
+.ax-eye:hover {
+  background: #f1f5fa;
 }
 .ax-forgot {
+  color: var(--blue);
   justify-self: end;
   margin-top: -4px;
   font-weight: 600;
-  color: var(--blue);
 }
 .ax-submit {
-  min-height: 52px;
-  font-size: 16px;
+  min-height: 50px;
+  font-size: 15.5px;
 }
 .ax-or {
-  display: grid;
+  color: #64748b;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 14px;
-  color: #64748b;
+  display: grid;
 }
-.ax-or::before,
-.ax-or::after {
+.ax-or:after,
+.ax-or:before {
   content: '';
-  height: 1px;
   background: #dfe6f0;
+  height: 1px;
 }
 .ax-social {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
   min-height: 50px;
-  border: 1px solid #d5deea;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(16, 42, 90, 0.06);
-  font-weight: 500;
   color: var(--ink);
+  background: #fff;
+  border: 1.5px solid #d3deec;
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+  display: flex;
 }
-.ax-facebook {
-  border-color: #1877f2;
-  background: #1877f2;
-  color: #fff;
+.ax-social:hover:not(:disabled) {
+  background: #f6f9fd;
+  border-color: #b6c6dc;
 }
 .ax-social:disabled {
   opacity: 0.75;
 }
 .ax-center {
-  margin: 0;
   text-align: center;
+  margin: 0;
 }
 .ax-switch {
   font-size: 15px;
 }
 .ax-switch button {
+  color: var(--blue);
   margin-left: 8px;
   font-weight: 600;
-  color: var(--blue);
 }
 .ax-roles {
-  display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  display: grid;
 }
 .ax-roles legend {
-  margin-bottom: 8px;
-  font-weight: 600;
   color: var(--ink);
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 .ax-roles label {
-  position: relative;
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  border: 1.5px solid #d5deea;
-  border-radius: 12px;
-  background: #fff;
-  font-size: 12.5px;
-  color: #475569;
+  color: #64748b;
   cursor: pointer;
+  background: #fff;
+  border: 1.5px solid #d3deec;
+  border-radius: 14px;
+  gap: 8px;
+  padding: 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    box-shadow 0.15s;
+  display: grid;
+  position: relative;
+}
+.ax-roles label:hover:not(.on) {
+  border-color: #b6c6dc;
+}
+.ax-roles label > svg {
+  color: #6b7c96;
 }
 .ax-roles label.on {
-  border-color: var(--green);
-  background: var(--green-soft);
+  border-color: var(--blue);
+  background: #f3f8fe;
+  box-shadow: 0 0 0 3px #1565c01a;
+}
+.ax-roles label.on > svg {
+  color: var(--blue);
 }
 .ax-roles label:has(input:focus-visible) {
+  outline-offset: 2px;
   outline: 3px solid #60a5fa;
 }
 .ax-roles input {
-  position: absolute;
   opacity: 0;
+  position: absolute;
 }
 .ax-roles strong {
-  display: block;
-  font-size: 14px;
   color: var(--ink);
+  margin-bottom: 2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  display: block;
+}
+.ax-roles label.off {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ax-prefix {
+  color: var(--text);
+  border-right: 1.5px solid #d3deec;
+  padding-right: 8px;
+  font-size: 15px;
+  font-weight: 600;
 }
 .ax-done {
-  display: grid;
-  gap: 12px;
   text-align: center;
+  gap: 12px;
+  display: grid;
 }
 </style>
