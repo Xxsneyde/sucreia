@@ -29489,13 +29489,85 @@ function mailFromEnv(env2) {
 
 // server/sms.ts
 import { createHash, randomInt } from "node:crypto";
-function colombianMobile(raw) {
-  if (typeof raw !== "string") return null;
-  let digits = raw.replace(/\D/g, "");
-  if (digits.length === 12 && digits.startsWith("57")) digits = digits.slice(2);
-  return /^3\d{9}$/.test(digits) ? `57${digits}` : null;
+
+// src/domain/phone.ts
+var countries = [
+  { iso: "CO", name: "Colombia", dial: "57", digits: [10, 10] },
+  { iso: "VE", name: "Venezuela", dial: "58", digits: [10, 10] },
+  { iso: "EC", name: "Ecuador", dial: "593", digits: [8, 9] },
+  { iso: "PE", name: "Per\xFA", dial: "51", digits: [8, 9] },
+  { iso: "PA", name: "Panam\xE1", dial: "507", digits: [7, 8] },
+  { iso: "MX", name: "M\xE9xico", dial: "52", digits: [10, 10] },
+  { iso: "US", name: "Estados Unidos", dial: "1", digits: [10, 10] },
+  { iso: "CA", name: "Canad\xE1", dial: "1", digits: [10, 10] },
+  { iso: "ES", name: "Espa\xF1a", dial: "34", digits: [9, 9] },
+  { iso: "AR", name: "Argentina", dial: "54", digits: [10, 11] },
+  { iso: "BO", name: "Bolivia", dial: "591", digits: [8, 8] },
+  { iso: "BR", name: "Brasil", dial: "55", digits: [10, 11] },
+  { iso: "CL", name: "Chile", dial: "56", digits: [9, 9] },
+  { iso: "CR", name: "Costa Rica", dial: "506", digits: [8, 8] },
+  { iso: "CU", name: "Cuba", dial: "53", digits: [8, 8] },
+  { iso: "DO", name: "Rep\xFAblica Dominicana", dial: "1", digits: [10, 10] },
+  { iso: "SV", name: "El Salvador", dial: "503", digits: [8, 8] },
+  { iso: "GT", name: "Guatemala", dial: "502", digits: [8, 8] },
+  { iso: "HN", name: "Honduras", dial: "504", digits: [8, 8] },
+  { iso: "NI", name: "Nicaragua", dial: "505", digits: [8, 8] },
+  { iso: "PY", name: "Paraguay", dial: "595", digits: [9, 9] },
+  { iso: "PR", name: "Puerto Rico", dial: "1", digits: [10, 10] },
+  { iso: "UY", name: "Uruguay", dial: "598", digits: [8, 8] },
+  { iso: "DE", name: "Alemania", dial: "49", digits: [10, 11] },
+  { iso: "FR", name: "Francia", dial: "33", digits: [9, 9] },
+  { iso: "IT", name: "Italia", dial: "39", digits: [9, 10] },
+  { iso: "PT", name: "Portugal", dial: "351", digits: [9, 9] },
+  { iso: "GB", name: "Reino Unido", dial: "44", digits: [10, 10] }
+];
+var DEFAULT_COUNTRY = "CO";
+var countryOf = (iso) => countries.find((c) => c.iso === iso) ?? countries.find((c) => c.iso === DEFAULT_COUNTRY);
+function splitPhone(value) {
+  const raw = (value ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return { iso: DEFAULT_COUNTRY, national: "" };
+  if (!raw.startsWith("+") && /^3\d{9}$/.test(digits)) return { iso: "CO", national: digits };
+  const match = [...countries].sort((a, b) => b.dial.length - a.dial.length).find((c) => digits.startsWith(c.dial) && digits.length > c.dial.length + 5);
+  if (match)
+    return {
+      iso: match.dial === "1" ? "US" : match.iso,
+      national: digits.slice(match.dial.length)
+    };
+  return { iso: DEFAULT_COUNTRY, national: digits };
 }
-var maskPhone = (phone) => `${phone.slice(2, 5)} *** ${phone.slice(-4)}`;
+function joinPhone(iso, national) {
+  const digits = national.replace(/\D/g, "");
+  return digits ? `+${countryOf(iso).dial}${digits}` : "";
+}
+function phoneProblem(iso, national) {
+  const country = countryOf(iso);
+  const digits = national.replace(/\D/g, "");
+  const [min, max] = country.digits;
+  if (!digits) return "Escribe el n\xFAmero.";
+  if (digits.length < min || digits.length > max)
+    return min === max ? `En ${country.name} el n\xFAmero tiene ${min} d\xEDgitos (sin el indicativo).` : `En ${country.name} el n\xFAmero tiene de ${min} a ${max} d\xEDgitos (sin el indicativo).`;
+  if (country.iso === "CO" && !/^[36]/.test(digits))
+    return "En Colombia el n\xFAmero empieza por 3 (celular) o por 60 (fijo).";
+  return "";
+}
+function normalizePhone(raw) {
+  if (typeof raw !== "string") return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (!raw.trim().startsWith("+") && /^3\d{9}$/.test(digits)) return `+57${digits}`;
+  const { iso, national } = splitPhone(`+${digits}`);
+  return phoneProblem(iso, national) ? null : joinPhone(iso, national);
+}
+function maskPhone(phone) {
+  const { iso, national } = splitPhone(phone.startsWith("+") ? phone : `+${phone}`);
+  return `+${countryOf(iso).dial} *** ${national.slice(-4)}`;
+}
+
+// server/sms.ts
+function smsPhone(raw) {
+  return normalizePhone(raw)?.slice(1) ?? null;
+}
 var newCode = () => String(randomInt(0, 1e6)).padStart(6, "0");
 var hashCode = (userId, code) => createHash("sha256").update(`${userId}:${code}`).digest("hex");
 function onurixSms(config) {
@@ -30165,10 +30237,13 @@ var ImageStorage = class {
     const isPublic = row.owner_id === userId ? ((await this.publicReferences()).get(`/api/imagenes/${id}.webp`) ?? 0) > 0 : await this.isPublic(id);
     let allowed = isPublic || row.owner_id === userId;
     if (!allowed && userId) {
+      const url = `/api/imagenes/${id}.webp`;
       const [reviewer, participant] = await Promise.all([
+        // La administración revisa la foto de cada domiciliario y las de cada negocio aún sin
+        // publicar (logo, portada y catálogo del registro enviado o del borrador).
         this.db.prepare(
-          "SELECT 1 AS ok FROM users WHERE id=? AND role='admin' AND EXISTS(SELECT 1 FROM couriers WHERE avatar=?)"
-        ).get(userId, `/api/imagenes/${id}.webp`),
+          "SELECT 1 AS ok FROM users WHERE id=? AND role='admin' AND (EXISTS(SELECT 1 FROM couriers WHERE avatar=?) OR EXISTS(SELECT 1 FROM stores WHERE review_design LIKE ? OR draft LIKE ?))"
+        ).get(userId, url, `%${url}%`, `%${url}%`),
         this.db.prepare(
           "SELECT 1 AS ok FROM operations WHERE json_extract(payload,'$.courierAvatar')=? AND (client_id=? OR json_extract(payload,'$.ownerId')=? OR json_extract(payload,'$.courierId')=?) LIMIT 1"
         ).get(`/api/imagenes/${id}.webp`, userId, userId, userId)
@@ -34077,8 +34152,9 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     }
     const channel = req.body?.channel === "sms" ? "sms" : "email";
     if (channel === "sms") {
-      const phone = colombianMobile(req.body?.phone) ?? user.phone;
-      if (!phone) throw new HttpError(400, "Escribe un celular colombiano de 10 d\xEDgitos.");
+      const phone = smsPhone(req.body?.phone) ?? user.phone;
+      if (!phone)
+        throw new HttpError(400, "Escribe un celular v\xE1lido con el indicativo de su pa\xEDs.");
       await sendCode(user, phone);
       await db2.prepare("UPDATE users SET verify_channel='sms', phone=? WHERE id=?").run(phone, user.id);
       res.json({ message: `Te enviamos un c\xF3digo al ${maskPhone(phone)}.` });
@@ -34104,8 +34180,9 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     if (documentNumber && !/^\d{5,12}$/.test(documentNumber))
       throw new HttpError(400, "Escribe la c\xE9dula sin puntos ni espacios.");
     const viaSms = req.body?.verifyBy === "sms";
-    const phone = viaSms ? colombianMobile(req.body?.phone) : null;
-    if (viaSms && !phone) throw new HttpError(400, "Escribe un celular colombiano de 10 d\xEDgitos.");
+    const phone = viaSms ? smsPhone(req.body?.phone) : null;
+    if (viaSms && !phone)
+      throw new HttpError(400, "Escribe un celular v\xE1lido con el indicativo de su pa\xEDs.");
     if (viaSms && !sms)
       throw new HttpError(
         503,
