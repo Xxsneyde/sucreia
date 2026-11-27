@@ -1,0 +1,1 @@
+import{b as e}from"#entry";var t=e(`/sucre/repartidor.webp`);export{t};

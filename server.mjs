@@ -30529,7 +30529,10 @@ var migrations = [
   // Política de uso y condiciones generales: cuándo y qué versión aceptó cada cuenta al
   // registrarse (o al completar su perfil, si entró con Google). Solo agrega columnas.
   `ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
-   ALTER TABLE users ADD COLUMN terms_version TEXT;`
+   ALTER TABLE users ADD COLUMN terms_version TEXT;`,
+  // Cupones con código de cada negocio (panel «Promociones y reseñas»). Tabla nueva.
+  `CREATE TABLE store_coupons (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, code TEXT NOT NULL, percent INTEGER NOT NULL, expires TEXT, max_uses INTEGER, uses INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, UNIQUE(store_id, code));
+   CREATE INDEX store_coupons_store ON store_coupons(store_id);`
 ];
 var sqlOf = (m, dialect) => typeof m === "string" ? m : m[dialect];
 async function migrate(db2) {
@@ -30935,14 +30938,14 @@ var lessons = [
 ];
 
 // server/routes/platform.ts
-import { randomUUID as randomUUID9 } from "node:crypto";
+import { randomUUID as randomUUID10 } from "node:crypto";
 
 // server/routes/pqrs.ts
 var import_express3 = __toESM(require_express2(), 1);
-import { randomUUID as randomUUID8 } from "node:crypto";
+import { randomUUID as randomUUID9 } from "node:crypto";
 
 // server/platform.ts
-import { createHash as createHash6, randomInt as randomInt3, randomUUID as randomUUID7 } from "node:crypto";
+import { createHash as createHash6, randomInt as randomInt3, randomUUID as randomUUID8 } from "node:crypto";
 
 // server/stores.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
@@ -31821,6 +31824,145 @@ async function attendEvent(db2, user, id, code) {
   );
 }
 
+// server/offers.ts
+import { randomUUID as randomUUID7 } from "node:crypto";
+
+// src/domain/offers.ts
+var MAX_PERCENT = 70;
+var normalizeCode = (code) => code.trim().toUpperCase().replace(/\s+/g, "");
+var validCode = (code) => /^[A-Z0-9-]{3,20}$/.test(code);
+function couponState(c, now3 = Date.now()) {
+  if (!c.active) return "inactive";
+  if (c.expires && Date.parse(c.expires) < now3) return "expired";
+  if (c.maxUses !== null && c.uses >= c.maxUses) return "exhausted";
+  return "active";
+}
+function discountPercent(d, now3 = Date.now()) {
+  if (!d || d.percent <= 0) return 0;
+  if (d.until && Date.parse(d.until) < now3) return 0;
+  return d.percent;
+}
+var discountAmount = (subtotal, percent) => percent > 0 ? Math.floor(subtotal * percent / 100) : 0;
+var endOfDay = (date) => (/* @__PURE__ */ new Date(`${date}T23:59:59-05:00`)).toISOString();
+
+// server/offers.ts
+var dateField = (value, label) => {
+  if (value === null || value === void 0 || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new HttpError(400, `Revisa ${label}.`);
+  const iso = endOfDay(value);
+  if (Number.isNaN(Date.parse(iso))) throw new HttpError(400, `Revisa ${label}.`);
+  if (Date.parse(iso) < Date.now())
+    throw new HttpError(
+      400,
+      `${label} ya pas\xF3.`.replace(/^./, (c) => c.toUpperCase())
+    );
+  return iso;
+};
+var percentField = (value, min) => {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < min || n > MAX_PERCENT)
+    throw new HttpError(
+      400,
+      `El descuento debe ser un n\xFAmero entero entre ${Math.max(min, 1)} y ${MAX_PERCENT} %.`
+    );
+  return n;
+};
+var toCoupon = (r) => ({
+  id: String(r.id),
+  storeId: String(r.store_id),
+  code: String(r.code),
+  percent: Number(r.percent),
+  expires: r.expires ? String(r.expires) : null,
+  maxUses: r.max_uses === null || r.max_uses === void 0 ? null : Number(r.max_uses),
+  uses: Number(r.uses),
+  active: Number(r.active) === 1,
+  createdAt: String(r.created_at)
+});
+async function listCoupons(db2, storeId) {
+  const rows = await db2.prepare("SELECT * FROM store_coupons WHERE store_id=? ORDER BY created_at DESC LIMIT 200").all(storeId);
+  return rows.map(toCoupon);
+}
+async function createCoupon(db2, storeId, body) {
+  const code = normalizeCode(typeof body.code === "string" ? body.code : "");
+  if (!validCode(code))
+    throw new HttpError(
+      400,
+      "El c\xF3digo debe tener de 3 a 20 letras, n\xFAmeros o guiones, sin espacios."
+    );
+  const percent = percentField(body.percent, 1);
+  const expires = dateField(body.expires, "la fecha de vencimiento");
+  let maxUses = null;
+  if (body.maxUses !== null && body.maxUses !== void 0 && body.maxUses !== "") {
+    maxUses = Number(body.maxUses);
+    if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1e5)
+      throw new HttpError(400, "Los usos permitidos deben ser un n\xFAmero entre 1 y 100.000.");
+  }
+  if (await db2.prepare("SELECT id FROM store_coupons WHERE store_id=? AND code=?").get(storeId, code))
+    throw new HttpError(409, `Ya tienes un cup\xF3n con el c\xF3digo ${code}.`);
+  const coupon = {
+    id: randomUUID7(),
+    storeId,
+    code,
+    percent,
+    expires,
+    maxUses,
+    uses: 0,
+    active: true,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  await db2.prepare(
+    "INSERT INTO store_coupons (id,store_id,code,percent,expires,max_uses,uses,active,created_at) VALUES (?,?,?,?,?,?,?,?,?)"
+  ).run(coupon.id, storeId, code, percent, expires, maxUses, 0, 1, coupon.createdAt);
+  return coupon;
+}
+async function setCouponActive(db2, storeId, id, active) {
+  const { changes } = await db2.prepare("UPDATE store_coupons SET active=? WHERE id=? AND store_id=?").run(active ? 1 : 0, id, storeId);
+  if (!changes) throw new HttpError(404, "No encontramos ese cup\xF3n.");
+}
+async function setStoreDiscount(db2, storeId, body) {
+  const percent = percentField(body.percent, 0);
+  const discount = percent ? { percent, until: dateField(body.until, "la fecha de fin") } : null;
+  await setSettings(db2, storeId, { ...await settings(db2, storeId), storeDiscount: discount });
+  return discount;
+}
+async function findCoupon(db2, storeId, rawCode) {
+  const code = normalizeCode(rawCode);
+  const row = validCode(code) ? await db2.prepare("SELECT * FROM store_coupons WHERE store_id=? AND code=?").get(storeId, code) : void 0;
+  if (!row) throw new HttpError(404, "Ese cup\xF3n no existe en este negocio. Revisa el c\xF3digo.");
+  const coupon = toCoupon(row);
+  const state2 = couponState(coupon);
+  if (state2 === "expired") throw new HttpError(409, "Ese cup\xF3n ya venci\xF3.");
+  if (state2 === "exhausted") throw new HttpError(409, "Ese cup\xF3n ya alcanz\xF3 su l\xEDmite de usos.");
+  if (state2 === "inactive") throw new HttpError(409, "Ese cup\xF3n ya no est\xE1 disponible.");
+  return coupon;
+}
+async function applyOffers(db2, storeId, subtotal, rawCode) {
+  const store = discountPercent((await settings(db2, storeId)).storeDiscount);
+  const code = typeof rawCode === "string" ? rawCode.trim() : "";
+  const coupon = code ? await findCoupon(db2, storeId, code) : null;
+  if (coupon && coupon.percent > store) {
+    const { changes } = await db2.prepare(
+      "UPDATE store_coupons SET uses=uses+1 WHERE id=? AND active=1 AND (max_uses IS NULL OR uses < max_uses)"
+    ).run(coupon.id);
+    if (!changes) throw new HttpError(409, "Ese cup\xF3n ya alcanz\xF3 su l\xEDmite de usos.");
+    return {
+      percent: coupon.percent,
+      amount: discountAmount(subtotal, coupon.percent),
+      label: `Cup\xF3n ${coupon.code} (${coupon.percent} %)`,
+      code: coupon.code,
+      couponId: coupon.id
+    };
+  }
+  return store ? {
+    percent: store,
+    amount: discountAmount(subtotal, store),
+    label: `Descuento del negocio (${store} %)`,
+    code: "",
+    couponId: ""
+  } : { percent: 0, amount: 0, label: "", code: "", couponId: "" };
+}
+
 // server/platform.ts
 var now2 = () => (/* @__PURE__ */ new Date()).toISOString();
 function transaction(db2, fn) {
@@ -31862,7 +32004,7 @@ async function setSettings(db2, storeId, data) {
   ).run(storeId, JSON.stringify(data));
 }
 async function notify(db2, userId, title, link2) {
-  await db2.prepare("INSERT INTO notifications (id,user_id,title,link,created_at) VALUES (?,?,?,?,?)").run(randomUUID7(), userId, title, link2, now2());
+  await db2.prepare("INSERT INTO notifications (id,user_id,title,link,created_at) VALUES (?,?,?,?,?)").run(randomUUID8(), userId, title, link2, now2());
 }
 async function balance(db2, userId) {
   return (await db2.prepare("SELECT COALESCE(SUM(amount),0) AS n FROM points_ledger WHERE user_id=?").get(userId))?.n ?? 0;
@@ -32072,6 +32214,7 @@ async function commerceStore(db2, storeId) {
       ])
     ),
     reviews,
+    discount: discountPercent(cfg.storeDiscount) ? cfg.storeDiscount ?? null : null,
     completed365: completed.filter((o) => Date.parse(o.completedAt) > Date.now() - 365 * 864e5).length,
     rating: reviewStats?.rating ?? null
   };
@@ -32096,7 +32239,8 @@ async function storeSummaries(db2, ids) {
     const cfg = cfgs.get(id) ?? defaultSettings();
     const discount = Math.max(
       0,
-      ...promos.filter((r) => r.store_id === id).map((r) => JSON.parse(String(r.payload))).filter((x) => x.active && Date.parse(x.expires) > Date.now()).map((x) => x.percent)
+      ...promos.filter((r) => r.store_id === id).map((r) => JSON.parse(String(r.payload))).filter((x) => x.active && Date.parse(x.expires) > Date.now()).map((x) => x.percent),
+      discountPercent(cfg.storeDiscount)
     );
     result.set(id, {
       lat: cfg.latitude,
@@ -32168,7 +32312,7 @@ async function createOperation(db2, actor, data) {
     if (!/^\+?[1-9]\d{9,14}$/.test(phone))
       throw new HttpError(400, "Escribe un WhatsApp con c\xF3digo de pa\xEDs.");
     const op = {
-      id: randomUUID7(),
+      id: randomUUID8(),
       storeId: store.id,
       storeName: design.name,
       clientId: actor.id,
@@ -32288,6 +32432,9 @@ async function createOperation(db2, actor, data) {
         ).toISOString();
         op.subtotal = offer.price;
         op.detail = `${offer.name}: ${op.detail}`;
+        const offerApplied = await applyOffers(db3, store.id, op.subtotal, data.code);
+        op.discount = offerApplied.amount;
+        if (offerApplied.label) op.discountLabel = offerApplied.label;
       }
     }
     op.amount = op.subtotal - op.discount + op.fee;
@@ -32505,7 +32652,7 @@ async function redeem(db2, actor, id) {
       return c.expires > now2() && c.storeId === p.storeId;
     });
     if (unused) throw new HttpError(409, "Ya tienes un bono disponible de este negocio.");
-    const coupon = { ...p, id: randomUUID7(), used: false };
+    const coupon = { ...p, id: randomUUID8(), used: false };
     await points(db3, actor.id, `redeem:${coupon.id}`, -p.cost, `Bono: ${p.title}`);
     await db3.prepare("INSERT INTO coupons VALUES (?,?,?,?,?)").run(coupon.id, actor.id, p.storeId, 0, JSON.stringify(coupon));
     return coupon;
@@ -32617,7 +32764,7 @@ function pqrsRoutes(db2) {
   }
   async function addMessage(caseId, authorId, fromAdmin, body, file) {
     const at = now3();
-    const id = randomUUID8();
+    const id = randomUUID9();
     await db2.prepare(
       "INSERT INTO pqrs_messages (id,pqrs_id,author_id,from_admin,body,created_at) VALUES (?,?,?,?,?,?)"
     ).run(id, caseId, authorId, fromAdmin ? 1 : 0, body, at);
@@ -32627,7 +32774,7 @@ function pqrsRoutes(db2) {
   async function saveFile(caseId, messageId, file) {
     await db2.prepare(
       "INSERT INTO pqrs_files (id,pqrs_id,message_id,name,mime,size,data,created_at) VALUES (?,?,?,?,?,?,?,?)"
-    ).run(randomUUID8(), caseId, messageId, file.name, file.mime, file.size, file.base64, now3());
+    ).run(randomUUID9(), caseId, messageId, file.name, file.mime, file.size, file.base64, now3());
   }
   async function sendFile(user, fileId, res) {
     const f = await db2.prepare(
@@ -32655,7 +32802,7 @@ function pqrsRoutes(db2) {
       throw new HttpError(400, "Selecciona un tipo de solicitud.");
     const message = string(req.body.message, 2500, "el mensaje");
     const file = readFile(req.body.file);
-    const id = randomUUID8();
+    const id = randomUUID9();
     const at = now3();
     await db2.prepare(
       "INSERT INTO pqrs (id,kind,user_id,message,created_at,updated_at,status) VALUES (?,?,?,?,?,?,'pending')"
@@ -32709,7 +32856,7 @@ function pqrsRoutes(db2) {
       `Respuesta a tu ${c.kind.toLowerCase()} (radicado ${radicado(c.id)}): ${response.slice(0, 140)}`,
       `/pqrs?caso=${c.id}`
     );
-    await db2.prepare("INSERT INTO admin_audit VALUES (?,?,?,?,?,?)").run(randomUUID8(), actor.id, "pqrs:respuesta", c.id, response.slice(0, 500), at);
+    await db2.prepare("INSERT INTO admin_audit VALUES (?,?,?,?,?,?)").run(randomUUID9(), actor.id, "pqrs:respuesta", c.id, response.slice(0, 500), at);
     res.status(204).end();
   });
   r.post("/admin/pqrs/:id/cerrar", async (req, res) => {
@@ -32726,7 +32873,7 @@ function pqrsRoutes(db2) {
       `Tu ${c.kind.toLowerCase()} (radicado ${radicado(c.id)}) qued\xF3 resuelta y cerrada.${note ? ` ${note.slice(0, 120)}` : ""}`,
       `/pqrs?caso=${c.id}`
     );
-    await db2.prepare("INSERT INTO admin_audit VALUES (?,?,?,?,?,?)").run(randomUUID8(), actor.id, "pqrs:cierre", c.id, note.slice(0, 500), at);
+    await db2.prepare("INSERT INTO admin_audit VALUES (?,?,?,?,?,?)").run(randomUUID9(), actor.id, "pqrs:cierre", c.id, note.slice(0, 500), at);
     res.status(204).end();
   });
   return r;
@@ -33368,6 +33515,10 @@ function orderMessage(order2) {
     "",
     ...lines,
     "",
+    ...order2.discount ? [
+      `Subtotal: ${currency(order2.subtotal ?? order2.total + order2.discount)}`,
+      `${order2.discountLabel || "Descuento"}: \u2212${currency(order2.discount)}`
+    ] : [],
     `*Total: ${currency(order2.total)}*`,
     ...order2.note.trim() ? ["", `Nota: ${order2.note.trim()}`] : [],
     "",
@@ -33529,7 +33680,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
         409,
         "Completa las lecciones y sus evaluaciones antes de generar la constancia."
       );
-    await db2.prepare("INSERT OR IGNORE INTO certificates VALUES (?,?,?,?,?)").run(randomUUID9(), user.id, user.name, lessons.length, (/* @__PURE__ */ new Date()).toISOString());
+    await db2.prepare("INSERT OR IGNORE INTO certificates VALUES (?,?,?,?,?)").run(randomUUID10(), user.id, user.name, lessons.length, (/* @__PURE__ */ new Date()).toISOString());
     res.json(
       await db2.prepare("SELECT id,name,lessons,created_at AS at FROM certificates WHERE user_id=?").get(user.id)
     );
@@ -33554,7 +33705,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     await db2.prepare(
       "INSERT INTO reviews (id,operation_id,store_id,user_id,rating,comment,created_at,courier_rating) VALUES (?,?,?,?,?,?,?,?)"
     ).run(
-      randomUUID9(),
+      randomUUID10(),
       op.id,
       op.storeId,
       user.id,
@@ -33581,7 +33732,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     else {
       await db2.prepare(
         "INSERT INTO reviews (id,operation_id,store_id,user_id,rating,comment,created_at,courier_rating) VALUES (?,?,?,?,?,?,?,?)"
-      ).run(randomUUID9(), null, store.id, user.id, rating, comment, now3, null);
+      ).run(randomUUID10(), null, store.id, user.id, rating, comment, now3, null);
       await notify(
         db2,
         store.ownerId,
@@ -33640,7 +33791,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     await db2.prepare("DELETE FROM product_reviews WHERE store_id=? AND product_id=? AND user_id=?").run(store.id, product.id, user.id);
     await db2.prepare(
       "INSERT INTO product_reviews (id,store_id,product_id,user_id,rating,comment,created_at) VALUES (?,?,?,?,?,?,?)"
-    ).run(randomUUID9(), store.id, product.id, user.id, rating, comment, (/* @__PURE__ */ new Date()).toISOString());
+    ).run(randomUUID10(), store.id, product.id, user.id, rating, comment, (/* @__PURE__ */ new Date()).toISOString());
     res.status(201).json({ ok: true });
   });
   r.get(
@@ -33694,7 +33845,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
         if ((from || to) && (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to) || to <= from))
           throw new HttpError(400, "Revisa las horas del bloqueo.");
         return {
-          id: typeof b?.id === "string" && b.id.length <= 60 ? b.id : randomUUID9(),
+          id: typeof b?.id === "string" && b.id.length <= 60 ? b.id : randomUUID10(),
           date,
           from,
           to,
@@ -33740,7 +33891,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     if (!Number.isFinite(Date.parse(expires)) || Date.parse(expires) <= Date.now() || Date.parse(expires) > Date.now() + 365 * 864e5)
       throw new HttpError(400, "Elige un vencimiento futuro dentro de un a\xF1o.");
     const promotion = {
-      id: req.params.promo || randomUUID9(),
+      id: req.params.promo || randomUUID10(),
       storeId: store.id,
       storeName: store.published.design.name,
       title: string(v.title, 100, "el t\xEDtulo"),
@@ -33762,6 +33913,46 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     await db2.prepare("INSERT INTO promotions VALUES (?,?,?)").run(promotion.id, store.id, JSON.stringify(promotion));
     res.status(201).json({ promotion });
   };
+  r.get("/negocios/:id/promociones-panel", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    res.json({
+      discount: (await settings(db2, store.id)).storeDiscount ?? null,
+      coupons: await listCoupons(db2, store.id)
+    });
+  });
+  r.put("/negocios/:id/descuento", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    res.json({ discount: await setStoreDiscount(db2, store.id, req.body ?? {}) });
+  });
+  r.post("/negocios/:id/cupones", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    res.status(201).json({ coupon: await createCoupon(db2, store.id, req.body ?? {}) });
+  });
+  r.put("/negocios/:id/cupones/:cupon", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    await setCouponActive(db2, store.id, req.params.cupon, req.body?.active === true);
+    res.json({ coupons: await listCoupons(db2, store.id) });
+  });
+  r.get("/negocios/:id/resenas", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    const products = store.published?.design.products ?? store.draft.products ?? [];
+    const names = new Map(products.map((p) => [p.id, p.name]));
+    const storeReviews = await db2.prepare(
+      "SELECT r.id,r.operation_id AS operationId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? ORDER BY r.created_at DESC LIMIT 500"
+    ).all(store.id);
+    const productReviews = (await db2.prepare(
+      "SELECT r.id,r.product_id AS productId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM product_reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? ORDER BY r.created_at DESC LIMIT 500"
+    ).all(store.id)).map((r2) => ({ ...r2, productName: names.get(r2.productId) ?? "Producto retirado" }));
+    res.json({ store: storeReviews, products: productReviews });
+  });
+  r.post("/cupones/validar", async (req, res) => {
+    requireUser(res);
+    const store = await getStore(db2, string(req.body?.storeId, 100, "el negocio"));
+    if (!store?.published) throw new HttpError(404, "Negocio no encontrado.");
+    const coupon = await findCoupon(db2, store.id, string(req.body?.code, 40, "el c\xF3digo"));
+    const storePercent = discountPercent((await settings(db2, store.id)).storeDiscount);
+    res.json({ code: coupon.code, percent: coupon.percent, storePercent });
+  });
   r.post("/negocios/:id/promociones", savePromotion);
   r.put("/negocios/:id/promociones/:promo", savePromotion);
   r.delete("/promociones/:id", async (req, res) => {
@@ -33841,13 +34032,20 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     if (typeof rawNote !== "string" || rawNote.length > 500)
       throw new HttpError(400, "La nota debe tener m\xE1ximo 500 caracteres.");
     const note = rawNote.trim();
+    const subtotal = lines.reduce((n, l) => n + l.price * l.quantity, 0);
+    if (!orderLink(design.whatsapp, ""))
+      throw new HttpError(409, "Este negocio no tiene WhatsApp registrado.");
+    const offer = await applyOffers(db2, store.id, subtotal, req.body.code);
     const order2 = {
-      id: randomUUID9(),
+      id: randomUUID10(),
       storeId: store.id,
       storeName: design.name,
       clientName: user.name,
       lines,
-      total: lines.reduce((n, l) => n + l.price * l.quantity, 0),
+      subtotal,
+      discount: offer.amount,
+      discountLabel: offer.label,
+      total: subtotal - offer.amount,
       note,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -34060,7 +34258,7 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
         );
       } else throw new HttpError(404, "Acci\xF3n desconocida.");
       await db3.prepare("INSERT INTO admin_audit VALUES (?,?,?,?,?,?)").run(
-        randomUUID9(),
+        randomUUID10(),
         actor.id,
         `${req.params.type}:${decision}`,
         req.params.id,

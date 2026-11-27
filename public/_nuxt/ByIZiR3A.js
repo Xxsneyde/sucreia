@@ -1,1 +1,0 @@
-import{c as e,o as t}from"./3G4mkBp1.js";import{t as n}from"./2XIjkzuy.js";import{f as r}from"#entry";var i=t(async t=>{let i=n();if(await i.load(),!i.user)return e({path:`/ingresar`,query:{volver:r(t.path,t.fullPath,window.location)}},{replace:!0})});export{i as default};

@@ -1,1 +1,0 @@
-import"./DwXIy7yQ.js";import{g as e}from"#entry";import{N as t,q as n,w as r}from"./DxiUQiCP.js";import{t as i}from"./GuErtR6f.js";var a=t({__name:`buscar`,setup(t){return e({title:`Buscar negocios`}),(e,t)=>(n(),r(i))}});export{a as default};

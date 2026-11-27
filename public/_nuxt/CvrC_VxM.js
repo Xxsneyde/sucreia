@@ -1,1 +1,0 @@
-import{_ as e}from"#entry";var t=e(`/sucre/puntos-moneda.webp`);export{t};

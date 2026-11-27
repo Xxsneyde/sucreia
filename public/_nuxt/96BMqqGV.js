@@ -1,1 +1,0 @@
-import{n as e}from"./DQYadPvS.js";import{t}from"./BJSx8jBJ.js";import{u as n}from"#entry";async function r(r){if(r.role!==`emprendedor`)return n(r.role);try{let{stores:i}=await e(`GET`,`/mis-tiendas`);return i.length?n(r.role):t}catch{return n(r.role)}}export{r as t};

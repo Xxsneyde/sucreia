@@ -1,1 +1,0 @@
-import{g as e}from"#entry";import{N as t,j as n,q as r,rt as i,w as a}from"./DxiUQiCP.js";import{t as o}from"./Du8vAXgm.js";import{t as s}from"./DTTSZYTS.js";var c=t({__name:`descuentos`,setup(t){return e({title:`Mi negocio`}),(e,t)=>(r(),a(o,null,{default:i(()=>[n(s)]),_:1}))}});export{c as default};

@@ -1,1 +1,0 @@
-import{g as e}from"#entry";import{N as t,q as n,w as r}from"./DxiUQiCP.js";import{t as i}from"./C2pYahF_.js";var a=t({__name:`pedidos`,setup(t){return e({title:`Mis compras`}),(e,t)=>(n(),r(i,{kind:`compras`}))}});export{a as default};

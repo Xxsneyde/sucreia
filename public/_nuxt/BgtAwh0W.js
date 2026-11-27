@@ -1,1 +1,0 @@
-import{g as e}from"#entry";import{N as t,q as n,w as r}from"./DxiUQiCP.js";import{t as i}from"./C2pYahF_.js";var a=t({__name:`solicitudes`,setup(t){return e({title:`Mis reservas`}),(e,t)=>(n(),r(i,{kind:`solicitudes`}))}});export{a as default};
