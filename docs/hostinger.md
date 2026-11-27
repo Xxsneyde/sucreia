@@ -19,9 +19,12 @@ Configuración del sitio de pruebas en Hostinger (Node.js web app conectada a Gi
 | Entry file           | `server.mjs`                                             |
 | Package manager      | npm                                                      |
 
-Variables de entorno del sitio de pruebas (mismos nombres que producción, **otros valores**):
+Variables de entorno del sitio de pruebas (mismos nombres que producción):
 
-- `DATABASE_URL`: una base **distinta** de la de producción (otro proyecto de Supabase). Con la de producción, las pruebas crearían cuentas y negocios reales. Para comparar con datos reales, restaura ahí un respaldo de producción.
+- `DATABASE_URL`: mientras producción solo tenga datos de prueba, puede ser la misma base. Con datos reales, usa otra (otro proyecto de Supabase con un respaldo restaurado), porque lo que se haga en pruebas aparece en producción. Si comparten base:
+  - las migraciones nuevas deben solo agregar (ver [la base de datos](#la-base-de-datos)): el sitio de pruebas las aplica antes que producción;
+  - repartan las conexiones: `DATABASE_POOL=2` en los dos sitios o, en el de pruebas, la URL del pooler de Supabase (puerto 6543);
+  - antes del lanzamiento real, respaldo, limpieza de los datos de prueba y separar las bases.
 - `PUBLIC_URL`: el dominio del sitio de pruebas, para que los enlaces de los correos apunten a él.
 - `RESEND_API_KEY` y `MAIL_FROM`: sin correo no se pueden confirmar las cuentas nuevas.
 - `TRUST_PROXY`: el mismo número que producción (compruébalo con `/api/salud/red`).
