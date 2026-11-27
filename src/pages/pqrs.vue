@@ -23,7 +23,6 @@ import {
 import PqrsThread from '@/components/sucre/PqrsThread.vue';
 // Peticiones, quejas, reclamos y sugerencias: enviar una solicitud y seguir sus respuestas.
 // La administración responde desde /admin/pqrs; cada respuesta llega como notificación.
-useHead({ title: 'PQRS' });
 interface Attachment {
   name: string;
   data: string;

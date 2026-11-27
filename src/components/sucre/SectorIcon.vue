@@ -3,14 +3,24 @@ import { computed } from 'vue';
 import {
   BedDouble,
   BriefcaseBusiness,
+  Camera,
   Cross,
   Ellipsis,
   Flower2,
+  Gift,
+  GraduationCap,
   HardHat,
   Laptop,
+  PartyPopper,
+  PawPrint,
   Shirt,
+  Sofa,
+  SprayCan,
   Sprout,
+  Store,
+  Truck,
   Utensils,
+  Wine,
 } from '@lucide/vue';
 import { sectorFor } from '@/domain/sectors';
 const props = withDefaults(defineProps<{ sector: string; size?: number; colored?: boolean }>(), {
@@ -28,6 +38,16 @@ const icons = {
   sprout: Sprout,
   briefcase: BriefcaseBusiness,
   more: Ellipsis,
+  store: Store,
+  truck: Truck,
+  camera: Camera,
+  gift: Gift,
+  paw: PawPrint,
+  wine: Wine,
+  sofa: Sofa,
+  party: PartyPopper,
+  graduation: GraduationCap,
+  spray: SprayCan,
 } as const;
 const info = computed(() => sectorFor(props.sector));
 </script>

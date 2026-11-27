@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useSession } from '@/lib/session';
-import { roleHome } from '@/domain/roles';
 
-// Sin portada: quien entra va a iniciar sesión, o a su espacio si ya tiene sesión abierta.
+// Sin portada: quien entra va a iniciar sesión, o a buscar negocios si ya tiene sesión abierta.
 definePageMeta({ layout: false });
-useHead({ title: 'SucreIA' });
-const session = useSession();
-const router = useRouter();
 onMounted(async () => {
+  const session = useSession();
   await session.load();
-  await router.replace(session.user ? roleHome(session.user.role) : '/ingresar');
+  await navigateTo(session.user ? '/buscar' : '/ingresar', { replace: true });
 });
 </script>
 <template>
-  <p class="loader" role="status">Abriendo SucreIA…</p>
+  <NuxtLink to="/ingresar">Ingresar a SucreIA</NuxtLink>
 </template>
