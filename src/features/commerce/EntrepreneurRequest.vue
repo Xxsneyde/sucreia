@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  ChevronDown,
   CircleCheck,
   FileText,
   Image as ImageIcon,
@@ -139,13 +140,23 @@ async function start() {
   </section>
 
   <h2 class="er-title">Ten esto listo para registrarte más rápido</h2>
+  <p class="er-sub">Toca cada grupo para ver qué necesitas.</p>
   <div class="er-grid">
-    <article v-for="n in needs" :key="n.title" class="sx-card">
-      <h3><component :is="n.icon" :size="20" /> {{ n.title }}</h3>
+    <details v-for="n in needs" :key="n.title" class="sx-card er-need">
+      <summary>
+        <span class="er-need-icon"><component :is="n.icon" :size="20" /></span>
+        <span class="er-need-name">
+          <strong>{{ n.title }}</strong>
+          <small
+            >{{ n.items.length }} {{ n.items.length === 1 ? 'requisito' : 'requisitos' }}</small
+          >
+        </span>
+        <ChevronDown class="er-need-chevron" :size="20" aria-hidden="true" />
+      </summary>
       <ul>
         <li v-for="item in n.items" :key="item"><CircleCheck :size="16" /> {{ item }}</li>
       </ul>
-    </article>
+    </details>
   </div>
   <section class="sx-card er-steps">
     <h2><ShieldCheck :size="22" /> ¿Cómo funciona?</h2>
@@ -300,22 +311,77 @@ async function start() {
 .er-title {
   margin: 30px 0 14px;
 }
+.er-sub {
+  color: var(--muted);
+  margin: -8px 0 14px;
+  font-size: 14px;
+}
+/* Cada grupo muestra solo su nombre; al tocarlo se despliega su lista. */
 .er-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
-  gap: 14px;
+  align-items: start;
+  gap: 12px;
   display: grid;
 }
-.er-grid h3 {
+.er-need {
+  padding: 0;
+  transition: box-shadow 0.15s;
+}
+.er-need[open] {
+  box-shadow: 0 0 0 2px var(--green, #1fa548);
+}
+.er-need summary {
+  cursor: pointer;
+  border-radius: inherit;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  font-size: 16px;
+  gap: 12px;
+  padding: 14px 16px;
+  list-style: none;
   display: flex;
+}
+.er-need summary::-webkit-details-marker {
+  display: none;
+}
+.er-need summary:focus-visible {
+  outline: 2px solid var(--green, #1fa548);
+  outline-offset: 2px;
+}
+.er-need-icon {
+  color: var(--navy-800, #0a2357);
+  background: var(--bg, #eef3fb);
+  border-radius: 12px;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  display: grid;
+}
+.er-need-name {
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+  display: grid;
+}
+.er-need-name strong {
+  color: var(--ink);
+  font-size: 15.5px;
+}
+.er-need-name small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.er-need-chevron {
+  color: var(--muted);
+  flex: none;
+  transition: transform 0.2s;
+}
+.er-need[open] .er-need-chevron {
+  transform: rotate(180deg);
 }
 .er-grid ul {
   gap: 10px;
   margin: 0;
-  padding: 0;
+  padding: 2px 16px 16px;
   list-style: none;
   display: grid;
 }

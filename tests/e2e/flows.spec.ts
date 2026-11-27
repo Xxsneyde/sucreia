@@ -54,6 +54,11 @@ test('cliente se pasa a emprendedor desde su cuenta y el registro se abre en otr
   await page.goto('/perfil');
   await page.getByRole('link', { name: '¿Quieres montar tu propio emprendimiento? →' }).click();
   await expect(page).toHaveURL(/emprender/);
+  // «Ten esto listo»: cada grupo muestra solo su nombre y se despliega al tocarlo.
+  const rut = page.getByText('RUT', { exact: true });
+  await expect(rut).toBeHidden();
+  await page.getByText('Documentos', { exact: true }).click();
+  await expect(rut).toBeVisible();
   const change = page.getByRole('button', { name: 'Pasarme a emprendedor y registrar mi negocio' });
   await expect(change).toBeDisabled();
   await page.getByLabel('Entiendo y acepto que mi cuenta pasará a ser de emprendedor.').check();
