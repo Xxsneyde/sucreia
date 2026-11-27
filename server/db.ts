@@ -209,6 +209,9 @@ export const migrations: Migration[] = [
   // registrarse (o al completar su perfil, si entró con Google). Solo agrega columnas.
   `ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
    ALTER TABLE users ADD COLUMN terms_version TEXT;`,
+  // Cupones con código de cada negocio (panel «Promociones y reseñas»). Tabla nueva.
+  `CREATE TABLE store_coupons (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, code TEXT NOT NULL, percent INTEGER NOT NULL, expires TEXT, max_uses INTEGER, uses INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, UNIQUE(store_id, code));
+   CREATE INDEX store_coupons_store ON store_coupons(store_id);`,
 ];
 
 const sqlOf = (m: Migration, dialect: Db['dialect']) => (typeof m === 'string' ? m : m[dialect]);

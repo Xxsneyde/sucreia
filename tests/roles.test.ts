@@ -6,6 +6,7 @@ import {
   defaultMode,
   isRetired,
   modesFor,
+  modeStart,
   navFor,
   requiredRole,
   roleHome,
@@ -17,10 +18,10 @@ const cliente = { role: 'cliente', courier: 'none' } as const;
 const emprendedor = { role: 'emprendedor', courier: 'none' } as const;
 const admin = { role: 'admin', courier: 'none' } as const;
 
-test('cada rol tiene una sola vista y todos empiezan buscando negocios', () => {
+test('el administrador puede cambiar a emprendedor; todos empiezan buscando negocios', () => {
   assert.deepEqual(modesFor('cliente'), ['comprar']);
   assert.deepEqual(modesFor('emprendedor'), ['negocio']);
-  assert.deepEqual(modesFor('admin'), ['admin']);
+  assert.deepEqual(modesFor('admin'), ['admin', 'negocio']);
   assert.equal(defaultMode('admin'), 'admin');
   for (const role of ['cliente', 'emprendedor', 'admin'] as const)
     assert.equal(roleHome(role), '/buscar');
@@ -75,10 +76,28 @@ test('el administrador ve aprobación, negocios aprobados y PQRS', () => {
     ['admin', 'explorar'],
   );
   assert.ok(hrefs(nav.sections).includes('/admin/pqrs'));
+  // Solo lo de administración: sus negocios están en la vista de emprendedor.
+  assert.deepEqual(hrefs([nav.sections[0]]), ['/admin', '/admin/negocios', '/admin/pqrs']);
   assert.deepEqual(
     nav.mobile.map((i) => i.label),
-    ['Aprobar', 'Aprobados', 'Negocios', 'Registrar'],
+    ['Aprobar', 'Aprobados', 'PQRS', 'Buscar'],
   );
+  // Como emprendedor ve lo de sus negocios y explorar, sin compras.
+  const asMerchant = navFor(admin, 'negocio', 'products');
+  assert.deepEqual(
+    asMerchant.sections.map((s) => s.title),
+    ['Mi negocio', 'Explorar'],
+  );
+  assert.deepEqual(hrefs([asMerchant.sections[0]]), [
+    '/panel/negocios',
+    '/panel/configurar',
+    '/panel/descuentos',
+    '/pqrs',
+  ]);
+  assert.ok(!hrefs(asMerchant.sections).includes('/pedidos'));
+  assert.equal(modeStart('admin'), '/admin');
+  assert.equal(modeStart('negocio', 'products'), '/panel/negocios');
+  assert.equal(modeStart('negocio'), '/panel');
 });
 
 test('las páginas exclusivas se reconocen con o sin barra final', () => {

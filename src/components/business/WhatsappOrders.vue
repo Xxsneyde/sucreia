@@ -54,6 +54,9 @@ defineExpose({ count: computed(() => list.value.length) });
         </li>
       </ul>
       <p v-if="o.note" class="wo-note">Nota: {{ o.note }}</p>
+      <p v-if="o.discount" class="wo-discount">
+        {{ o.discountLabel || 'Descuento' }}: −{{ currency(o.discount) }}
+      </p>
       <footer>
         <span>Total</span>
         <strong>{{ currency(o.total) }}</strong>
@@ -64,6 +67,12 @@ defineExpose({ count: computed(() => list.value.length) });
 </template>
 
 <style scoped>
+.wo-discount {
+  color: #15803d;
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
 .wo {
   gap: 12px;
   margin: 0;

@@ -32,7 +32,21 @@ import {
   transaction,
   type CreateOperation,
 } from '../platform.ts';
-import { dayNames, type Promotion, type Review } from '../../src/domain/platform.ts';
+import {
+  dayNames,
+  type ProductReview,
+  type Promotion,
+  type Review,
+} from '../../src/domain/platform.ts';
+import { discountPercent } from '../../src/domain/offers.ts';
+import {
+  applyOffers,
+  createCoupon,
+  findCoupon,
+  listCoupons,
+  setCouponActive,
+  setStoreDiscount,
+} from '../offers.ts';
 import { canBuyRole } from '../../src/domain/roles.ts';
 import { isDesign, publishProject, type StoreDesign } from '../../src/domain/studio.ts';
 import {
@@ -534,6 +548,55 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       .run(promotion.id, store.id, JSON.stringify(promotion));
     res.status(201).json({ promotion });
   };
+  // Promociones y reseñas (panel del negocio): descuento para todo el negocio, cupones con
+  // código y reseñas del negocio y de sus productos. Solo el dueño.
+  r.get('/negocios/:id/promociones-panel', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    res.json({
+      discount: (await settings(db, store.id)).storeDiscount ?? null,
+      coupons: await listCoupons(db, store.id),
+    });
+  });
+  r.put('/negocios/:id/descuento', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    res.json({ discount: await setStoreDiscount(db, store.id, req.body ?? {}) });
+  });
+  r.post('/negocios/:id/cupones', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    res.status(201).json({ coupon: await createCoupon(db, store.id, req.body ?? {}) });
+  });
+  r.put('/negocios/:id/cupones/:cupon', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    await setCouponActive(db, store.id, req.params.cupon, req.body?.active === true);
+    res.json({ coupons: await listCoupons(db, store.id) });
+  });
+  r.get('/negocios/:id/resenas', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    const products = store.published?.design.products ?? store.draft.products ?? [];
+    const names = new Map(products.map((p) => [p.id, p.name]));
+    const storeReviews = await db
+      .prepare(
+        'SELECT r.id,r.operation_id AS operationId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? ORDER BY r.created_at DESC LIMIT 500',
+      )
+      .all<Review>(store.id);
+    const productReviews = (
+      await db
+        .prepare(
+          'SELECT r.id,r.product_id AS productId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM product_reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? ORDER BY r.created_at DESC LIMIT 500',
+        )
+        .all<Omit<ProductReview, 'productName'>>(store.id)
+    ).map((r) => ({ ...r, productName: names.get(r.productId) ?? 'Producto retirado' }));
+    res.json({ store: storeReviews, products: productReviews });
+  });
+  /** El carrito y la reserva comprueban un cupón antes de enviar el pedido. */
+  r.post('/cupones/validar', async (req, res) => {
+    requireUser(res);
+    const store = await getStore(db, string(req.body?.storeId, 100, 'el negocio'));
+    if (!store?.published) throw new HttpError(404, 'Negocio no encontrado.');
+    const coupon = await findCoupon(db, store.id, string(req.body?.code, 40, 'el código'));
+    const storePercent = discountPercent((await settings(db, store.id)).storeDiscount);
+    res.json({ code: coupon.code, percent: coupon.percent, storePercent });
+  });
   r.post('/negocios/:id/promociones', savePromotion);
   r.put('/negocios/:id/promociones/:promo', savePromotion);
   r.delete('/promociones/:id', async (req, res) => {
@@ -618,13 +681,21 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     if (typeof rawNote !== 'string' || rawNote.length > 500)
       throw new HttpError(400, 'La nota debe tener máximo 500 caracteres.');
     const note = rawNote.trim();
+    const subtotal = lines.reduce((n, l) => n + l.price * l.quantity, 0);
+    if (!orderLink(design.whatsapp, ''))
+      throw new HttpError(409, 'Este negocio no tiene WhatsApp registrado.');
+    // Descuento del negocio o cupón: el mayor (no se acumulan). Lo calcula el servidor.
+    const offer = await applyOffers(db, store.id, subtotal, req.body.code);
     const order: WhatsappOrderRecord = {
       id: randomUUID(),
       storeId: store.id,
       storeName: design.name,
       clientName: user.name,
       lines,
-      total: lines.reduce((n, l) => n + l.price * l.quantity, 0),
+      subtotal,
+      discount: offer.amount,
+      discountLabel: offer.label,
+      total: subtotal - offer.amount,
       note,
       createdAt: new Date().toISOString(),
     };

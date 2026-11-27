@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   ArrowLeft,
+  BadgePercent,
   Bot,
   CalendarDays,
   ChevronLeft,
@@ -34,6 +35,7 @@ import { canBuyRole } from '@/domain/roles';
 import { socialUrl, thumbnail, type StoreDesign, type StoreProduct } from '@/domain/studio';
 import { rankByRating, weekSummary, type CommerceStore } from '@/domain/platform';
 import { currency, whatsappUrl } from '@/domain/rules';
+import { discounted, discountPercent } from '@/domain/offers';
 import { sectorFor, sentenceCase, subregionFor } from '@/domain/sectors';
 import type { BrainContext, Reply } from '@/domain/brain/types';
 import EmptyState from '@/components/EmptyState.vue';
@@ -147,6 +149,17 @@ const featured = computed(() =>
   rankByRating(design.value?.products ?? [], meta.value?.productRatings).slice(0, 4),
 );
 const productRating = (productId: string) => meta.value?.productRatings?.[productId];
+// Descuento para todo el negocio (lo pone el dueño en «Promociones y reseñas»).
+const offPercent = computed(() => discountPercent(meta.value?.discount));
+const offUntil = computed(() =>
+  meta.value?.discount?.until
+    ? new Date(meta.value.discount.until).toLocaleDateString('es-CO', {
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'America/Bogota',
+      })
+    : '',
+);
 async function reloadMeta() {
   try {
     meta.value = await api<CommerceStore>(
@@ -315,7 +328,13 @@ function startRequest(p?: StoreProduct) {
   else requestOpen.value = true;
 }
 const bookingOpen = ref(false);
-async function book(b: { productId: string; slot: string; phone: string; detail: string }) {
+async function book(b: {
+  productId: string;
+  slot: string;
+  phone: string;
+  detail: string;
+  code: string;
+}) {
   notice.value = '';
   try {
     await platform.run('POST', '/operaciones', {
@@ -327,6 +346,7 @@ async function book(b: { productId: string; slot: string; phone: string; detail:
       phone: b.phone,
       slot: b.slot,
       paymentMethod: 'cash',
+      ...(b.code ? { code: b.code } : {}),
     });
     bookingOpen.value = false;
     await router.push('/solicitudes');
@@ -512,6 +532,13 @@ const assistantBullets = computed(() => [
         >Ver carrito</NuxtLink
       >
     </p>
+    <p v-if="offPercent" class="bp-offer" role="note">
+      <BadgePercent :size="20" aria-hidden="true" />
+      <span
+        ><strong>{{ offPercent }} % de descuento en todo el negocio</strong
+        >{{ offUntil ? ` hasta el ${offUntil}` : '' }}. Ya está aplicado en los precios.</span
+      >
+    </p>
     <div class="bp-grid">
       <div class="bp-main">
         <div class="sx-tabs bp-tabs" role="tablist" aria-label="Secciones del negocio">
@@ -629,7 +656,12 @@ const assistantBullets = computed(() => [
                 </p>
                 <p v-if="p.description">{{ p.description }}</p>
                 <div class="bp-mini-foot">
-                  <strong>{{ p.price ? currency(p.price) : 'A cotizar' }}</strong>
+                  <span class="bp-prices"
+                    ><strong>{{
+                      p.price ? currency(discounted(p.price, offPercent)) : 'A cotizar'
+                    }}</strong
+                    ><s v-if="offPercent && p.price">{{ currency(p.price) }}</s></span
+                  >
                   <button
                     type="button"
                     class="bp-cart"
@@ -797,7 +829,12 @@ const assistantBullets = computed(() => [
                   <span class="muted">({{ productRating(p.id)!.count }})</span>
                 </p>
                 <p v-if="p.description" class="small muted">{{ p.description }}</p>
-                <strong class="bp-price">{{ p.price ? currency(p.price) : 'A cotizar' }}</strong>
+                <p class="bp-prices">
+                  <strong class="bp-price">{{
+                    p.price ? currency(discounted(p.price, offPercent)) : 'A cotizar'
+                  }}</strong
+                  ><s v-if="offPercent && p.price">{{ currency(p.price) }}</s>
+                </p>
                 <p v-if="stockOf(p) === 0" class="small danger" style="margin: 0">Agotado</p>
                 <div class="bp-buy">
                   <div
@@ -1024,6 +1061,7 @@ const assistantBullets = computed(() => [
       :services="design.products"
       :initial="service"
       :settings="meta?.settings ?? null"
+      :discount="offPercent"
       :busy="platform.busy.value"
       :error="notice"
       @close="bookingOpen = false"
@@ -1210,6 +1248,33 @@ const assistantBullets = computed(() => [
 }
 .bp-round.on svg {
   fill: currentColor;
+}
+.bp-offer {
+  color: #14532d;
+  background: linear-gradient(90deg, #e8f8ed, #f4fbf6);
+  border: 1px solid #bfe6cb;
+  border-radius: 14px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  display: flex;
+}
+.bp-offer svg {
+  color: #15803d;
+  flex: none;
+}
+.bp-prices {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  display: inline-flex;
+}
+.bp-prices s {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 500;
 }
 .bp-tabs button {
   padding: 0 12px;

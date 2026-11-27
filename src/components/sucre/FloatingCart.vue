@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { ChevronDown, MessageCircle, Minus, Plus, ShoppingCart, Trash } from '@lucide/vue';
+import { ChevronDown, MessageCircle, Minus, Plus, ShoppingCart, Ticket, Trash } from '@lucide/vue';
+import { discountAmount, discountPercent } from '@/domain/offers';
+import type { CommerceStore } from '@/domain/platform';
 import { thumbnail } from '@/domain/studio';
 import { currency } from '@/domain/rules';
 import { usePlatform } from '@/lib/platform-store';
@@ -21,7 +23,51 @@ const error = ref('');
 const sent = ref<{ url: string; store: string } | null>(null);
 const lines = computed(() => platform.cart.value);
 const count = computed(() => lines.value.reduce((n, l) => n + l.quantity, 0));
-const total = computed(() => lines.value.reduce((n, l) => n + l.price * l.quantity, 0));
+const subtotal = computed(() => lines.value.reduce((n, l) => n + l.price * l.quantity, 0));
+// Descuento del negocio y cupón: se muestra el mayor (no se acumulan). El servidor lo calcula
+// de nuevo al enviar el pedido.
+const storePercent = ref(0);
+const code = ref('');
+const coupon = ref<{ code: string; percent: number } | null>(null);
+const couponError = ref('');
+const checking = ref(false);
+watch(
+  () => lines.value[0]?.businessId,
+  async (id) => {
+    storePercent.value = 0;
+    coupon.value = null;
+    code.value = couponError.value = '';
+    if (!id) return;
+    try {
+      storePercent.value = discountPercent(
+        (await api<CommerceStore>('GET', `/plataforma/negocios/${id}`)).discount,
+      );
+    } catch {
+      // Sin datos del negocio, el servidor aplica el descuento igual al enviar.
+    }
+  },
+  { immediate: true },
+);
+async function applyCoupon() {
+  couponError.value = '';
+  coupon.value = null;
+  if (!code.value.trim() || !lines.value.length) return;
+  checking.value = true;
+  try {
+    coupon.value = await api('POST', '/plataforma/cupones/validar', {
+      storeId: lines.value[0].businessId,
+      code: code.value,
+    });
+  } catch (e) {
+    couponError.value = (e as Error).message;
+  } finally {
+    checking.value = false;
+  }
+}
+const couponWins = computed(() => !!coupon.value && coupon.value.percent > storePercent.value);
+const percent = computed(() => (couponWins.value ? coupon.value!.percent : storePercent.value));
+const discount = computed(() => discountAmount(subtotal.value, percent.value));
+const total = computed(() => subtotal.value - discount.value);
 const store = computed(() =>
   directory.stores.value.find((s) => s.id === lines.value[0]?.businessId),
 );
@@ -56,6 +102,7 @@ async function buy() {
         storeId: lines.value[0].businessId,
         items: lines.value.map((l) => ({ productId: l.productId, quantity: l.quantity })),
         note: note.value,
+        ...(couponWins.value ? { code: coupon.value!.code } : {}),
       },
     );
     sent.value = { url: result.url, store: result.order.storeName };
@@ -63,6 +110,8 @@ async function buy() {
     else window.location.href = result.url;
     platform.clear();
     note.value = '';
+    code.value = '';
+    coupon.value = null;
   } catch (e) {
     tab?.close();
     error.value = (e as Error).message;
@@ -162,6 +211,45 @@ async function buy() {
           >Nota para el negocio (opcional)
           <input v-model="note" maxlength="500" placeholder="Ej.: sin cebolla, para el sábado…" />
         </label>
+        <div class="fc-coupon">
+          <label class="fc-note"
+            >¿Tienes un cupón?
+            <input
+              v-model="code"
+              maxlength="20"
+              autocomplete="off"
+              placeholder="Código del cupón"
+              @keydown.enter.prevent="applyCoupon"
+            />
+          </label>
+          <button
+            type="button"
+            class="fc-apply"
+            :disabled="checking || !code.trim()"
+            @click="applyCoupon"
+          >
+            <Ticket :size="16" /> Aplicar
+          </button>
+        </div>
+        <p v-if="couponError" class="field-error" role="alert">{{ couponError }}</p>
+        <p v-else-if="coupon" class="fc-ok" role="status">
+          {{
+            couponWins
+              ? `Cupón ${coupon.code} aplicado: ${coupon.percent} %.`
+              : `El negocio ya tiene un descuento igual o mayor (${storePercent} %).`
+          }}
+        </p>
+        <div v-if="discount" class="fc-sub">
+          <span>Subtotal</span><span>{{ currency(subtotal) }}</span>
+        </div>
+        <div v-if="discount" class="fc-sub fc-sub--off">
+          <span
+            >{{ couponWins ? `Cupón ${coupon!.code}` : 'Descuento del negocio' }} ({{
+              percent
+            }}
+            %)</span
+          ><span>−{{ currency(discount) }}</span>
+        </div>
         <div class="fc-total">
           <span>Total</span>
           <strong>{{ currency(total) }}</strong>
@@ -224,6 +312,45 @@ async function buy() {
   position: absolute;
   top: -4px;
   right: -4px;
+}
+.fc-coupon {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  display: grid;
+}
+.fc-coupon input {
+  text-transform: uppercase;
+}
+.fc-apply {
+  color: #166534;
+  border: 1.5px solid #86c99b;
+  border-radius: 12px;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 12px;
+  font-weight: 600;
+  display: inline-flex;
+}
+.fc-apply:disabled {
+  opacity: 0.55;
+}
+.fc-ok {
+  color: #15803d;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.fc-sub {
+  color: var(--muted);
+  justify-content: space-between;
+  font-size: 14px;
+  display: flex;
+}
+.fc-sub--off {
+  color: #15803d;
+  font-weight: 600;
 }
 .fc-panel {
   width: min(380px, 100vw - 24px);

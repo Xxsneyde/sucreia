@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, X } from '@lucide/vue';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Ticket, X } from '@lucide/vue';
+import { discountAmount } from '@/domain/offers';
 import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
 import { normalizePhone } from '@/domain/phone';
@@ -15,12 +16,16 @@ const props = defineProps<{
   services: StoreProduct[];
   initial?: string;
   settings?: StoreSettings | null;
+  /** Descuento vigente para todo el negocio (%). */
+  discount?: number;
   busy?: boolean;
   error?: string;
 }>();
 const emit = defineEmits<{
   close: [];
-  confirm: [booking: { productId: string; slot: string; phone: string; detail: string }];
+  confirm: [
+    booking: { productId: string; slot: string; phone: string; detail: string; code: string },
+  ];
 }>();
 interface Slot {
   slot: string;
@@ -127,6 +132,31 @@ function scrollDays(direction: number) {
   strip.value?.scrollBy({ left: direction * 280, behavior: 'smooth' });
 }
 const ready = computed(() => !!chosen.value && !!normalizePhone(phone.value));
+// Cupón del negocio (opcional): se comprueba antes de reservar; el servidor aplica el mayor
+// entre el cupón y el descuento del negocio.
+const code = ref('');
+const coupon = ref<{ code: string; percent: number } | null>(null);
+const couponError = ref('');
+const checking = ref(false);
+async function applyCoupon() {
+  couponError.value = '';
+  coupon.value = null;
+  if (!code.value.trim()) return;
+  checking.value = true;
+  try {
+    coupon.value = await api('POST', '/plataforma/cupones/validar', {
+      storeId: props.storeId,
+      code: code.value,
+    });
+  } catch (e) {
+    couponError.value = (e as Error).message;
+  } finally {
+    checking.value = false;
+  }
+}
+const percent = computed(() => Math.max(props.discount ?? 0, coupon.value?.percent ?? 0));
+const price = computed(() => current.value?.price ?? 0);
+const off = computed(() => discountAmount(price.value, percent.value));
 function confirm() {
   if (!ready.value) return;
   emit('confirm', {
@@ -134,6 +164,7 @@ function confirm() {
     slot: chosen.value,
     phone: phone.value.trim(),
     detail: note.value.trim() || current.value?.name || 'Reserva',
+    code: coupon.value?.code ?? '',
   });
 }
 </script>
@@ -237,6 +268,35 @@ function confirm() {
       </p>
       <PhoneField v-model="phone" label="Tu WhatsApp" required />
       <label>Nota para el negocio (opcional)<input v-model="note" maxlength="500" /></label>
+      <div class="bk-coupon">
+        <label
+          >Código de cupón (opcional)<input
+            v-model="code"
+            maxlength="20"
+            autocomplete="off"
+            @keydown.enter.prevent="applyCoupon"
+        /></label>
+        <button
+          type="button"
+          class="sx-btn sx-btn--outline"
+          :disabled="checking || !code.trim()"
+          @click="applyCoupon"
+        >
+          <Ticket :size="16" /> Aplicar
+        </button>
+      </div>
+      <p v-if="couponError" class="field-error" role="alert">{{ couponError }}</p>
+      <p v-else-if="coupon" class="bk-ok" role="status">
+        Cupón {{ coupon.code }}: {{ coupon.percent }} % de descuento{{
+          (discount ?? 0) >= coupon.percent
+            ? ' (el negocio ya tiene un descuento igual o mayor)'
+            : ''
+        }}.
+      </p>
+      <p v-if="price && percent" class="bk-total">
+        <span>{{ currency(price) }} − {{ percent }} %</span>
+        <strong>{{ currency(price - off) }}</strong>
+      </p>
       <p v-if="error" class="field-error" role="alert">{{ error }}</p>
       <button class="sx-btn sx-btn--block" :disabled="busy || !ready">
         {{ busy ? 'Reservando…' : 'Confirmar reserva' }}
@@ -486,6 +546,39 @@ function confirm() {
   border-radius: 10px;
   padding: 10px 12px;
   font-weight: 400;
+}
+.bk-coupon {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  display: grid;
+}
+.bk-coupon input {
+  text-transform: uppercase;
+}
+.bk-ok {
+  color: #15803d;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.bk-total {
+  color: var(--ink);
+  background: #e8f8ed;
+  border-radius: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  padding: 10px 14px;
+  display: flex;
+}
+.bk-total span {
+  color: var(--muted);
+  font-size: 14px;
+}
+.bk-total strong {
+  color: #15803d;
+  font-size: 18px;
 }
 .bk-summary {
   background: var(--blue-soft);

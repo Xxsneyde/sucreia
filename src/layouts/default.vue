@@ -2,8 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
+  ArrowLeftRight,
   Bell,
   BookOpen,
+  Check,
   CalendarDays,
   ChartNoAxesColumn,
   ChevronDown,
@@ -40,6 +42,7 @@ import {
   defaultMode,
   modeHome,
   modeNames,
+  modeStart,
   navFor,
   type IconName,
   type Mode,
@@ -47,6 +50,7 @@ import {
   type StoreKind,
 } from '@/domain/roles';
 import { requiresSession } from '@/domain/access';
+import { useViewMode } from '@/lib/view-mode';
 import LogoutButton from '@/components/LogoutButton.vue';
 import NotificationsBell from '@/components/NotificationsBell.vue';
 import SucreLogo from '@/components/sucre/SucreLogo.vue';
@@ -98,13 +102,21 @@ watch(path, () => {
   menu.value = false;
 });
 const user = computed(() => (mounted.value ? session.user : null));
-const mode = computed<Mode>(() => (user.value ? defaultMode(user.value.role) : 'comprar'));
+// El administrador puede cambiar de rol (Administrador o Emprendedor) desde el menú de su cuenta.
+const view = useViewMode(() => user.value);
+const mode = computed<Mode>(() => view.mode.value);
 const studio = useStudio();
 // Tipo del negocio activo: decide el menú (pedidos, reservas o cotizaciones).
 const kind = computed<StoreKind>(() => {
   const store = studio.projects.find((p) => p.id === studio.selectedId) ?? studio.projects[0];
   return store ? store.draft.mode : 'none';
 });
+function switchMode(next: Mode) {
+  menu.value = false;
+  if (next === mode.value) return;
+  view.setMode(next);
+  void navigateTo(modeStart(next, kind.value));
+}
 const nav = computed(() =>
   navFor(user.value ? { role: user.value.role, courier: 'none' } : null, mode.value, kind.value),
 );
@@ -187,7 +199,28 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
                 <ChevronDown :size="17" />
               </button>
               <div v-if="menu" class="sx-menu">
-                <p class="sx-menu-note">Cuenta de {{ modeNames[mode].toLowerCase() }}</p>
+                <p class="sx-menu-note">
+                  Cuenta de {{ modeNames[defaultMode(user.role)].toLowerCase() }}
+                </p>
+                <div
+                  v-if="view.modes.value.length > 1"
+                  class="sx-roles"
+                  role="group"
+                  aria-label="Cambiar de rol"
+                >
+                  <p class="sx-roles-title"><ArrowLeftRight :size="15" /> Cambiar de rol</p>
+                  <button
+                    v-for="m in view.modes.value"
+                    :key="m"
+                    type="button"
+                    :aria-pressed="m === mode"
+                    :class="{ on: m === mode }"
+                    @click="switchMode(m)"
+                  >
+                    {{ modeNames[m] }}
+                    <Check v-if="m === mode" :size="16" aria-hidden="true" />
+                  </button>
+                </div>
                 <NuxtLink to="/perfil"><CircleUser :size="18" /> Mi cuenta</NuxtLink>
                 <NuxtLink v-if="buyer" to="/pedidos"
                   ><ShoppingCart :size="18" /> Mis compras</NuxtLink

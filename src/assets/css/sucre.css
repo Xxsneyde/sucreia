@@ -373,6 +373,37 @@ fieldset {
 .sx-menu button:hover {
   background: var(--bg);
 }
+/* Cambio de rol del administrador (menú de la cuenta). */
+.sx-roles {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  gap: 2px;
+  margin: 4px 0 6px;
+  padding: 6px 0;
+  display: grid;
+}
+.sx-roles-title {
+  color: var(--muted);
+  align-items: center;
+  gap: 6px;
+  margin: 2px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+}
+.sx-menu .sx-roles button {
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+.sx-menu .sx-roles button.on {
+  color: var(--navy-900);
+  background: var(--blue-soft);
+  font-weight: 600;
+}
+.sx-roles button svg {
+  color: var(--blue);
+}
 .sx-bottom,
 .sx-burger {
   display: none;

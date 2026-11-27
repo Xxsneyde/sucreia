@@ -26,6 +26,8 @@ import {
   referralCode,
   referralStats,
 } from './rewards.ts';
+import { applyOffers } from './offers.ts';
+import { discountPercent } from '../src/domain/offers.ts';
 const now = () => new Date().toISOString();
 /** Transacción exclusiva: dentro de `fn` usa siempre `tx`. */
 export function transaction<T>(db: Db, fn: (tx: Db) => Promise<T>): Promise<T> {
@@ -378,6 +380,7 @@ export async function commerceStore(db: Db, storeId: string): Promise<CommerceSt
       ]),
     ),
     reviews,
+    discount: discountPercent(cfg.storeDiscount) ? (cfg.storeDiscount ?? null) : null,
     completed365: completed.filter((o) => Date.parse(o.completedAt) > Date.now() - 365 * 86400000)
       .length,
     rating: reviewStats?.rating ?? null,
@@ -425,6 +428,7 @@ export async function storeSummaries(db: Db, ids: string[]) {
         .map((r) => JSON.parse(String(r.payload)) as Promotion)
         .filter((x) => x.active && Date.parse(x.expires) > Date.now())
         .map((x) => x.percent),
+      discountPercent(cfg.storeDiscount),
     );
     result.set(id, {
       lat: cfg.latitude,
@@ -510,6 +514,8 @@ export interface CreateOperation {
   phone: string;
   paymentMethod?: 'cash' | 'transfer';
   couponId?: string;
+  /** Cupón con código del negocio (reservas). */
+  code?: string;
   expectedSubtotal?: number;
   addressLat?: number | null;
   addressLng?: number | null;
@@ -677,6 +683,10 @@ export async function createOperation(
         ).toISOString();
         op.subtotal = offer.price;
         op.detail = `${offer.name}: ${op.detail}`;
+        // Descuento del negocio o cupón (el mayor; no se acumulan).
+        const offerApplied = await applyOffers(db, store.id, op.subtotal, data.code);
+        op.discount = offerApplied.amount;
+        if (offerApplied.label) op.discountLabel = offerApplied.label;
       }
     }
     op.amount = op.subtotal - op.discount + op.fee;

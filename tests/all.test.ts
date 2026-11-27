@@ -17,3 +17,4 @@ import './registration.test.ts';
 import './migrations.test.ts';
 import './phone.test.ts';
 import './password.test.ts';
+import './offers.test.ts';

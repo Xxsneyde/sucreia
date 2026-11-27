@@ -98,8 +98,35 @@ test('administración: su propio menú, sin compras', async ({ page, isMobile })
   await expect(menu(page).getByRole('link', { name: 'Mis compras' })).toHaveCount(0);
   await page.goto('/pedidos');
   await expect(page).toHaveURL(/\/buscar\/?$/);
+  await expect(menu(page).getByRole('link', { name: 'Mis negocios' })).toHaveCount(0);
   await page.goto('/admin');
   await expect(
     page.getByRole('heading', { level: 1, name: 'Aprobación de negocios' }),
   ).toBeVisible();
+
+  // Cambiar de rol: como emprendedor solo ve lo de sus negocios (y explorar), y puede volver.
+  const role = async (name: 'Administrador' | 'Emprendedor') => {
+    await page.getByRole('button', { name: /Hola,/ }).click();
+    const group = page.getByRole('group', { name: 'Cambiar de rol' });
+    await expect(group.getByRole('button', { name: 'Administrador' })).toBeVisible();
+    await group.getByRole('button', { name }).click();
+  };
+  await role('Emprendedor');
+  await expect(page).toHaveURL(/\/panel(\/negocios)?\/?$/);
+  await openMenu(page, isMobile);
+  await expect(menu(page).locator('.sx-nav-title')).toHaveText(['Mi negocio', 'Explorar']);
+  await expect(menu(page).getByRole('link', { name: 'Aprobación de negocios' })).toHaveCount(0);
+  await expect(menu(page).getByRole('link', { name: 'Mis compras' })).toHaveCount(0);
+  // La vista elegida se conserva al recargar.
+  await page.reload();
+  await openMenu(page, isMobile);
+  await expect(menu(page).locator('.sx-nav-title').first()).toHaveText('Mi negocio');
+  if (isMobile) {
+    const width = page.viewportSize()!.width;
+    await page.locator('.sx-scrim').click({ position: { x: width - 12, y: 300 } });
+  }
+  await role('Administrador');
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await openMenu(page, isMobile);
+  await expect(menu(page).locator('.sx-nav-title')).toHaveText(['Administración', 'Explorar']);
 });

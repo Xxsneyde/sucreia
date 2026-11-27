@@ -365,6 +365,9 @@ const services = (o: Operation) => o.lines.map((l) => l.name).join(', ');
                     · {{ o.paymentMethod === 'cash' ? 'efectivo' : 'transferencia' }}</span
                   >
                   <span v-if="o.arrivedAt" class="rb-arrived">Llegó</span>
+                  <span v-if="o.discount" class="rb-arrived"
+                    >{{ o.discountLabel || 'Descuento' }}: −{{ currency(o.discount) }}</span
+                  >
                 </div>
 
                 <form

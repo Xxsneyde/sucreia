@@ -9,7 +9,10 @@ export interface Viewer {
   role: Role;
   courier: CourierState;
 }
-/** Vista del menú: cada rol tiene una sola (cliente, emprendedor o administrador). */
+/**
+ * Vista del menú. El cliente y el emprendedor tienen una sola; el administrador puede cambiar
+ * entre «Administrador» y «Emprendedor» (sus propios negocios) desde el menú de su cuenta.
+ */
 export type Mode = 'comprar' | 'negocio' | 'admin';
 
 export type IconName =
@@ -131,8 +134,6 @@ const admin: NavSection = {
   items: [
     { href: '/admin', label: 'Aprobación de negocios', icon: 'shield' },
     { href: '/admin/negocios', label: 'Negocios aprobados', icon: 'grid' },
-    { href: '/panel/negocios', label: 'Mis negocios', icon: 'store' },
-    registrar,
     { href: '/admin/pqrs', label: 'PQRS', icon: 'inbox' },
   ],
 };
@@ -161,7 +162,12 @@ const shorten = (items: NavItem[]): NavItem[] =>
 
 /** Vistas disponibles para cada rol. */
 export function modesFor(role: Role): Mode[] {
-  return role === 'admin' ? ['admin'] : role === 'emprendedor' ? ['negocio'] : ['comprar'];
+  // El administrador no compra: su otra vista es la de emprendedor (sus negocios).
+  return role === 'admin'
+    ? ['admin', 'negocio']
+    : role === 'emprendedor'
+      ? ['negocio']
+      : ['comprar'];
 }
 export const defaultMode = (role: Role): Mode => modesFor(role)[0];
 export const modeNames: Record<Mode, string> = {
@@ -188,12 +194,13 @@ export function navFor(
   if (current === 'admin')
     return {
       sections: [admin, explorar],
-      mobile: shorten(admin.items.slice(0, 4)),
+      mobile: shorten([...admin.items, buscarCorto].slice(0, 4)),
     };
   if (current === 'negocio') {
     const section = negocio(kind);
     return {
-      sections: [section, explorarYComprar],
+      // El administrador como emprendedor no compra: solo explora.
+      sections: [section, viewer?.role === 'admin' ? explorar : explorarYComprar],
       // Cuatro accesos del negocio; si hay menos, se completa con Buscar.
       mobile: shorten([...section.items, buscarCorto].slice(0, 4)),
     };
@@ -228,6 +235,12 @@ export function isRetired(path: string): boolean {
 
 /** Inicio de cada vista (el logo del menú lleva aquí). */
 export function modeHome(_mode: Mode): string {
+  return '/buscar';
+}
+/** A dónde lleva el cambio de vista (menú de la cuenta del administrador). */
+export function modeStart(mode: Mode, kind: StoreKind = 'none'): string {
+  if (mode === 'admin') return '/admin';
+  if (mode === 'negocio') return kind === 'none' ? '/panel' : '/panel/negocios';
   return '/buscar';
 }
 /** Dónde empieza cada rol al ingresar: todos empiezan buscando negocios. */

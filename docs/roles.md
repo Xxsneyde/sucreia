@@ -30,7 +30,9 @@ Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta**
 
 Las reservas (negocios con reserva) y las solicitudes de cotización se abren desde cada negocio en «Mis negocios» (botón «Reservas» o «Solicitudes», `/panel/pedidos`), junto a Panel, Datos del negocio, Productos o Servicios, Horario y cupos y Ver página.
 
-**Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, Mis negocios, Registrar emprendimiento, PQRS) y «Explorar». No compra, no reserva ni guarda favoritos.
+**Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, PQRS) y «Explorar». No compra, no reserva ni guarda favoritos. En el menú de su cuenta (arriba a la derecha) puede **cambiar de rol** a «Emprendedor»: el menú muestra entonces solo lo de sus negocios (Mis negocios, Registrar emprendimiento, Promociones y reseñas, PQRS) y «Explorar». La vista elegida se recuerda en ese navegador (`src/lib/view-mode.ts`); solo cambia el menú, los permisos siguen siendo los de la cuenta.
+
+**Promociones y reseñas** (`/panel/descuentos`): lista de negocios y, al elegir uno, sus productos en tarjetas (precio con el descuento aplicado y calificación), el descuento para todo el negocio, los cupones con código (porcentaje, vencimiento y usos máximos opcionales) y el botón «Ver reseñas» con las reseñas del negocio o de cada producto, ordenadas de mejores a peores o al revés. Un descuento del negocio y un cupón no se acumulan: se aplica el mayor, en el carrito (compra por WhatsApp) y en las reservas.
 
 **Notificaciones**: solo en la campana de la barra superior, que las despliega ahí mismo (las 8 más recientes, «Marcar todas como leídas» y «Ver todas» si hay más). No están en el menú lateral.
 

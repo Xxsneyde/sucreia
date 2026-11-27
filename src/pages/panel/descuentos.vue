@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import RequireMerchant from '@/components/RequireMerchant.vue';
-import Merchant from '@/features/commerce/Merchant.vue';
-useHead({ title: 'Mi negocio' });
+import PromotionsReviews from '@/features/commerce/PromotionsReviews.vue';
+useHead({ title: 'Promociones y reseñas' });
 </script>
 <template>
-  <RequireMerchant><Merchant /></RequireMerchant>
+  <RequireMerchant><PromotionsReviews /></RequireMerchant>
 </template>

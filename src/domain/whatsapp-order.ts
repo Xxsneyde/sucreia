@@ -13,6 +13,11 @@ export interface WhatsappOrder {
   id: string;
   storeName: string;
   lines: { name: string; price: number; quantity: number }[];
+  /** Antes del descuento (si falta, es igual al total). */
+  subtotal?: number;
+  discount?: number;
+  /** «Cupón BIENVENIDA (10 %)» o «Descuento del negocio (15 %)». */
+  discountLabel?: string;
   total: number;
   note: string;
 }
@@ -27,6 +32,12 @@ export function orderMessage(order: WhatsappOrder): string {
     '',
     ...lines,
     '',
+    ...(order.discount
+      ? [
+          `Subtotal: ${currency(order.subtotal ?? order.total + order.discount)}`,
+          `${order.discountLabel || 'Descuento'}: −${currency(order.discount)}`,
+        ]
+      : []),
     `*Total: ${currency(order.total)}*`,
     ...(order.note.trim() ? ['', `Nota: ${order.note.trim()}`] : []),
     '',
