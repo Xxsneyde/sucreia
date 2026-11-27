@@ -63,3 +63,4 @@ yarn-error.log*
 
 # Paquete para Hostinger (npm run build:hostinger)
 /hostinger/
+/hostinger.zip

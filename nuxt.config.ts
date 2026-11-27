@@ -20,9 +20,15 @@ export default defineNuxtConfig({
             'La comunidad digital de emprendimientos de Sucre. Compra local, reserva servicios y conecta con nuestra tierra.',
         },
       ],
-      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+      // Los mismos íconos que lo publicado (public/favicon.png y public/apple-touch-icon.png).
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+      ],
     },
   },
+  // Como en lo publicado. Ningún componente la usa todavía (los mapas son de Leaflet).
+  runtimeConfig: { public: { googleMapsEmbedKey: '' } },
   router: { options: { strict: false } },
   nitro: {
     // En desarrollo, /api se reenvía al servidor Express (npm run dev:api).

@@ -15,29 +15,24 @@ npm run dev       # Terminal 2: sitio de Vue en http://127.0.0.1:3000 (reenvía 
 Abre http://127.0.0.1:3000. Para desarrollo no necesitas claves ni servicios externos: la base de datos es SQLite incluida en Node (`server/data/`). Producción: `npm run build && npm start` (API y sitio en el mismo servidor). Detalle de rutas en [docs/api.md](docs/api.md).
 
 ```bash
-npm run check     # TypeScript + pruebas (dominio y API) + compilación
+npm run check     # TypeScript + pruebas (dominio y API, SQLite y Postgres) + compilación
 npm run test:e2e  # Después de npm run build; usa Express con base de datos en memoria
 ```
 
-Para instalar Chromium: `npx playwright install chromium`. Las pruebas de navegador arrancan Express con el sitio compilado, una base de datos en memoria y una bandeja de correo efímera (`tests/browser-server.ts`), así que primero hay que ejecutar `npm run build`.
+Las pruebas de navegador arrancan Express con el sitio compilado, una base de datos en memoria y una bandeja de correo efímera (`tests/browser-server.ts`), así que primero hay que ejecutar `npm run build`. Usan el Chromium de Playwright (`npx playwright install chromium`); con `PW_CHANNEL=chrome npm run test:e2e` usan el Chrome instalado en el equipo. `E2E_PORT` cambia el puerto (4173 por defecto). Si el equipo entra en suspensión durante la corrida, las pruebas fallan por tiempo: déjalo activo.
 
 ## Recorridos disponibles
 
-La [guía del recorrido completo](docs/recorrido-completo.md) explica cómo probarlo con cuentas diferentes.
+Son los de la versión publicada en https://sucreia.site (ver [vistas por rol](docs/roles.md)).
 
-- **Visitantes:** vitrina de negocios realmente publicados, filtros, catálogos y contacto por WhatsApp, sin menús de la plataforma ni negocios ficticios.
-- **Cuentas:** acceso independiente, recuperación/verificación, nombre editable, salida visible y activación del espacio de emprendedor sin crear otra cuenta.
-- **Emprendedores:** «Datos del negocio» (sector, municipio, historia, destacados, contacto, logo y portada) y «Productos y servicios» (grupos, precios, fotos y existencias); la página pública usa el diseño fijo de la presentación ([docs/presentacion.md](docs/presentacion.md)).
-- **Compras:** carrito por cuenta/navegador, cálculo del servidor, stock, reintentos idempotentes, recogida/domicilio y seguimiento persistente. No permite comprar al propio negocio.
-- **Servicios:** agenda sin solapamientos, citas con confirmación, solicitudes de cotización, propuesta del negocio y aceptación del cliente.
-- **Negocios:** pagos confirmados hoy, operaciones nuevas, pendientes por despachar/entregar, productos consultados, inventario, agenda, instrucciones de transferencia y promociones.
-- **Entregas:** solicitud y revisión de domiciliarios, foto, asignación, contacto, minutos estimados, efectivo recibido y confirmación con PIN privado del cliente.
-- **SucrePuntos:** saldo inicial cero, libro de movimientos, puntos por operaciones pagadas/completadas, canjes ligados al negocio, bonos de un uso y ajustes por devoluciones.
-- **Confianza:** reseñas por operaciones completadas, valoración del domiciliario y sello de verificación manual con operaciones de los últimos 365 días.
-- **Escuela:** siete lecciones en seis cursos, ejercicios y evaluación comprobada en servidor, progreso por cuenta, orden sugerido por actividad, tutor y constancia verificable para imprimir.
-- **Territorio y asistencia:** ubicaciones reales indicadas por los negocios; consulta de catálogo y tutor con guía local o IA de Ollama opcional, sin acciones automáticas ni afirmaciones de disponibilidad.
-- **Administración:** permisos de administrador, revisión y moderación, suspensión/reactivación de publicaciones y auditoría de decisiones. El primer administrador se habilita por terminal, con la API detenida.
-- **Avisos:** notificaciones persistentes por cuenta y consultas periódicas de estado cada 15 segundos. WhatsApp se abre por decisión del usuario; no hay mensajes automáticos.
+- **Cuentas:** registro con correo y contraseña, confirmación por correo (o SMS si está configurado), perfil con nombre, cédula y dirección, recuperación de contraseña e ingreso con Google si está configurado.
+- **Buscar:** negocios publicados por sector, subcategoría y municipio, mapa de emprendimientos y el Asistente SucreIA para encontrar productos y servicios.
+- **Negocios:** registro en siete pasos (datos, cómo atiende, logo y portada, catálogo, ubicación y cupos, documentos), revisión y aprobación de la administración, edición de datos y catálogo, varios negocios por cuenta, promociones y reseñas.
+- **Compras:** carrito que envía el pedido al WhatsApp del negocio; el pago y la entrega se acuerdan con el negocio. Quedan en «Mis compras» y en el panel del negocio.
+- **Servicios:** reservas con día, hora y cupos por hora; cotizaciones que el cliente acepta; reseñas al completar.
+- **Administración:** aprobación de registros con sus documentos, negocios aprobados, sello de verificado y PQRS.
+
+El código de Escuela, SucrePuntos, Domiciliario y la vista de inicio sigue en el repositorio y su API funciona, pero lo publicado retiró esas páginas del menú y las redirige a `/buscar`.
 
 SQLite guarda operaciones y permisos; los archivos de imágenes están en disco. El carrito es local al navegador y a la cuenta. No se crean compras, reputación o saldos ficticios al iniciar. El código anterior de demostración se conserva como referencia, pero sus pantallas no son las rutas del producto.
 
@@ -45,7 +40,7 @@ Los pagos y devoluciones se registran después de efectuarlos directamente con e
 
 ## Producción en Hostinger
 
-El sitio está en **https://sucreia.site**: una aplicación Node.js en Hostinger que entrega la API y las páginas generadas, con Postgres en Supabase (las fotos van dentro de la base). `npm run build:hostinger` arma el paquete en `hostinger/`. En este equipo se sigue trabajando con SQLite. Guía completa en [docs/hostinger.md](docs/hostinger.md). Vercel ya no se usa ([docs/vercel.md](docs/vercel.md) queda como referencia).
+El sitio está en **https://sucreia.site**: una aplicación Node.js en Hostinger que entrega la API y las páginas generadas, con Postgres en Supabase (las fotos van dentro de la base). `npm run build:hostinger` arma el paquete en `hostinger/`, lo prueba arrancándolo con una base temporal y genera `hostinger.zip`, que es lo que se sube. En este equipo se sigue trabajando con SQLite. Guía completa en [docs/hostinger.md](docs/hostinger.md). Vercel ya no se usa ([docs/vercel.md](docs/vercel.md) queda como referencia).
 
 ## Datos de demostración
 

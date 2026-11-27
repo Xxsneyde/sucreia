@@ -158,10 +158,26 @@ Se quitaron las pruebas de páginas que lo publicado retiró del menú y redirig
 
 El servidor de pruebas (`tests/browser-server.ts`) crea una cuenta de administración por proceso de Playwright (`admin-0@pruebas.co`, `admin-1@…`). El ingreso admite 10 intentos por correo cada 15 minutos, y con una sola cuenta las aprobaciones en paralelo recibían 429.
 
-## Diferencias que no se pudieron confirmar
+## Comprobación contra lo publicado
 
+El paquete que arma `npm run build:hostinger` se comparó con la copia de lo publicado (`recuperado-hostinger/publicado/`) el 27 de noviembre de 2026:
+
+| Qué               | Cómo se comparó                                                                        | Resultado                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `package.json`    | Archivo completo                                                                       | Idéntico (con `nodemailer` 10.6.1, como producción)                                               |
+| `server.mjs`      | Por archivo de origen y por tokens, sin espacios ni comentarios (mismo esbuild)        | Las 208 secciones de dependencias, idénticas; las nuestras, iguales salvo lo de la lista de abajo |
+| Sitio (`public/`) | Lista de archivos; imágenes byte a byte; los 44 HTML sin lo que cambia en cada build   | Mismos archivos e imágenes; HTML iguales salvo una precarga del código muerto (abajo)             |
+| Textos del sitio  | Todas las cadenas de los bundles de JavaScript (6171), con un analizador de JavaScript | Las mismas; solo cambian los nombres con hash de los CSS                                          |
+| Comportamiento    | Las 46 pruebas de navegador contra el sitio publicado servido por este backend         | 46 de 46                                                                                          |
+| Paquete en marcha | `scripts/hostinger-smoke.mjs` contra el `server.mjs` publicado y el nuevo              | Las mismas respuestas (salud, páginas, redirecciones al ingreso, API, `/.env` bloqueado)          |
+
+Al compararlo así aparecieron dos diferencias reales, ya corregidas: lo publicado declaraba `favicon.png` y `apple-touch-icon.png` (el repo usaba un `favicon.svg` que lo publicado no tiene) y la clave pública `googleMapsEmbedKey` (vacía y sin uso). El `server.mjs` publicado no puede correr las pruebas de navegador: arranca siempre en modo producción, sin la bandeja de correo local para confirmar cuentas.
+
+## Diferencias que quedan (revisadas)
+
+- Nombres internos y saltos de línea que el compilador conserva del código fuente (por ejemplo `top` en vez de `best2`, o listas en varias líneas). No cambian el comportamiento.
 - `canOpen` en `roles.ts` se conservó del código anterior (lo usan las pruebas); en lo publicado no aparece.
-- Código muerto de lo publicado que no se reconstruyó (el compilador lo dejó pero nada lo usa): el seguimiento de pedido de la página del negocio («Pedido confirmado», «Preparando pedido», «En camino», «Entregado»), el total del carrito y el costo de domicilio que calculaba esa página, y tres variables sin uso de `BusinessEditor`. Por eso el build nuevo tiene un chunk menos (el ícono `package-check`).
+- Código muerto de lo publicado que no se reconstruyó (el compilador lo dejó pero nada lo usa): el seguimiento de pedido de la página del negocio («Pedido confirmado», «Preparando pedido», «En camino», «Entregado»), el total del carrito y el costo de domicilio que calculaba esa página, tres variables sin uso de `BusinessEditor` y un formateador de fecha repetido. Por eso el build nuevo tiene un chunk menos (el ícono `package-check`) y dos páginas una precarga menos.
 - `server/db.ts`: lo publicado llamaba a `@vercel/functions` cuando corría en Vercel. Ese paquete no está instalado y Vercel ya no se usa, así que se dejó fuera.
-- `nodemailer`: el `package.json` publicado pedía la 10.6.1; el repo tiene la 8.0.10 (ver [hostinger.md](hostinger.md)).
 - En lo publicado, la variable que activa el modo empaquetado venía fija desde el build; ahora `server/index.ts` la reconoce por el nombre del archivo (`server.mjs`), sin opciones de compilación.
+- `server/routes/tiendas.ts` guarda la versión de los términos en una constante (`TERMS_VERSION`); lo publicado tenía el mismo valor escrito directo.

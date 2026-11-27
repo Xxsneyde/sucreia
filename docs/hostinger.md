@@ -2,15 +2,26 @@
 
 SucreIA corre en Hostinger como **aplicación Node.js** (Node 22): un solo proceso de Express entrega la API (`/api`) y el sitio de Nuxt ya compilado. La base es Postgres (Supabase) y las fotos van dentro de la base. Vercel ya no se usa; [vercel.md](vercel.md) queda solo como referencia histórica.
 
-## Compilar
+## Subir un cambio, paso a paso
 
 ```bash
 npm ci
-npm run check            # tipos, pruebas (SQLite y Postgres) y build del sitio
-npm run build:hostinger  # genera hostinger/
+npm run check            # tipos, pruebas de la API (SQLite y Postgres) y build del sitio
+npm run test:e2e         # recorridos en el navegador (PW_CHANNEL=chrome usa el Chrome instalado)
+npm run build:hostinger  # genera hostinger/, lo prueba y arma hostinger.zip
 ```
 
-`hostinger/` (no se sube a Git) contiene exactamente lo que va al servidor, con la misma forma que lo publicado hasta hoy:
+1. Respaldo: descarga la base desde Supabase (o confirma que hay un respaldo reciente) y guarda el `hostinger.zip` que está publicado hoy, para poder volver atrás.
+2. Corre los cuatro comandos de arriba. Si uno falla, no subas nada.
+3. Sube `hostinger.zip` en el panel de la aplicación Node.js de Hostinger. Las variables de entorno ya están en el panel: no van en el zip.
+4. Revisa las [comprobaciones después de subir](#comprobaciones-después-de-subir) y abre el sitio en el celular.
+5. Si algo sale mal, vuelve a subir el zip anterior. Si el cambio traía una migración nueva, la base ya la aplicó: el zip anterior sigue funcionando porque las migraciones solo agregan (ver [la base de datos](#la-base-de-datos)).
+
+`npm run build:hostinger` hace tres cosas:
+
+- Arma `hostinger/` con la misma forma que lo publicado. `hostinger/` y `hostinger.zip` no se suben a Git.
+- Arranca el `server.mjs` empaquetado con una base temporal (`scripts/hostinger-smoke.mjs`) y revisa la salud, las páginas públicas, las redirecciones al ingreso, la API y que `/.env` siga bloqueado. Si algo no responde como en producción, se detiene y no arma el zip.
+- Empaca `hostinger.zip` (`scripts/zip.mjs`, sin dependencias) con `server.mjs`, `package.json` y `public/` en la raíz.
 
 | Archivo        | Qué es                                                                                   |
 | -------------- | ---------------------------------------------------------------------------------------- |
@@ -19,6 +30,23 @@ npm run build:hostinger  # genera hostinger/
 | `package.json` | Solo `sharp` (binarios nativos) y `nodemailer`; `npm install` en el servidor los instala |
 
 `npm run build:hostinger -- --sin-sitio` reutiliza un `.output/public` ya generado.
+
+## Reglas para no romper producción
+
+- **La base de datos.** Ver [la base de datos](#la-base-de-datos): las migraciones nuevas se agregan al final y nunca se edita una publicada. `tests/migrations.test.ts` lo vigila.
+- **Las versiones de `sharp` y `nodemailer`** del `package.json` raíz son las que se instalan en Hostinger. Si cambias una, prueba en local con el paquete armado (`npm run build:hostinger`).
+- **Node 22.** Hostinger corre Node 22; el paquete se compila para esa versión (`target: 'node22'`). No uses funciones de Node más nuevas en `server/`.
+- **Las variables de entorno** son las de la tabla de abajo. Si el código pide una nueva, agrégala en el panel antes de subir; si falta, el servidor puede no arrancar.
+- **Las rutas públicas.** `/api/...`, las páginas y las redirecciones al ingreso las revisa la prueba del paquete; los recorridos completos, `npm run test:e2e`.
+
+## La base de datos
+
+`server/db.ts` tiene la lista de migraciones. Al arrancar, el servidor aplica en orden las que la base aún no tiene (la tabla `schema_version` guarda cuántas van). Producción ya corrió las 23 que hay hoy.
+
+- Para cambiar el esquema, **agrega una migración nueva al final** de la lista.
+- **Nunca edites ni borres una migración publicada**: producción no la volvería a correr y su base quedaría distinta a la de las pruebas.
+- Prefiere cambios que solo agregan (tablas, columnas con valor por defecto, índices). Así el zip anterior sigue funcionando con la base ya migrada, por si hay que volver atrás.
+- Las migraciones corren en SQLite y en Postgres: `npm run check` prueba las dos (`npm test` y `npm run test:postgres`).
 
 ## Variables de entorno (panel de Hostinger)
 
@@ -43,9 +71,8 @@ Los valores reales **no** están en el repositorio ni deben subirse. Se configur
 - `GET /api/salud/ip-salida` (solo con sesión de administración) dice la IP de salida del servidor, que Onurix exige registrar para enviar SMS, y si el SMS está activo.
 - `GET /api/auth/google/estado` y `GET /api/auth/sms/estado` dicen si esas opciones están configuradas.
 
-## Antes de reemplazar lo publicado
+## La primera subida después de la recuperación
 
-1. Descarga una copia de lo que está en Hostinger y un respaldo de la base en Supabase.
-2. Las migraciones de `server/db.ts` son las mismas que ya corrió producción: la base actual no cambia al arrancar.
-3. `nodemailer`: lo publicado usaba la versión 10.6.1 y el repo tiene la 8.0.10. Solo afecta al envío por SMTP (con Resend no se usa). Si se usa SMTP, actualizarla y probar `npm run mail:check` antes de subir.
-4. Prueba los recorridos principales (`npm run test:e2e`) y una revisión visual en el celular.
+El repositorio ya arma el mismo paquete que está publicado (ver [recuperacion.md](recuperacion.md#comprobación-contra-lo-publicado)): mismo `package.json`, mismo backend y el mismo sitio. Las migraciones son las mismas que ya corrió producción, así que la base no cambia al arrancar.
+
+Antes de la primera subida, haz el respaldo del paso 1 (la copia descargada en `recuperado-hostinger/publicado/` sirve como zip anterior) y la revisión visual en el celular.

@@ -1,50 +1,52 @@
 # Vistas por rol
 
-Fuente única: `src/domain/roles.ts` (menú, inicio de cada rol y páginas exclusivas). El layout interno (`src/layouts/default.vue`), el middleware (`src/middleware/access.global.ts`) y Express (`server/app.ts`) usan esas mismas funciones. Pruebas: `tests/roles.test.ts` y `tests/e2e/roles.spec.ts`.
+Fuente única: `src/domain/roles.ts` (menú, inicio de cada rol y páginas exclusivas) y `src/domain/access.ts` (qué páginas piden cuenta y los pasos de confirmar la cuenta y completar el perfil). El layout interno (`src/layouts/default.vue`), el middleware (`src/middleware/access.global.ts`) y Express (`server/app.ts`) usan esas mismas funciones. Pruebas: `tests/roles.test.ts` y `tests/e2e/roles.spec.ts`.
 
 El servidor comprueba permisos en cada operación de la API; estas reglas deciden **qué se muestra**, no reemplazan esa comprobación.
 
 ## Roles
 
-| Rol               | Cómo se obtiene                                                                        | Empieza en   |
-| ----------------- | -------------------------------------------------------------------------------------- | ------------ |
-| **Visitante**     | Sin cuenta                                                                             | `/`          |
-| **Cliente**       | Crear cuenta con «Quiero comprar»                                                      | `/inicio`    |
-| **Emprendedor**   | Crear cuenta con «Tengo un negocio», o activarlo desde el perfil (misma cuenta)        | `/panel`     |
-| **Domiciliario**  | Permiso extra, no rol: se solicita en «Quiero repartir» y lo aprueba la administración | según su rol |
-| **Administrador** | Solo desde la terminal local (ver `docs/operacion.md`)                                 | `/admin`     |
+| Rol               | Cómo se obtiene                                                                           | Empieza en  |
+| ----------------- | ----------------------------------------------------------------------------------------- | ----------- |
+| **Visitante**     | Sin cuenta: la portada lleva a `/ingresar`                                                | `/ingresar` |
+| **Cliente**       | Crear cuenta con «Quiero comprar»                                                         | `/buscar`   |
+| **Emprendedor**   | Crear cuenta con «Tengo un negocio», o pasarse desde `/emprender` (no tiene vuelta atrás) | `/buscar`   |
+| **Administrador** | Solo desde la terminal (ver `docs/operacion.md`)                                          | `/buscar`   |
 
-## Qué ve cada uno
+Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta** (`/verificar-correo`, por correo o SMS) y **completan el perfil** (`/completar-perfil`: nombre, cédula y dirección). El middleware lleva ahí a quien le falte un paso. Al emprendedor, al completar el perfil, se le abre el registro de su negocio en otra pestaña (`/registro-negocio`).
 
-El menú del **cliente** sigue el diagrama del equipo: Inicio, Buscar negocios, Sectores, Mapa de emprendimientos, Descuentos y SucrePuntos, Recomendaciones IA, Mis compras (con seguimiento en mapa), Mis reservas, Favoritos y Notificaciones. La Escuela es del emprendedor: al cliente se le muestra «¿Quieres emprender?» en el inicio.
+## Menús
 
-El menú de **Mi negocio** cambia según el tipo del negocio activo:
+**Cliente** (y visitante, que al abrir una página con cuenta va al ingreso): Buscar negocios, Mapa de emprendimientos, Mis compras, Mis reservas, Favoritos, Notificaciones y, con sesión, «¿Quieres montar tu propio emprendimiento?» (`/emprender`).
 
-| Tipo                  | Menú                                                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sin negocio           | Configurar mi negocio (asistente de 6 pasos), Datos del negocio, Escuela                                                                                        |
-| Productos             | Pedidos (tablero Recientes → Preparando → Enviados), Ventas, Mis productos, Descuentos y reseñas, Cobros y entregas, Datos del negocio, Escuela                 |
-| Servicios con reserva | Reservas de hoy (confirmar, llegó, cobrar, completar, no asistió), Agenda (semana, horario por día, cupo, bloqueos), Mis servicios (con duración), Dashboard, … |
-| Cotización            | Solicitudes (por cotizar → esperando → aceptadas), Mis servicios, Dashboard, …                                                                                  |
+**Emprendedor**: «Mi negocio» primero y luego «Explorar y comprar» (Buscar negocios, Mapa, Mis compras, Mis reservas, Favoritos). «Mi negocio» cambia según el negocio activo:
 
-**Logística** (`/domiciliario`): registro con zona y vehículo, interruptor Disponible, pedidos de su zona con distancia y tarifa, entrega en curso con mapa y ruta, cobro en efectivo, PIN, ganancias e historial.
+| Negocio               | Mi negocio                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Sin negocio           | Registrar emprendimiento, Notificaciones, PQRS                                                                      |
+| Productos             | Mis negocios, Registrar emprendimiento, Promociones y reseñas, Notificaciones, PQRS                                 |
+| Servicios con reserva | Mis negocios, Registrar emprendimiento, Reservas (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS    |
+| Cotización            | Mis negocios, Registrar emprendimiento, Solicitudes (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS |
 
-| Sección (menú)     | Páginas                                                                                                                                                | Visitante  |        Cliente         | Emprendedor | Domiciliario | Admin |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | :--------: | :--------------------: | :---------: | :----------: | :---: |
-| Públicas           | `/`, `/buscar`, `/sectores`, `/mapa`, `/tienda?id=…`, `/constancia`                                                                                    |     ✓      |           ✓            |      ✓      |      ✓       |   ✓   |
-| Acceso             | `/ingresar`, `/recuperar`, `/verificar-correo`                                                                                                         |     ✓      |                        |             |              |       |
-| Menú principal     | `/inicio`, `/puntos`, `/logistica`, `/escuela`, `/recomendaciones`, `/solicitudes`, `/pedidos`, `/favoritos`, `/notificaciones`, `/carrito`, `/perfil` | (ingresar) |           ✓            |      ✓      |      ✓       |   ✓   |
-| **Mi negocio**     | Resumen `/panel`, Datos del negocio `/panel/perfil`, Productos, Pedidos y solicitudes, Descuentos, Configuración                                       |            | (activar en el perfil) |      ✓      |              |   ✓   |
-| **Entregas**       | `/domiciliario`                                                                                                                                        |            |      (solicitud)       | (solicitud) |      ✓       |   ✓   |
-| **Administración** | Revisión y moderación `/admin`, Guía del proyecto `/equipo`                                                                                            |            |                        |             |              |   ✓   |
+**Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, Mis negocios, Registrar emprendimiento, PQRS, Notificaciones) y «Explorar». No compra, no reserva ni guarda favoritos.
 
-- **Emprendedor:** en las páginas del panel el menú pone «Mi negocio» primero. En celular, las pestañas inferiores son las tres primeras de su tipo de negocio y Mi cuenta.
-- **Visitante:** ve el mismo menú; las páginas que necesitan cuenta llevan a `/ingresar?volver=…`.
-- **Administración:** quien no es administrador y abre `/admin` o `/equipo` vuelve a su propio inicio (Express lo redirige antes de enviar la página).
+En celular, el menú inferior tiene cuatro pestañas: para el cliente Buscar, Mapa, Compras y Mi cuenta; para el emprendedor las tres primeras de «Mi negocio» y Mi cuenta; para el administrador Aprobar, Aprobados, Negocios y Mi cuenta.
+
+## Páginas
+
+| Páginas                                                                                                                                    | Quién                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `/ingresar`, `/recuperar`, `/verificar-correo`, `/completar-perfil`, `/tienda?id=…`, `/terminos`, `/quienes-somos`, `/pqrs`, `/constancia` | Públicas                                                             |
+| `/buscar`, `/mapa`, `/sectores`, `/notificaciones`, `/perfil`                                                                              | Con cuenta                                                           |
+| `/pedidos`, `/solicitudes`, `/favoritos`, `/carrito`                                                                                       | Cliente y emprendedor (el administrador vuelve a `/buscar`)          |
+| `/panel/…`, `/registro-negocio`                                                                                                            | Emprendedor y administrador (al cliente se le invita a `/emprender`) |
+| `/admin/…`                                                                                                                                 | Administrador (los demás vuelven a `/buscar`)                        |
+
+**Páginas retiradas** del menú: `/inicio`, `/puntos`, `/domiciliario`, `/logistica`, `/escuela`, `/recomendaciones`, `/panel/ventas`, `/panel/configuracion` y `/equipo` llevan a `/buscar` (`isRetired`). Su código sigue en `src/features/community` y la API correspondiente sigue activa, pero no se ven en lo publicado.
 
 ## Agregar una vista
 
 1. Añadir el enlace a la sección correspondiente en `src/domain/roles.ts` (y su ícono en el mapa de `layouts/default.vue`).
 2. Si es exclusiva de un rol, ampliar `requiredRole()` y, si requiere cuenta, `requiresSession()` en `src/domain/access.ts`.
 3. Proteger la operación también en el servidor (`requireUser(res, …roles)`).
-4. Actualizar las pruebas de `tests/roles.test.ts` y esta tabla.
+4. Actualizar las pruebas de `tests/roles.test.ts` y `tests/e2e/roles.spec.ts`, y esta página.

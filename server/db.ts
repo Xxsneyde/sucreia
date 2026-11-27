@@ -25,7 +25,7 @@ type Migration = string | { sqlite: string; postgres: string };
 
 // Cada migración se aplica una sola vez, en orden. Para cambiar el esquema, agrega una nueva
 // al final; nunca edites una que ya se publicó.
-const migrations: Migration[] = [
+export const migrations: Migration[] = [
   `
   CREATE TABLE users (
     id TEXT PRIMARY KEY,

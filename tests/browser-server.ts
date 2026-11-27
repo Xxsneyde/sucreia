@@ -26,7 +26,7 @@ const server = createApp({
   // Las pruebas crean muchas cuentas desde 127.0.0.1; el servidor real mantiene 60.
   registrationLimit: 10_000,
   linkLimit: 10_000,
-}).listen(4173, '127.0.0.1');
+}).listen(Number(process.env.E2E_PORT ?? 4173), '127.0.0.1');
 function stop() {
   server.close(() => {
     void db.close();
