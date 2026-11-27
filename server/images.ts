@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import sharp, { type OutputInfo } from 'sharp';
+import sharp, { type OutputInfo, type Sharp } from 'sharp';
 import type { Db } from './db.ts';
 import { HttpError } from './http.ts';
 import type { StoreDesign } from '../src/domain/studio.ts';
@@ -25,8 +25,25 @@ interface ImageRow {
   created_at: string;
 }
 export function designImages(d: StoreDesign): string[] {
-  return [d.logo, d.content.heroImage, d.content.storyImage, ...d.products.map((p) => p.image)];
+  return [
+    d.logo,
+    d.content.heroImage,
+    d.content.storyImage,
+    ...d.products.flatMap((p) => [p.image, ...(p.gallery ?? [])]),
+  ];
 }
+
+/** Miniatura de 480 px que se sirve como `<id>-480.webp` en listas y tarjetas. */
+const THUMB_SIZE = 480;
+const encodeMain = (s: Sharp) =>
+  s
+    .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 75, effort: 6, smartSubsample: true });
+const encodeThumb = (s: Sharp) =>
+  s
+    .resize({ width: THUMB_SIZE, height: THUMB_SIZE, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 72, effort: 6, smartSubsample: true });
+const PUBLIC_CACHE_MS = 20_000;
 
 /**
  * Fotos WebP inmutables. Con `dir` se guardan como archivos; sin él (Vercel), dentro de la base
@@ -42,9 +59,59 @@ export class ImageStorage {
   row(id: string) {
     return this.db.prepare('SELECT * FROM images WHERE id = ?').get<ImageRow>(id);
   }
-  path(id: string) {
+  path(id: string, thumb = false) {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new HttpError(404, 'Imagen no encontrada.');
-    return join(this.dir ?? '', `${id}.webp`);
+    return join(this.dir ?? '', thumb ? `${id}-${THUMB_SIZE}.webp` : `${id}.webp`);
+  }
+  // Fotos públicas (las de negocios publicados y domiciliarios aprobados). Calcularlas exige leer
+  // todos los diseños publicados: se guarda unos segundos para no hacerlo en CADA foto pedida.
+  private publicCache: { at: number; counts: Map<string, number> } | null = null;
+  /** Olvida la lista de fotos públicas (al publicar o retirar un negocio en este proceso). */
+  invalidate() {
+    this.publicCache = null;
+  }
+  private async publicReferences(fresh = false) {
+    const now = Date.now();
+    if (fresh || !this.publicCache || now - this.publicCache.at > PUBLIC_CACHE_MS)
+      this.publicCache = { at: now, counts: await this.allReferences(true) };
+    return this.publicCache.counts;
+  }
+  /** ¿La foto es pública? Un «no» se confirma con datos frescos (pudo publicarse hace un momento). */
+  private async isPublic(id: string) {
+    const url = `/api/imagenes/${id}.webp`;
+    if (((await this.publicReferences()).get(url) ?? 0) > 0) return true;
+    return ((await this.publicReferences(true)).get(url) ?? 0) > 0;
+  }
+  /** Miniatura guardada; si la foto es anterior a las miniaturas, se crea ahora y se guarda. */
+  private async readThumb(id: string): Promise<Buffer | undefined> {
+    if (this.dir) {
+      if (existsSync(this.path(id, true))) return readFileSync(this.path(id, true));
+    } else {
+      const row = await this.db.prepare('SELECT data FROM image_thumbs WHERE id = ?').get(id);
+      if (row) return Buffer.from(row.data as Uint8Array);
+    }
+    const main = await this.readFile(id);
+    if (!main) return undefined;
+    const thumb = await encodeThumb(sharp(main)).toBuffer();
+    await this.saveThumb(id, thumb);
+    return thumb;
+  }
+  private async saveThumb(id: string, data: Buffer) {
+    if (this.dir) {
+      mkdirSync(this.dir, { recursive: true });
+      if (!existsSync(this.path(id, true))) {
+        const temporary = join(this.dir, `${id}-${randomUUID()}.tmp`);
+        try {
+          writeFileSync(temporary, data, { flag: 'wx', mode: 0o600 });
+          renameSync(temporary, this.path(id, true));
+        } finally {
+          if (existsSync(temporary)) unlinkSync(temporary);
+        }
+      }
+    } else
+      await this.db
+        .prepare('INSERT OR IGNORE INTO image_thumbs (id, data) VALUES (?, ?)')
+        .run(id, data);
   }
   private async hasFile(id: string) {
     if (this.dir) return existsSync(this.path(id));
@@ -66,7 +133,7 @@ export class ImageStorage {
             .all()
         : this.db
             .prepare(
-              'SELECT draft AS design FROM stores UNION ALL SELECT design FROM store_versions',
+              'SELECT draft AS design FROM stores UNION ALL SELECT review_design AS design FROM stores WHERE review_design IS NOT NULL UNION ALL SELECT design FROM store_versions',
             )
             .all(),
       this.db
@@ -125,11 +192,7 @@ export class ImageStorage {
       const metadata = await pipeline.metadata();
       if (metadata.format !== match[1] || (metadata.pages ?? 1) > 1)
         throw new Error('Formato inválido');
-      output = await pipeline
-        .rotate()
-        .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer({ resolveWithObject: true });
+      output = await encodeMain(pipeline.rotate()).toBuffer({ resolveWithObject: true });
     } catch {
       throw new HttpError(
         400,
@@ -185,6 +248,12 @@ export class ImageStorage {
           .prepare('INSERT OR IGNORE INTO image_data (id, data) VALUES (?, ?)')
           .run(id, output.data);
       });
+    // La miniatura no es imprescindible: si falla, se crea la primera vez que se pida.
+    try {
+      await this.saveThumb(id, await encodeThumb(sharp(output.data)).toBuffer());
+    } catch {
+      /* se reintenta al leerla */
+    }
     return {
       id,
       url: `/api/imagenes/${id}.webp`,
@@ -224,13 +293,22 @@ export class ImageStorage {
         'Esta imagen está en un borrador, publicación o versión guardada. Quitarla de la biblioteca rompería esa tienda.',
       );
     if (this.dir && existsSync(this.path(id))) unlinkSync(this.path(id));
+    if (this.dir && existsSync(this.path(id, true))) unlinkSync(this.path(id, true));
     await this.db.prepare('DELETE FROM images WHERE id = ?').run(id);
   }
   /** Devuelve la foto y si es pública (publicada): las públicas se pueden guardar en caché. */
-  async read(id: string, userId?: string): Promise<{ data: Buffer; isPublic: boolean }> {
+  async read(
+    id: string,
+    userId?: string,
+    thumb = false,
+  ): Promise<{ data: Buffer; isPublic: boolean }> {
     const row = await this.row(id);
     if (!row) throw new HttpError(404, 'Imagen no encontrada.');
-    const isPublic = (await this.references(`/api/imagenes/${id}.webp`, true)) > 0;
+    // El dueño ve su foto aunque no esté publicada: no hace falta confirmar con datos frescos.
+    const isPublic =
+      row.owner_id === userId
+        ? ((await this.publicReferences()).get(`/api/imagenes/${id}.webp`) ?? 0) > 0
+        : await this.isPublic(id);
     let allowed = isPublic || row.owner_id === userId;
     if (!allowed && userId) {
       const [reviewer, participant] = await Promise.all([
@@ -247,7 +325,7 @@ export class ImageStorage {
       ]);
       allowed = !!reviewer || !!participant;
     }
-    const data = allowed ? await this.readFile(id) : undefined;
+    const data = allowed ? await (thumb ? this.readThumb(id) : this.readFile(id)) : undefined;
     if (!data) throw new HttpError(404, 'Imagen no encontrada.');
     return { data, isPublic };
   }

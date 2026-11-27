@@ -9,6 +9,7 @@ import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
 import type { BusinessMode } from '../src/domain/types.ts';
+import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 type Call = (m: string, p: string, b?: unknown) => Promise<{ status: number; json: any }>;
 
@@ -54,7 +55,10 @@ async function fixture() {
       price: 10000,
       ...(mode === 'booking' ? { duration: i === 0 ? 30 : 60 } : {}),
     }));
-    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })
+    ).json.store;
+    await approveRegistration(db, store.id);
     assert.equal((await owner.call('POST', `/mis-tiendas/${store.id}/publicar`)).status, 200);
     const cfg = (await owner.call('GET', `/plataforma/negocios/${store.id}`)).json.settings;
     const put = await owner.call('PUT', `/plataforma/negocios/${store.id}/configuracion`, {

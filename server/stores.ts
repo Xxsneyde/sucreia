@@ -10,6 +10,10 @@ interface StoreRow {
   owner_id: string;
   draft: string;
   published_version_id: string | null;
+  /** Revisión del registro por la administración: pending, approved o rejected. */
+  registration: NonNullable<StoreProject['registration']>;
+  /** Diseño enviado a revisión (se publica cuando la administración aprueba el registro). */
+  review_design: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +30,8 @@ function toProject(row: StoreRow, all: StoreVersion[]): StoreProject & { ownerId
   return {
     id: row.id,
     ownerId: row.owner_id,
+    registration: row.registration,
+    publicationRequested: !!row.review_design,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     draft: JSON.parse(row.draft),
@@ -77,14 +83,28 @@ export async function countStoresByOwner(db: Db, ownerId: string): Promise<numbe
   );
 }
 
-export async function createStore(db: Db, ownerId: string, design: StoreDesign) {
+/** Crea el negocio; `termsVersion` registra qué términos aceptó el dueño y cuándo. */
+export async function createStore(
+  db: Db,
+  ownerId: string,
+  design: StoreDesign,
+  termsVersion?: string,
+) {
   const id = `tienda-${randomUUID()}`;
   const now = new Date().toISOString();
   await db
     .prepare(
-      'INSERT INTO stores (id, owner_id, draft, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO stores (id, owner_id, draft, created_at, updated_at, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(id, ownerId, JSON.stringify(design), now, now);
+    .run(
+      id,
+      ownerId,
+      JSON.stringify(design),
+      now,
+      now,
+      termsVersion ?? null,
+      termsVersion ? now : null,
+    );
   return (await getStore(db, id))!;
 }
 export async function updateDraft(db: Db, id: string, design: StoreDesign) {
@@ -95,27 +115,29 @@ export async function updateDraft(db: Db, id: string, design: StoreDesign) {
 }
 /** Guarda la versión publicada (calculada por publishProject) y conserva solo las últimas 8. */
 export async function savePublication(db: Db, id: string, version: StoreVersion) {
-  await db.transaction(async (tx) => {
-    await tx
-      .prepare(
-        'INSERT INTO store_versions (id, store_id, design, published_at) VALUES (?, ?, ?, ?)',
-      )
-      .run(version.id, id, JSON.stringify(version.design), version.at);
-    await tx
-      .prepare('UPDATE stores SET published_version_id = ?, updated_at = ? WHERE id = ?')
-      .run(version.id, version.at, id);
-    await tx
-      .prepare(
-        `DELETE FROM store_versions WHERE store_id = ? AND id NOT IN (
-         SELECT id FROM store_versions WHERE store_id = ? ORDER BY published_at DESC, rowid DESC LIMIT ?)`,
-      )
-      .run(id, id, MAX_VERSIONS);
-  });
+  await db.transaction((tx) => writePublication(tx, id, version));
   return (await getStore(db, id))!;
+}
+/** Escribe la versión publicada dentro de una transacción ya abierta (también al aprobar). */
+export async function writePublication(tx: Db, id: string, version: StoreVersion) {
+  await tx
+    .prepare('INSERT INTO store_versions (id, store_id, design, published_at) VALUES (?, ?, ?, ?)')
+    .run(version.id, id, JSON.stringify(version.design), version.at);
+  await tx
+    .prepare('UPDATE stores SET published_version_id = ?, updated_at = ? WHERE id = ?')
+    .run(version.id, version.at, id);
+  await tx
+    .prepare(
+      `DELETE FROM store_versions WHERE store_id = ? AND id NOT IN (
+         SELECT id FROM store_versions WHERE store_id = ? ORDER BY published_at DESC, rowid DESC LIMIT ?)`,
+    )
+    .run(id, id, MAX_VERSIONS);
 }
 export async function unpublish(db: Db, id: string) {
   await db
-    .prepare('UPDATE stores SET published_version_id = NULL, updated_at = ? WHERE id = ?')
+    .prepare(
+      'UPDATE stores SET published_version_id = NULL, review_design=NULL, updated_at = ? WHERE id = ?',
+    )
     .run(new Date().toISOString(), id);
   return (await getStore(db, id))!;
 }

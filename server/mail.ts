@@ -111,7 +111,12 @@ export function smtpTransport(config: SmtpConfig, sender = smtpSender(config)): 
           disableUrlAccess: true,
         });
         if (!result.accepted.length) throw new Error('Destinatario rechazado');
-      } catch {
+      } catch (error) {
+        // Solo el código del error (nunca la contraseña ni el destinatario) para diagnosticar.
+        const e = error as { code?: string; responseCode?: number; command?: string };
+        console.warn(
+          `SMTP falló: code=${e.code ?? '-'} responseCode=${e.responseCode ?? '-'} command=${e.command ?? '-'}`,
+        );
         throw new HttpError(
           503,
           'No pudimos entregar el correo. Inténtalo de nuevo en unos minutos.',
@@ -119,4 +124,83 @@ export function smtpTransport(config: SmtpConfig, sender = smtpSender(config)): 
       }
     },
   };
+}
+
+export interface ResendConfig {
+  apiKey: string;
+  from: string;
+  origin: string;
+}
+/** Envío por la API HTTPS de Resend (Hostinger bloquea a veces el SMTP saliente). */
+export function resendConfig(env: NodeJS.ProcessEnv): ResendConfig | undefined {
+  if (!env.RESEND_API_KEY) return;
+  const from = env.MAIL_FROM ?? env.SMTP_FROM;
+  if (!from)
+    throw new Error(
+      'Falta MAIL_FROM (remitente verificado en Resend, por ejemplo «SucreIA <cuentas@tu-dominio>»).',
+    );
+  if (!env.PUBLIC_URL) throw new Error('Falta configurar PUBLIC_URL para enviar correos.');
+  if (!/^[^\r\n]*<?[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>?$/.test(from))
+    throw new Error('MAIL_FROM debe ser una dirección de correo («Nombre <correo@dominio>»).');
+  return { apiKey: env.RESEND_API_KEY, from, origin: new URL(env.PUBLIC_URL).origin };
+}
+/** Asunto, texto y HTML del correo de cuenta (verificar o recuperar la contraseña). */
+export function accountEmail(origin: string, purpose: Purpose, token: string, expiresAt: string) {
+  const link = new URL(purpose === 'reset' ? '/recuperar' : '/verificar-correo', origin);
+  link.searchParams.set('token', token);
+  const subject =
+    purpose === 'reset' ? 'Recupera tu contraseña de SucreIA' : 'Verifica tu correo en SucreIA';
+  const action = purpose === 'reset' ? 'Crear una contraseña nueva' : 'Verificar mi correo';
+  const until = new Date(expiresAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+  const text = `${subject}\n\nAbre este enlace para continuar:\n${link.href}\n\nEl enlace vence el ${until} y solo se puede usar una vez. Si no solicitaste este mensaje, puedes ignorarlo.`;
+  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#eef4fb;font-family:Arial,sans-serif;color:#0f1f3d">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 12px">
+<table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;padding:28px">
+<tr><td><p style="margin:0 0 6px;font-size:22px;font-weight:bold;color:#0a2357">Sucre<span style="color:#22b14c">IA</span></p>
+<h1 style="font-size:20px;margin:16px 0 8px">${subject}</h1>
+<p style="margin:0 0 20px;line-height:1.5">Toca el botón para continuar. El enlace vence el ${until} y solo se puede usar una vez.</p>
+<p style="margin:0 0 24px"><a href="${link.href}" style="display:inline-block;background:#22b14c;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px">${action}</a></p>
+<p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Si el botón no abre, copia este enlace:<br>${link.href}<br><br>Si no solicitaste este mensaje, puedes ignorarlo.</p>
+</td></tr></table></td></tr></table></body></html>`;
+  return { subject, text, html };
+}
+export function resendTransport(
+  config: ResendConfig,
+  fetchImpl: typeof fetch = fetch,
+): MailTransport {
+  return {
+    async send(to, purpose, token, expiresAt) {
+      const mail = accountEmail(config.origin, purpose, token, expiresAt);
+      try {
+        const res = await fetchImpl('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ from: config.from, to: [to], ...mail }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { name?: string; message?: string };
+          const detail = `${body.name ?? ''}: ${body.message ?? ''}`;
+          console.warn(`Resend rechazó el correo (${res.status}) ${detail.slice(0, 200)}`);
+          throw new Error(`Resend ${res.status}`);
+        }
+      } catch (error) {
+        if (!(error instanceof Error && error.message.startsWith('Resend ')))
+          console.warn(`Resend no respondió: ${(error as Error | undefined)?.name ?? 'error'}`);
+        throw new HttpError(
+          503,
+          'No pudimos entregar el correo. Inténtalo de nuevo en unos minutos.',
+        );
+      }
+    },
+  };
+}
+/** Transporte según el entorno: Resend si hay RESEND_API_KEY, si no SMTP, si no ninguno. */
+export function mailFromEnv(env: NodeJS.ProcessEnv): MailTransport | undefined {
+  const resend = resendConfig(env);
+  if (resend) return resendTransport(resend);
+  const smtp = smtpConfig(env);
+  return smtp ? smtpTransport(smtp) : undefined;
 }

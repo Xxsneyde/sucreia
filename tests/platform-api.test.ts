@@ -8,6 +8,7 @@ import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
+import { approveRegistration, TERMS_VERSION } from './registration.ts';
 async function fixture() {
   const db = await openDb(':memory:'),
     dir = mkdtempSync(join(tmpdir(), 'sucreia-platform-api-')),
@@ -54,7 +55,10 @@ test('API: compra entre cuentas, gestión, pago, PIN, reseña, puntos, favoritos
       other = await f.account();
     const design = createDesign('Artesanías', 'Tienda de prueba');
     design.products[0].price = 12000;
-    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })
+    ).json.store;
+    await approveRegistration(f.db, store.id);
     assert.equal((await owner.call('POST', `/mis-tiendas/${store.id}/publicar`)).status, 200);
     const body = {
       storeId: store.id,
@@ -146,7 +150,13 @@ test('API: revisión administrativa, evidencia privada y aprobación de domicili
       driver = await f.account(),
       admin = await f.account();
     await f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
-    const store = (await owner.call('POST', '/mis-tiendas', { design: createDesign() })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', {
+        termsVersion: TERMS_VERSION,
+        design: createDesign(),
+      })
+    ).json.store;
+    await approveRegistration(f.db, store.id);
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     assert.equal(
       (
@@ -213,7 +223,15 @@ test('API: convertir cliente, constancia verificable y suspensión que impide re
   try {
     const owner = await f.account(),
       admin = await f.account();
-    assert.equal((await owner.call('POST', '/auth/emprender', { role: 'admin' })).status, 204);
+    assert.equal(
+      (
+        await owner.call('POST', '/auth/emprender', {
+          role: 'admin',
+          aceptoDejarDeSerCliente: true,
+        })
+      ).status,
+      204,
+    );
     assert.equal((await owner.call('GET', '/auth/yo')).json.user.role, 'emprendedor');
     assert.equal(
       (await owner.call('PUT', '/auth/perfil', { name: 'Nombre actualizado' })).status,
@@ -239,7 +257,13 @@ test('API: convertir cliente, constancia verificable y suspensión que impide re
       'Nombre actualizado',
     );
     await f.db.prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.user.id);
-    const store = (await owner.call('POST', '/mis-tiendas', { design: createDesign() })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', {
+        termsVersion: TERMS_VERSION,
+        design: createDesign(),
+      })
+    ).json.store;
+    await approveRegistration(f.db, store.id);
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     assert.equal(
       (
@@ -274,7 +298,10 @@ test('API: dos clientes simultáneos no venden dos veces la última unidad', asy
       first = await f.account(),
       second = await f.account();
     const design = createDesign();
-    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })
+    ).json.store;
+    await approveRegistration(f.db, store.id);
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     await owner.call('PUT', `/plataforma/negocios/${store.id}/inventario`, {
       productId: design.products[0].id,

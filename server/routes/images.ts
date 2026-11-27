@@ -14,9 +14,9 @@ export function imageRoutes(storage: ImageStorage) {
     res.status(201).json({ image: await storage.upload(user.id, req.body.data) });
   });
   router.get('/:file', async (req, res) => {
-    const id = /^([a-f0-9]{64})\.webp$/.exec(req.params.file)?.[1];
-    if (!id) throw new HttpError(404, 'Imagen no encontrada.');
-    const { data, isPublic } = await storage.read(id, currentUser(res)?.id);
+    const match = /^([a-f0-9]{64})(-480)?\.webp$/.exec(req.params.file);
+    if (!match) throw new HttpError(404, 'Imagen no encontrada.');
+    const { data, isPublic } = await storage.read(match[1], currentUser(res)?.id, !!match[2]);
     // El nombre es el hash del contenido: una foto publicada nunca cambia.
     res.setHeader('Cache-Control', isPublic ? 'public, max-age=86400' : 'private, no-store');
     res.type('image/webp').send(data);

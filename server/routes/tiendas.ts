@@ -7,6 +7,7 @@ import { requireUser } from '../auth.ts';
 import {
   isDesign,
   publishProject,
+  registrationErrors,
   toBusiness,
   upgradeDesign,
   type StoreDesign,
@@ -22,8 +23,11 @@ import {
   unpublish,
   updateDraft,
 } from '../stores.ts';
+import { documentKinds, missingDocuments } from '../../src/domain/documents.ts';
 
 const MAX_STORES = 30;
+/** Versión de los términos que se aceptan al crear un negocio (igual que src/lib/studio-store.ts). */
+const TERMS_VERSION = '2026-11-23';
 
 /** Valida el diseño con las mismas reglas que el navegador (src/domain). */
 function readDesign(body: unknown): StoreDesign {
@@ -70,10 +74,12 @@ export function ownerStoreRoutes(db: Db, images: ImageStorage) {
   });
   router.post('/', async (req, res) => {
     const user = requireUser(res, 'emprendedor', 'admin');
+    if (req.body?.termsVersion !== TERMS_VERSION)
+      throw new HttpError(400, 'Acepta los términos para crear el negocio.');
     const design = await images.externalize(user.id, readDesign(req.body));
     if ((await countStoresByOwner(db, user.id)) >= MAX_STORES)
       throw new HttpError(409, `Puedes tener hasta ${MAX_STORES} tiendas.`);
-    res.status(201).json({ store: await createStore(db, user.id, design) });
+    res.status(201).json({ store: await createStore(db, user.id, design, TERMS_VERSION) });
   });
   router.get('/:id', async (req, res) => {
     res.json({ store: await owned(res, req.params.id) });
@@ -101,6 +107,36 @@ export function ownerStoreRoutes(db: Db, images: ImageStorage) {
       published = publishProject(store);
     } catch (error) {
       throw new HttpError(422, (error as Error).message);
+    }
+    // Primer envío (o tras un rechazo): el registro completo con sus documentos va a revisión de
+    // la administración, que publica la versión enviada al aprobarla.
+    if (store.registration !== 'approved') {
+      const errors = registrationErrors(published.published!.design);
+      const legal = await db
+        .prepare('SELECT legal_type FROM stores WHERE id=?')
+        .get<{ legal_type: string }>(store.id);
+      const docs = await db
+        .prepare('SELECT kind FROM store_documents WHERE store_id=?')
+        .all(store.id);
+      const missing = missingDocuments(
+        legal?.legal_type === 'juridica' ? 'juridica' : 'natural',
+        docs.map((d) => ({ kind: String(d.kind) })),
+      );
+      if (missing.length)
+        errors.push(
+          `Adjunta: ${missing.map((k) => documentKinds.find((x) => x.id === k)!.label).join(', ')}.`,
+        );
+      if (errors.length)
+        throw new HttpError(422, `Completa el registro antes de enviarlo: ${errors.join(' ')}`);
+    }
+    const queued = await db
+      .prepare(
+        "UPDATE stores SET registration='pending', review_design=? WHERE id=? AND registration <> 'approved'",
+      )
+      .run(JSON.stringify(published.published!.design), store.id);
+    if (queued.changes) {
+      res.status(202).json({ store: await getStore(db, store.id) });
+      return;
     }
     if (
       store.published &&

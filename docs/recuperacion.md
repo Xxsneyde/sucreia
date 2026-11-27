@@ -6,20 +6,22 @@ El 26 de noviembre de 2026 se perdió el código local más reciente, que nunca 
 - Referencia de lo publicado: `recuperado-hostinger/` (backend separado del bundle y copia exacta del build en `publicado/`).
 - Regla: cada archivo se compara con lo publicado (el bundle del servidor conserva el código legible; el del navegador está minificado pero conserva textos, lógica y nombres de componentes).
 
-## No desplegar todavía
+## Estado del despliegue
 
-El frontend del repo ya coincide con lo publicado (fases 0 a 4). Falta el backend (fase 5): `server/` todavía no tiene las rutas nuevas (PQRS, asistente, compras por WhatsApp, documentos del negocio, administración). **No subas este repo a Hostinger** hasta que este documento diga que el build está completo y probado. Lo que está publicado hoy sigue funcionando.
+Las cinco fases están hechas: el frontend y el backend del repo coinciden con lo publicado y `npm run build:hostinger` arma el paquete (`hostinger/server.mjs`, `public/` y `package.json`) con la misma forma que lo que corre hoy en Hostinger. El paquete se probó arrancándolo con una base temporal y responde igual que el publicado.
+
+**Antes de reemplazar lo publicado** falta lo que no se puede comprobar desde aquí: los recorridos en navegador (`npm run test:e2e`), una revisión visual en el celular y un respaldo de lo que está en Hostinger y en Supabase. Pasos en [hostinger.md](hostinger.md). Lo que está publicado hoy sigue funcionando mientras tanto.
 
 ## Fases
 
-| Fase | Qué                                                        | Estado    |
-| ---- | ---------------------------------------------------------- | --------- |
-| 0    | Imágenes publicadas (`public/`)                            | Hecha     |
-| 1    | Lógica compartida (`src/domain`, `src/lib`, middleware)    | Hecha     |
-| 2    | Estructura general: layout, menú, buscador, pie, asistente | Hecha     |
-| 3    | Componentes nuevos y modificados                           | Hecha     |
-| 4    | Páginas (incluidas las 6 nuevas)                           | Hecha     |
-| 5    | Backend en TypeScript (`server/`)                          | Pendiente |
+| Fase | Qué                                                        | Estado |
+| ---- | ---------------------------------------------------------- | ------ |
+| 0    | Imágenes publicadas (`public/`)                            | Hecha  |
+| 1    | Lógica compartida (`src/domain`, `src/lib`, middleware)    | Hecha  |
+| 2    | Estructura general: layout, menú, buscador, pie, asistente | Hecha  |
+| 3    | Componentes nuevos y modificados                           | Hecha  |
+| 4    | Páginas (incluidas las 6 nuevas)                           | Hecha  |
+| 5    | Backend en TypeScript (`server/`)                          | Hecha  |
 
 ## Orden de los archivos
 
@@ -117,7 +119,31 @@ Se hicieron juntas: cada página se reconstruyó con sus componentes y se compar
 
 Validación de las fases 3 y 4: TypeScript y `npm run build` sin errores; 86 de 86 pruebas correctas. Cada chunk del navegador se comparó con el publicado (textos, números, ayudas que importa e íconos): todos coinciden salvo el código muerto que se dejó fuera a propósito (ver abajo). Las 1270 reglas de CSS publicadas están todas en el build nuevo.
 
+### Fase 5 — backend
+
+Cada archivo de `server/` se pasó a JavaScript (quitando los tipos con esbuild) y se comparó con el trozo correspondiente del bundle publicado, normalizando lo que cambia el empaquetado (nombres con número, `var`/`const`, importaciones). Orden de aplicación:
+
+1. `server/db-ssl.ts` (nuevo): conexión a Postgres cifrada y verificada (certificado de Supabase)
+2. `server/db.ts` (usa 1): 12 migraciones nuevas, iguales a las que ya corrió producción (registro del negocio, documentos, PQRS como conversación con adjuntos, compras por WhatsApp, ingreso con Google, perfil completo, valoración de productos, miniaturas, reseña directa, confirmación por SMS)
+3. `server/security-headers.ts` (nuevo), `server/sms.ts` (nuevo: Onurix), `server/mail.ts` (Resend además de SMTP, correo en HTML)
+4. `server/auth.ts`: datos de perfil, canal de confirmación, teléfono y `findUserById`
+5. `server/stores.ts`: estado del registro, diseño en revisión, términos aceptados y `writePublication`
+6. `server/images.ts` y `server/routes/images.ts`: miniaturas de 480 px (`<id>-480.webp`), fotos de la galería y caché de fotos públicas
+7. `server/platform.ts`: valoración por producto, ubicación y descuento en el listado, cupos por hora
+8. `server/brain.ts` (nuevo; usa 5 y 7): base de conocimiento del asistente
+9. `server/google.ts` (nuevo; usa 4): ingreso con Google
+10. Rutas: `routes/auth.ts` (SMS, perfil, límites por cuenta e IP), `routes/pqrs.ts` (nuevo), `routes/asistente.ts` (nuevo), `routes/tiendas.ts` (términos y revisión antes de la primera publicación), `routes/platform.ts` (reseñas, compras por WhatsApp, documentos, edición de bonos, revisión del registro; se quita el asistente por negocio)
+11. `server/app.ts` (usa todo lo anterior): cabeceras, diagnóstico `/api/salud/red` e `ip-salida`, olvido de cachés tras cada cambio
+12. `server/index.ts`: `TRUST_PROXY`, correo según el entorno, SMS y Google; empaquetado entra solo en modo producción
+13. `scripts/hostinger-build.mjs` y `npm run build:hostinger` (nuevos)
+14. Pruebas: `tests/registration.ts` (ayuda) y `tests/registration.test.ts` (nueva: registro con revisión, documentos, PQRS, compras por WhatsApp, valoraciones, asistente, SMS, cabeceras); las pruebas que crean negocios aceptan los términos y parten de un registro aprobado
+
+Validación de la fase 5: TypeScript del servidor, las pruebas y el frontend sin errores; 92 de 92 pruebas correctas con SQLite y con Postgres (PGlite). El paquete de `build:hostinger` pesa lo mismo que el publicado (1,6 MB) y, arrancados los dos con una base temporal, responden igual (salud, redirecciones, páginas, `/.env` bloqueado, asistente).
+
 ## Diferencias que no se pudieron confirmar
 
 - `canOpen` en `roles.ts` se conservó del código anterior (lo usan las pruebas); en lo publicado no aparece.
 - Código muerto de lo publicado que no se reconstruyó (el compilador lo dejó pero nada lo usa): el seguimiento de pedido de la página del negocio («Pedido confirmado», «Preparando pedido», «En camino», «Entregado»), el total del carrito y el costo de domicilio que calculaba esa página, y tres variables sin uso de `BusinessEditor`. Por eso el build nuevo tiene un chunk menos (el ícono `package-check`).
+- `server/db.ts`: lo publicado llamaba a `@vercel/functions` cuando corría en Vercel. Ese paquete no está instalado y Vercel ya no se usa, así que se dejó fuera.
+- `nodemailer`: el `package.json` publicado pedía la 10.6.1; el repo tiene la 8.0.10 (ver [hostinger.md](hostinger.md)).
+- En lo publicado, la variable que activa el modo empaquetado venía fija desde el build; ahora `server/index.ts` la reconoce por el nombre del archivo (`server.mjs`), sin opciones de compilación.

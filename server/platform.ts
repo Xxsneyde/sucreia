@@ -343,7 +343,7 @@ export async function setLocation(db: Db, actor: User, lat: unknown, lng: unknow
 }
 
 export async function commerceStore(db: Db, storeId: string): Promise<CommerceStore> {
-  const [reviews, completed, reviewStats, cfg, stock, views] = await Promise.all([
+  const [reviews, completed, reviewStats, cfg, stock, views, productStats] = await Promise.all([
     db
       .prepare(
         'SELECT r.id,r.operation_id AS operationId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? ORDER BY r.rowid DESC LIMIT 100',
@@ -359,12 +359,24 @@ export async function commerceStore(db: Db, storeId: string): Promise<CommerceSt
     settings(db, storeId),
     db.prepare('SELECT product_id,quantity FROM inventory WHERE store_id=?').all(storeId),
     db.prepare('SELECT product_id,count FROM store_views WHERE store_id=?').all(storeId),
+    db
+      .prepare(
+        'SELECT product_id, COUNT(*) AS n, AVG(rating) AS rating FROM product_reviews WHERE store_id=? GROUP BY product_id',
+      )
+      .all(storeId),
   ]);
   return {
     reviewCount: reviewStats?.n ?? 0,
     settings: cfg,
     stock: Object.fromEntries(stock.map((r) => [r.product_id, r.quantity as number])),
     views: Object.fromEntries(views.map((r) => [r.product_id, r.count as number])),
+    // Valoración de cada producto (de quienes lo compraron o contrataron), con un decimal.
+    productRatings: Object.fromEntries(
+      productStats.map((r) => [
+        String(r.product_id),
+        { rating: Math.round(Number(r.rating) * 10) / 10, count: Number(r.n) },
+      ]),
+    ),
     reviews,
     completed365: completed.filter((o) => Date.parse(o.completedAt) > Date.now() - 365 * 86400000)
       .length,
@@ -375,12 +387,21 @@ export async function commerceStore(db: Db, storeId: string): Promise<CommerceSt
 export async function storeSummaries(db: Db, ids: string[]) {
   const result = new Map<
     string,
-    { verified: boolean; completed365: number; rating: number; reviewCount: number }
+    {
+      lat: number | null;
+      lng: number | null;
+      /** Mayor descuento vigente del negocio (0 si no tiene promociones activas). */
+      discount: number;
+      verified: boolean;
+      completed365: number;
+      rating: number;
+      reviewCount: number;
+    }
   >();
   if (!ids.length) return result;
   const marks = ids.map(() => '?').join(',');
   const since = new Date(Date.now() - 365 * 86400000).toISOString();
-  const [cfgs, stats, done] = await Promise.all([
+  const [cfgs, stats, done, promos] = await Promise.all([
     settingsMany(db, ids),
     db
       .prepare(
@@ -392,11 +413,24 @@ export async function storeSummaries(db: Db, ids: string[]) {
         `SELECT store_id, COUNT(*) AS n FROM operations WHERE status='completed' AND store_id IN (${marks}) AND json_extract(payload,'$.completedAt') > ? GROUP BY store_id`,
       )
       .all(...ids, since),
+    db.prepare(`SELECT store_id, payload FROM promotions WHERE store_id IN (${marks})`).all(...ids),
   ]);
   for (const id of ids) {
     const st = stats.find((r) => r.store_id === id);
+    const cfg = cfgs.get(id) ?? defaultSettings();
+    const discount = Math.max(
+      0,
+      ...promos
+        .filter((r) => r.store_id === id)
+        .map((r) => JSON.parse(String(r.payload)) as Promotion)
+        .filter((x) => x.active && Date.parse(x.expires) > Date.now())
+        .map((x) => x.percent),
+    );
     result.set(id, {
-      verified: (cfgs.get(id) ?? defaultSettings()).verification === 'approved',
+      lat: cfg.latitude,
+      lng: cfg.longitude,
+      discount,
+      verified: cfg.verification === 'approved',
       completed365: Number(done.find((r) => r.store_id === id)?.n ?? 0),
       rating: Number(st?.rating ?? 0),
       reviewCount: Number(st?.n ?? 0),
@@ -414,6 +448,17 @@ const minutes = (hhmm: string) => {
  * del servicio y cupo de citas simultáneas.
  */
 export async function slots(db: Db, storeId: string, date: string, productId?: string) {
+  return (await slotAvailability(db, storeId, date, productId))
+    .filter((s) => s.free > 0)
+    .map((s) => s.slot);
+}
+/** Cada hora del día con sus cupos libres (también las llenas, para mostrarlas como agotadas). */
+export async function slotAvailability(
+  db: Db,
+  storeId: string,
+  date: string,
+  productId?: string,
+): Promise<{ slot: string; free: number; capacity: number }[]> {
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
     !Number.isFinite(Date.parse(date + 'T12:00:00Z')) ||
@@ -421,7 +466,7 @@ export async function slots(db: Db, storeId: string, date: string, productId?: s
   )
     throw new HttpError(400, 'Selecciona una fecha válida.');
   const cfg = await settings(db, storeId),
-    list: string[] = [];
+    list: { slot: string; free: number; capacity: number }[] = [];
   const store = await getStore(db, storeId);
   const offer = store?.published?.design.products.find((p) => p.id === productId);
   const duration = offer?.duration ?? cfg.duration;
@@ -447,13 +492,8 @@ export async function slots(db: Db, storeId: string, date: string, productId?: s
         end > Date.parse(o.slot),
     ).length;
     const blocked = blocks.some((b) => min < minutes(b.to) && min + duration > minutes(b.from));
-    if (
-      start > Date.now() &&
-      start < Date.now() + 90 * 86400000 &&
-      overlapping < capacity &&
-      !blocked
-    )
-      list.push(slot);
+    if (start > Date.now() && start < Date.now() + 90 * 86400000 && !blocked)
+      list.push({ slot, free: Math.max(0, capacity - overlapping), capacity });
   }
   return list;
 }

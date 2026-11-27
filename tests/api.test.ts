@@ -8,6 +8,7 @@ import { openDb, type Db } from '../server/db.ts';
 import { httpClient } from './http.ts';
 import { createApp } from '../server/app.ts';
 import { createDesign } from '../src/domain/studio.ts';
+import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 // HTTP de Node y Express en memoria, con cookies y aislamiento por cliente, sin abrir puertos.
 let db: Db;
@@ -113,16 +114,20 @@ test('solo emprendedores con sesión gestionan tiendas', async () => {
   const anon = client();
   assert.equal((await anon('GET', '/mis-tiendas')).status, 401);
   const { call } = await account('cliente');
-  const res = await call('POST', '/mis-tiendas', { design: createDesign('Artesanías', 'X') });
+  const res = await call('POST', '/mis-tiendas', {
+    termsVersion: TERMS_VERSION,
+    design: createDesign('Artesanías', 'X'),
+  });
   assert.equal(res.status, 403);
 });
 
 test('crear, editar, publicar y retirar una tienda', async () => {
   const { call } = await account('emprendedor');
   const design = createDesign('Gastronomía', 'Sabor de Corozal', 1);
-  const created = await call('POST', '/mis-tiendas', { design });
+  const created = await call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design });
   assert.equal(created.status, 201);
   const id = created.json.store.id as string;
+  await approveRegistration(db, id);
   assert.match(id, /^tienda-/);
   assert.equal(created.json.store.published, null);
   assert.equal((await call('GET', '/mis-tiendas')).json.stores.length, 1);
@@ -159,7 +164,13 @@ test('crear, editar, publicar y retirar una tienda', async () => {
 test('una persona no puede ver ni cambiar la tienda de otra', async () => {
   const owner = await account('emprendedor');
   const other = await account('emprendedor');
-  const id = (await owner.call('POST', '/mis-tiendas', { design: createDesign() })).json.store.id;
+  const id = (
+    await owner.call('POST', '/mis-tiendas', {
+      termsVersion: TERMS_VERSION,
+      design: createDesign(),
+    })
+  ).json.store.id;
+  await approveRegistration(db, id);
   assert.equal((await other.call('GET', `/mis-tiendas/${id}`)).status, 404);
   assert.equal(
     (await other.call('PUT', `/mis-tiendas/${id}`, { design: createDesign() })).status,
@@ -179,10 +190,17 @@ test('el servidor aplica las mismas validaciones que el navegador', async () => 
     { ...design, products: [{ ...design.products[0], price: -1 }] },
     null,
   ])
-    assert.equal((await call('POST', '/mis-tiendas', { design: bad })).status, 400);
+    assert.equal(
+      (await call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design: bad })).status,
+      400,
+    );
   // Sin nombre se guarda como borrador, pero no se puede publicar.
-  const id = (await call('POST', '/mis-tiendas', { design: { ...design, name: '' } })).json.store
-    .id;
+  const id = (
+    await call('POST', '/mis-tiendas', {
+      termsVersion: TERMS_VERSION,
+      design: { ...design, name: '' },
+    })
+  ).json.store.id;
   const res = await call('POST', `/mis-tiendas/${id}/publicar`);
   assert.equal(res.status, 422);
   assert.match(res.json.error, /nombre/);
@@ -191,7 +209,9 @@ test('el servidor aplica las mismas validaciones que el navegador', async () => 
 test('se conservan las últimas ocho publicaciones', async () => {
   const { call } = await account('emprendedor');
   const design = createDesign('Belleza', 'Alma');
-  const id = (await call('POST', '/mis-tiendas', { design })).json.store.id;
+  const id = (await call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })).json
+    .store.id;
+  await approveRegistration(db, id);
   for (let i = 0; i < 10; i++) {
     await call('PUT', `/mis-tiendas/${id}`, { design: { ...design, name: `Alma ${i}` } });
     await call('POST', `/mis-tiendas/${id}/publicar`);
@@ -323,12 +343,18 @@ test('imágenes: permisos, subida, publicación, privacidad y borrado sin romper
   assert.equal((await other.call('DELETE', `/imagenes/${image.id}`)).status, 404);
   assert.equal((await dispatch('GET', image.url)).status, 404);
   const store = await owner.call('POST', '/mis-tiendas', {
+    termsVersion: TERMS_VERSION,
     design: { ...createDesign(), logo: image.url },
   });
   assert.equal(store.status, 201);
+  await approveRegistration(db, store.json.store.id);
   assert.equal(
-    (await other.call('POST', '/mis-tiendas', { design: { ...createDesign(), logo: image.url } }))
-      .status,
+    (
+      await other.call('POST', '/mis-tiendas', {
+        termsVersion: TERMS_VERSION,
+        design: { ...createDesign(), logo: image.url },
+      })
+    ).status,
     400,
   );
   assert.equal((await owner.call('DELETE', `/imagenes/${image.id}`)).status, 409);

@@ -37,6 +37,21 @@ JSON. Los errores responden `{ "error": "mensaje en español" }` con el código 
 | POST   | `/salir`    | —                                                                        | 204                                                                                                  |
 | GET    | `/yo`       | —                                                                        | `{ user }` o `{ user: null }`                                                                        |
 
+Desde el flujo nuevo de cuenta: `user` incluye `profileComplete`, `verifyChannel` (`email` o `sms`) y `phone`.
+
+| Método | Ruta                          | Cuerpo / qué hace                                                                                                                                      |
+| ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST   | `/registro`                   | También `verifyBy: "sms"` y `phone` (celular colombiano) para confirmar por mensaje de texto; `name`, `documentNumber` y `address` son opcionales aquí |
+| POST   | `/verificacion`               | Sesión: `{ channel: "email" \| "sms", phone? }` elige cómo confirmar y envía el enlace o el código (uno por minuto)                                    |
+| POST   | `/verificar-sms`              | Sesión: `{ code }`; código de 6 dígitos, vence a los 10 minutos, 5 intentos; responde `{ message, email }`                                             |
+| GET    | `/sms/estado`                 | `{ enabled }`: si la confirmación por SMS (Onurix) está configurada                                                                                    |
+| POST   | `/verificar-correo`           | `{ token }`; responde `{ message, email }`                                                                                                             |
+| PUT    | `/perfil/datos`               | Sesión con cuenta confirmada: `{ name, documentNumber, address }` completa el perfil; responde `{ user }`                                              |
+| POST   | `/emprender`                  | Sesión: un cliente debe enviar `aceptoDejarDeSerCliente: true` (no hay vuelta atrás)                                                                   |
+| GET    | `/google`, `/google/callback` | Ingreso con Google (OAuth); `?rol=emprendedor` y `?volver=` opcionales. `GET /google/estado` dice si está configurado                                  |
+
+Límites de ingreso: 10 intentos cada 15 minutos por IP y correo, 20 por cuenta (desde cualquier IP) y 50 por IP.
+
 La sesión viaja en la cookie `sucreia_sesion` (httpOnly, SameSite=Lax, 30 días). Contraseña mínima de 8 caracteres. No se pueden crear administradores desde el registro. Máximo 10 intentos de ingreso cada 15 minutos por IP y correo; hasta 60 registros cada 15 minutos por IP.
 
 ## Tiendas públicas — `/api/tiendas`
@@ -50,21 +65,21 @@ La sesión viaja en la cookie `sucreia_sesion` (httpOnly, SameSite=Lax, 30 días
 
 `design.category` guarda uno de los 10 sectores de `src/domain/sectors.ts`. Campos opcionales: `phone`, `email` y `products[].category` (grupo del catálogo).
 
-| Método | Ruta               | Cuerpo       | Respuesta                                              |
-| ------ | ------------------ | ------------ | ------------------------------------------------------ |
-| GET    | `/`                | —            | `{ stores: StoreProject[] }`                           |
-| POST   | `/`                | `{ design }` | 201 `{ store }` (máximo 30 por persona)                |
-| GET    | `/:id`             | —            | `{ store }`                                            |
-| PUT    | `/:id`             | `{ design }` | `{ store }` (guarda el borrador)                       |
-| POST   | `/:id/publicar`    | —            | `{ store }` (422 si le falta algo; guarda 8 versiones) |
-| DELETE | `/:id/publicacion` | —            | `{ store }` (retira la publicación)                    |
-| DELETE | `/:id`             | —            | 204                                                    |
+| Método | Ruta               | Cuerpo                     | Respuesta                                                                                                                                          |
+| ------ | ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                | —                          | `{ stores: StoreProject[] }`                                                                                                                       |
+| POST   | `/`                | `{ design, termsVersion }` | 201 `{ store }` (máximo 30 por persona; `termsVersion` debe ser la vigente, `2026-11-23`)                                                          |
+| GET    | `/:id`             | —                          | `{ store }`                                                                                                                                        |
+| PUT    | `/:id`             | `{ design }`               | `{ store }` (guarda el borrador)                                                                                                                   |
+| POST   | `/:id/publicar`    | —                          | Registro sin aprobar: 202 `{ store }` (queda en revisión; 422 si faltan datos, fotos o documentos). Aprobado: 200 `{ store }` (guarda 8 versiones) |
+| DELETE | `/:id/publicacion` | —                          | `{ store }` (retira la publicación)                                                                                                                |
+| DELETE | `/:id`             | —                          | 204                                                                                                                                                |
 
 `design` es un `StoreDesign` de `src/domain/studio.ts` y se valida con `isDesign`. Las tiendas de otra persona responden 404.
 
 ## Seguridad incluida
 
-Contraseñas con scrypt y sal, comparación en tiempo constante, mismo mensaje si el correo no existe, token de sesión aleatorio guardado como hash, cookies httpOnly/SameSite (y Secure en producción), rechazo de peticiones de otro origen en métodos que modifican datos, cabeceras `nosniff`/`X-Frame-Options`, límite de 13 MB por petición y bloqueo de archivos ocultos al servir el sitio.
+Contraseñas con scrypt y sal, comparación en tiempo constante, mismo mensaje si el correo no existe, token de sesión aleatorio guardado como hash, cookies httpOnly/SameSite (y Secure en producción), rechazo de peticiones de otro origen en métodos que modifican datos, cabeceras de `server/security-headers.ts` (política de contenido, `nosniff`, `X-Frame-Options`, `Permissions-Policy` y HSTS con HTTPS), conexión a Postgres verificada (`server/db-ssl.ts`), límite de 13 MB por petición y bloqueo de archivos ocultos al servir el sitio. Documentos del registro y adjuntos de PQRS se entregan con `default-src 'none'` para que no ejecuten código.
 
 El frontend usa la API desde `src/lib/api.ts`, `src/lib/session.ts` (cuenta) y `src/lib/studio-store.ts` (tiendas; guarda medio segundo después de la última tecla). Las operaciones, favoritos, puntos, avisos y aprendizaje ahora usan `/api/plataforma`. Solo el carrito permanece en el navegador, aislado por cuenta.
 
@@ -128,7 +143,7 @@ Ver contratos en `src/domain/platform.ts`, reglas en `server/platform.ts` y [rec
 | ------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/estado`                                             | Sesión: operaciones propias, ventas propias, entregas asignadas, favoritos, libro de puntos, bonos, avisos, aprendizaje, `referral`, `challenges` y `events`; PIN solo para su cliente                                                          |
 | GET    | `/negocios/:id`                                       | Publicación o propietario: metadatos de comercio, stock y reseñas; vistas/evidencias privadas solo al dueño                                                                                                                                     |
-| GET    | `/negocios/:id/horarios?fecha=YYYY-MM-DD&servicio=id` | Horas libres: horario del día de la semana, duración del servicio, cupo de citas simultáneas y bloqueos; hora de Colombia, hasta 90 días                                                                                                        |
+| GET    | `/negocios/:id/horarios?fecha=YYYY-MM-DD&servicio=id` | Horas libres (`slots`) y `detail` con cada hora, sus cupos libres y la capacidad (las llenas salen como agotadas): horario del día, duración del servicio, cupo y bloqueos; hora de Colombia, hasta 90 días                                     |
 | POST   | `/negocios/:id/visita`                                | `{ productId? }`; limita por IP/producto/30 min; no equivale a venta                                                                                                                                                                            |
 | POST   | `/operaciones`                                        | Sesión: `{ storeId, key, kind, items?, detail?, slot?, phone, fulfillment?, address?, addressLat?, addressLng?, paymentMethod?, couponId?, expectedSubtotal? }`; precios y permisos del servidor                                                |
 | POST   | `/operaciones/:id/:action`                            | Participante autorizado: `prepare`, `ready`, `confirm`, `arrive`, `noshow`, `quote`, `accept`, `payment`, `claim`, `release`, `pickup`, `dispatch` (sin domiciliario: entrega propia), `complete`, `cancel`, `refund`; estado y rol comprobados |
@@ -150,12 +165,34 @@ Ver contratos en `src/domain/platform.ts`, reglas en `server/platform.ts` y [rec
 | POST   | `/lecciones/:id`                                      | Cuenta, `{ answer }`; respuesta correcta comprobada en servidor e idempotente                                                                                                                                                                   |
 | POST   | `/certificado`                                        | Cuenta con todas las evaluaciones completas; devuelve la misma constancia en reintentos                                                                                                                                                         |
 | GET    | `/certificados/:id`                                   | Consulta pública por código: nombre y fecha aceptados al generar, sin email ni operaciones                                                                                                                                                      |
-| POST   | `/asistente/:id`                                      | Pregunta sobre catálogo publicado; IA opcional solo con sesión; sin escrituras                                                                                                                                                                  |
 | GET    | `/eventos`                                            | Ferias y eventos de los últimos 30 días y próximos; con sesión indica `attended`. Nunca expone el código                                                                                                                                        |
 | POST   | `/eventos/:id/asistencia`                             | Sesión, `{ code }`: del día del evento a 7 días después; suma sus puntos una vez; 8 intentos fallidos bloquean 15 min                                                                                                                           |
 | POST   | `/admin/eventos`                                      | Solo admin: `{ title, place, municipality, date, points 1–100, code }` (código guardado como hash)                                                                                                                                              |
 | DELETE | `/admin/eventos/:id`                                  | Solo admin                                                                                                                                                                                                                                      |
 | POST   | `/tutor`                                              | Sesión: pregunta sobre material de aprendizaje; guía local o modelo opcional                                                                                                                                                                    |
+| POST   | `/negocios/:id/resenas`                               | Solo clientes (no el dueño): `{ rating, comment }`; una reseña directa por cliente y negocio, la siguiente la actualiza (200 `{ updated: true }`)                                                                                               |
+| GET    | `/negocios/:id/productos/:productId/resenas`          | Valoraciones del producto, `canReview` (solo quien lo compró o contrató) y la propia (`mine`)                                                                                                                                                   |
+| POST   | `/negocios/:id/productos/:productId/resenas`          | Quien lo compró (por WhatsApp o en una operación completada): `{ rating, comment? }`; una por persona, la nueva reemplaza a la anterior                                                                                                         |
+| PUT    | `/negocios/:id/promociones/:promo`                    | Dueño: edita un bono activo con los mismos campos que al crearlo                                                                                                                                                                                |
+| POST   | `/compras-whatsapp`                                   | Cliente o emprendedor (no el admin ni el dueño): `{ storeId, items: [{ productId, quantity }], note? }`; precios del catálogo publicado; 201 `{ order, url, message }` con el enlace a WhatsApp                                                 |
+| GET    | `/compras-whatsapp`                                   | Sesión: `{ mine, received }` (pedidos hechos y recibidos en sus negocios)                                                                                                                                                                       |
+| GET    | `/negocios/:id/documentos`                            | Dueño o admin: `{ legalType, documents, missing }`                                                                                                                                                                                              |
+| PUT    | `/negocios/:id/tipo-legal`                            | Dueño: `{ legalType: "natural" \| "juridica" }` (la jurídica exige además la Cámara de Comercio)                                                                                                                                                |
+| PUT    | `/negocios/:id/documentos/:kind`                      | Dueño: `{ name, data }` (PDF, JPG, PNG o WEBP como data URL, máx. 4 MB); `kind`: `identidad`, `rut`, `bancario`, `camara`                                                                                                                       |
+| DELETE | `/negocios/:id/documentos/:kind`                      | Dueño                                                                                                                                                                                                                                           |
+| GET    | `/negocios/:id/documentos/:kind/archivo`              | Dueño o admin: el archivo (sin caché)                                                                                                                                                                                                           |
+| POST   | `/pqrs`                                               | Sesión: `{ kind: Petición \| Queja \| Reclamo \| Sugerencia, message, file? }` (adjunto opcional, foto o PDF de hasta 5 MB, se comprueba el contenido); avisa a la administración                                                               |
+| GET    | `/pqrs`                                               | Sesión: sus casos con mensajes y adjuntos                                                                                                                                                                                                       |
+| POST   | `/pqrs/:id/mensajes`                                  | Autor del caso: `{ message, file? }`; no se puede en un caso cerrado                                                                                                                                                                            |
+| GET    | `/pqrs/archivos/:id`                                  | Autor del caso o admin                                                                                                                                                                                                                          |
+| GET    | `/admin/pqrs`                                         | Solo admin: todos los casos con datos de la persona                                                                                                                                                                                             |
+| POST   | `/admin/pqrs/:id`, `/admin/pqrs/:id/cerrar`           | Solo admin: `{ response }` responde (caso abierto) y `{ note? }` cierra; ambos auditados y con aviso a la persona                                                                                                                               |
+
+`/admin` incluye por negocio `registration`, los datos enviados a revisión (`details`), el titular (`owner`) y sus documentos; `POST /admin/registro/:id` con `{ approved, note }` aprueba (publica la versión enviada) o rechaza el registro.
+
+## Asistente — `/api/asistente`
+
+`POST /` con `{ question, context?, location?, store? }` responde `{ reply, context }` con los negocios publicados (`src/domain/brain`, sin IA externa). `store` limita la respuesta a un negocio; a emprendedores y admin también les cuenta el estado de sus negocios. Máximo 40 preguntas por minuto por IP. Reemplaza al antiguo `POST /plataforma/asistente/:id`.
 
 `POST /api/auth/emprender` activa el rol emprendedor de una cuenta cliente sin poder convertirse en administrador; `PUT /api/auth/perfil` cambia el nombre. Las rutas de gestión de tiendas se limitan al propietario; la administración modera mediante sus rutas auditadas.
 

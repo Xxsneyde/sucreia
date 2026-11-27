@@ -13,3 +13,4 @@ import './roles.test.ts';
 import './rewards.test.ts';
 import './logistics.test.ts';
 import './brain.test.ts';
+import './registration.test.ts';

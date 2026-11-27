@@ -60,3 +60,6 @@ yarn-error.log*
 
 # Compilación para Vercel (npm run build:vercel)
 .vercel
+
+# Paquete para Hostinger (npm run build:hostinger)
+/hostinger/

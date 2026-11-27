@@ -43,9 +43,9 @@ SQLite guarda operaciones y permisos; los archivos de imágenes están en disco.
 
 Los pagos y devoluciones se registran después de efectuarlos directamente con el negocio: SucreIA no mueve dinero ni verifica bancos automáticamente. No hay GPS en vivo ni aprovisionamiento automático de SMTP, modelos de IA o hosting. La validación de navegador real y la configuración operativa son necesarias antes del uso con clientes reales.
 
-## Producción en Vercel
+## Producción en Hostinger
 
-El sitio está en **https://sucreia.vercel.app**: páginas estáticas, la API como función de Vercel y Postgres en Supabase (las fotos van dentro de la base). En este equipo se sigue trabajando con SQLite. Guía completa en [docs/vercel.md](docs/vercel.md).
+El sitio está en **https://sucreia.site**: una aplicación Node.js en Hostinger que entrega la API y las páginas generadas, con Postgres en Supabase (las fotos van dentro de la base). `npm run build:hostinger` arma el paquete en `hostinger/`. En este equipo se sigue trabajando con SQLite. Guía completa en [docs/hostinger.md](docs/hostinger.md). Vercel ya no se usa ([docs/vercel.md](docs/vercel.md) queda como referencia).
 
 ## Datos de demostración
 

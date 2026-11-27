@@ -125,6 +125,8 @@ test('las fotos de borradores son privadas; publicar permite leer; retirar y ver
       store.id,
       publishProject((await getStore(f.db, store.id))!).published!,
     );
+    // La app olvida la lista de fotos públicas tras cada cambio; aquí se usa el almacén directo.
+    f.storage.invalidate();
     await assert.rejects(async () => f.storage.read(image.id));
     await assert.rejects(async () => f.storage.remove(f.user.id, image.id), /versión/);
     await deleteStore(f.db, store.id);

@@ -5,6 +5,7 @@
 // INSERT OR IGNORE, json_extract, nombres camelCase y BLOB).
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { sslFor } from './db-ssl.ts';
 
 export type Row = Record<string, unknown>;
 export interface Statement {
@@ -137,6 +138,73 @@ const migrations: Migration[] = [
   // Varias citas a la misma hora (cupo del negocio): la comprobación se hace en la transacción.
   `DROP INDEX unique_booking;
   CREATE INDEX booking_slots ON operations(store_id, slot);`,
+  `ALTER TABLE users ADD COLUMN document_number TEXT;
+   ALTER TABLE users ADD COLUMN home_address TEXT;
+   ALTER TABLE stores ADD COLUMN registration TEXT NOT NULL DEFAULT 'pending';
+   UPDATE stores SET registration='approved' WHERE published_version_id IS NOT NULL;
+   ALTER TABLE stores ADD COLUMN review_design TEXT;
+   ALTER TABLE stores ADD COLUMN terms_version TEXT;
+   ALTER TABLE stores ADD COLUMN terms_at TEXT;
+   CREATE TABLE pqrs (id TEXT PRIMARY KEY, kind TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id), message TEXT NOT NULL, created_at TEXT NOT NULL);`,
+  // Documentos del registro previo (revisados por la administración) y respuesta a las PQRS.
+  `CREATE TABLE store_documents (store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, kind TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, data TEXT NOT NULL, uploaded_at TEXT NOT NULL, PRIMARY KEY(store_id, kind));
+   ALTER TABLE stores ADD COLUMN legal_type TEXT NOT NULL DEFAULT 'natural';
+   ALTER TABLE pqrs ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+   ALTER TABLE pqrs ADD COLUMN response TEXT;
+   ALTER TABLE pqrs ADD COLUMN responded_at TEXT;`,
+  // Compras que se cierran por WhatsApp: queda el registro para el cliente y el negocio.
+  `CREATE TABLE whatsapp_orders (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, client_id TEXT NOT NULL REFERENCES users(id), payload TEXT NOT NULL, created_at TEXT NOT NULL);
+   CREATE INDEX whatsapp_orders_client ON whatsapp_orders(client_id, created_at);
+   CREATE INDEX whatsapp_orders_store ON whatsapp_orders(store_id, created_at);`,
+  // Estados temporales del ingreso con Google (anti-CSRF y cuenta nueva por completar).
+  `CREATE TABLE oauth_states (id TEXT PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL, expires_at TEXT NOT NULL);`,
+  // Flujo de cuenta: correo confirmado → datos personales. Las cuentas que ya existían quedan
+  // como confirmadas y completas (se crearon con el flujo anterior).
+  `ALTER TABLE users ADD COLUMN profile_completed_at TEXT;
+   UPDATE users SET profile_completed_at = created_at;
+   UPDATE users SET emailVerifiedAt = created_at WHERE emailVerifiedAt IS NULL;
+   DELETE FROM oauth_states WHERE kind = 'google-pending';`,
+  // Valoración de cada producto: una por persona y producto (la puede cambiar), solo de quien
+  // lo compró o lo contrató.
+  `CREATE TABLE product_reviews (id TEXT PRIMARY KEY, store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE, product_id TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(store_id, product_id, user_id));
+   CREATE INDEX product_reviews_product ON product_reviews(store_id, product_id);`,
+  // PQRS como conversación: cada caso tiene mensajes de la persona y de la administración.
+  // Estados: pending (espera a la administración), answered (caso abierto: respondido y la
+  // persona puede contestar) y closed (resuelto y cerrado por la administración).
+  `CREATE TABLE pqrs_messages (id TEXT PRIMARY KEY, pqrs_id TEXT NOT NULL REFERENCES pqrs(id) ON DELETE CASCADE, author_id TEXT NOT NULL REFERENCES users(id), from_admin INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
+   CREATE INDEX pqrs_messages_case ON pqrs_messages(pqrs_id, created_at);
+   ALTER TABLE pqrs ADD COLUMN closed_at TEXT;
+   ALTER TABLE pqrs ADD COLUMN updated_at TEXT;
+   UPDATE pqrs SET updated_at = COALESCE(responded_at, created_at);
+   UPDATE pqrs SET status = 'pending' WHERE status = 'open';
+   INSERT INTO pqrs_messages (id, pqrs_id, author_id, from_admin, body, created_at)
+     SELECT id || '-r', id, user_id, 1, response, responded_at FROM pqrs WHERE response IS NOT NULL AND responded_at IS NOT NULL;
+   CREATE INDEX pqrs_user ON pqrs(user_id, created_at);`,
+  // Miniaturas (480 px) de las fotos guardadas en la base: tarjetas y listas cargan mucho menos.
+  `CREATE TABLE image_thumbs (id TEXT PRIMARY KEY REFERENCES images(id) ON DELETE CASCADE, data BLOB NOT NULL);`,
+  // Reseña directa del negocio (botón «Añadir reseña»): la escribe un cliente sin operación de
+  // por medio. operation_id pasa a ser opcional y cada cliente tiene una sola directa por negocio.
+  {
+    sqlite: `CREATE TABLE reviews_new (id TEXT PRIMARY KEY, operation_id TEXT UNIQUE REFERENCES operations(id), store_id TEXT NOT NULL REFERENCES stores(id), user_id TEXT NOT NULL REFERENCES users(id), rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT NOT NULL, created_at TEXT NOT NULL, courier_rating INTEGER CHECK(courier_rating BETWEEN 1 AND 5));
+      INSERT INTO reviews_new (id, operation_id, store_id, user_id, rating, comment, created_at, courier_rating)
+        SELECT id, operation_id, store_id, user_id, rating, comment, created_at, courier_rating FROM reviews ORDER BY rowid;
+      DROP TABLE reviews;
+      ALTER TABLE reviews_new RENAME TO reviews;
+      CREATE INDEX reviews_store ON reviews(store_id);
+      CREATE UNIQUE INDEX reviews_direct ON reviews(store_id, user_id) WHERE operation_id IS NULL;`,
+    postgres: `ALTER TABLE reviews ALTER COLUMN operation_id DROP NOT NULL;
+      CREATE UNIQUE INDEX reviews_direct ON reviews(store_id, user_id) WHERE operation_id IS NULL;`,
+  },
+  // Confirmar la cuenta por mensaje de texto (Onurix) además de por correo. emailVerifiedAt sigue
+  // siendo «cuenta confirmada»; verify_channel dice por dónde se confirma. El código de 6 dígitos
+  // se guarda solo como hash, vence a los 10 minutos y admite pocos intentos.
+  `ALTER TABLE users ADD COLUMN phone TEXT;
+   ALTER TABLE users ADD COLUMN verify_channel TEXT NOT NULL DEFAULT 'email';
+   CREATE TABLE sms_codes (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, phone TEXT NOT NULL, code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at TEXT NOT NULL);`,
+  // Archivo adjunto de las PQRS (foto o PDF, máx. 5 MB), solo visible para su autor y la
+  // administración.
+  `CREATE TABLE pqrs_files (id TEXT PRIMARY KEY, pqrs_id TEXT NOT NULL REFERENCES pqrs(id) ON DELETE CASCADE, message_id TEXT, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
+   CREATE INDEX pqrs_files_case ON pqrs_files(pqrs_id);`,
 ];
 
 const sqlOf = (m: Migration, dialect: Db['dialect']) => (typeof m === 'string' ? m : m[dialect]);
@@ -282,15 +350,28 @@ function postgresDb(driver: PgDriver): Db {
   return make(driver, false);
 }
 
+/** Quita sslmode y compañía de la URL: la conexión cifrada la define `sslFor`. */
+function withoutSslParams(url: string) {
+  return url
+    .replace(/([?&])(sslmode|sslcert|sslkey|sslrootcert|uselibpqcompat)=[^&]*/g, '$1')
+    .replace(/&{2,}/g, '&')
+    .replace(/\?&/, '?')
+    .replace(/[?&]+$/, '');
+}
+
 async function openPostgres(url: string): Promise<Db> {
   const pg = (await import('pg')).default;
   // COUNT/SUM devuelven bigint/numeric como texto: aquí se leen como números (como en SQLite).
   pg.types.setTypeParser(20, (v: string) => Number.parseInt(v, 10));
   pg.types.setTypeParser(1700, (v: string) => Number.parseFloat(v));
   const pool = new pg.Pool({
-    connectionString: url,
+    // Los parámetros ssl* de la URL reemplazarían la verificación de abajo: se quitan.
+    connectionString: withoutSslParams(url),
     max: Number(process.env.DATABASE_POOL ?? 3),
-    ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(url) ? undefined : { rejectUnauthorized: false },
+    // Cifrada y verificada con el certificado de Supabase (ver db-ssl.ts).
+    ssl: sslFor(url),
+    // Conexiones inactivas se cierran pronto: Supabase admite pocos clientes a la vez.
+    idleTimeoutMillis: 5_000,
   });
   const wrap = (q: {
     query: (t: string, v?: unknown[]) => Promise<{ rows: Row[]; rowCount: number | null }>;

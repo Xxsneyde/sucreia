@@ -9,6 +9,7 @@ import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
 import { levelFor, REWARDS } from '../src/domain/rewards.ts';
+import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 async function fixture() {
   const db = await openDb(':memory:'),
@@ -47,7 +48,10 @@ async function fixture() {
     const design = createDesign(sector, `Negocio ${randomUUID().slice(0, 6)}`);
     design.mode = 'products';
     design.products[0].price = 10000;
-    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })
+    ).json.store;
+    await approveRegistration(db, store.id);
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     const op = (
       await buyer.call('POST', '/plataforma/operaciones', {
@@ -204,7 +208,10 @@ test('las visitas repetidas a un negocio suman sin error (también en Postgres)'
   try {
     const owner = await f.account('emprendedor');
     const design = createDesign('Gastronomía y Alimentos', 'Visitas');
-    const store = (await owner.call('POST', '/mis-tiendas', { design })).json.store;
+    const store = (
+      await owner.call('POST', '/mis-tiendas', { termsVersion: TERMS_VERSION, design })
+    ).json.store;
+    await approveRegistration(f.db, store.id);
     await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     const visitor = await f.account();
     // Cada cuenta nueva usa la misma IP de prueba: se limpia el límite entre visitas.

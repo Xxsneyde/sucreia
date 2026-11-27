@@ -18,7 +18,12 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  /** Cuenta confirmada (por correo o por mensaje de texto, según `verifyChannel`). */
   emailVerifiedAt: string | null;
+  /** Ya registró sus datos personales (documento y dirección). */
+  profileComplete: boolean;
+  verifyChannel: 'email' | 'sms';
+  phone: string | null;
 }
 export const SESSION_COOKIE = 'sucreia_sesion';
 const SESSION_DAYS = 30;
@@ -39,28 +44,73 @@ const hashToken = (token: string) => createHash('sha256').update(token).digest('
 
 export async function createUser(
   db: Db,
-  data: { email: string; name: string; passwordHash: string; role: Role },
+  data: {
+    email: string;
+    name: string;
+    passwordHash: string;
+    role: Role;
+    documentNumber?: string;
+    address?: string;
+    /** Correo ya confirmado por otro medio (ingreso con Google). */
+    emailVerified?: boolean;
+    verifyChannel?: User['verifyChannel'];
+    phone?: string | null;
+  },
 ): Promise<User> {
+  const now = new Date().toISOString();
+  const complete = !!(data.name && data.documentNumber && data.address);
   const user: User = {
     id: randomUUID(),
     email: data.email,
     name: data.name,
     role: data.role,
-    emailVerifiedAt: null,
+    emailVerifiedAt: data.emailVerified ? now : null,
+    profileComplete: complete,
+    verifyChannel: data.verifyChannel ?? 'email',
+    phone: data.phone ?? null,
   };
   await db
     .prepare(
-      'INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (id, email, name, password_hash, role, created_at, document_number, home_address, emailVerifiedAt, profile_completed_at, verify_channel, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(user.id, user.email, user.name, data.passwordHash, user.role, new Date().toISOString());
+    .run(
+      user.id,
+      user.email,
+      user.name,
+      data.passwordHash,
+      user.role,
+      now,
+      data.documentNumber ?? null,
+      data.address ?? null,
+      user.emailVerifiedAt,
+      complete ? now : null,
+      user.verifyChannel,
+      user.phone,
+    );
   return user;
 }
-export function findUserByEmail(db: Db, email: string) {
-  return db
+type UserRow = Omit<User, 'profileComplete'> & { profile_completed_at: string | null };
+const toUser = ({ profile_completed_at, ...row }: UserRow): User => ({
+  ...row,
+  profileComplete: !!profile_completed_at,
+});
+export async function findUserByEmail(db: Db, email: string) {
+  const row = await db
     .prepare(
-      'SELECT id, email, name, role, emailVerifiedAt, password_hash FROM users WHERE email = ?',
+      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone, password_hash FROM users WHERE email = ?',
     )
-    .get<User & { password_hash: string }>(email);
+    .get<UserRow & { password_hash: string }>(email);
+  if (!row) return undefined;
+  const { password_hash, ...rest } = row;
+  return { ...toUser(rest), password_hash };
+}
+export async function findUserById(db: Db, id: string): Promise<User | undefined> {
+  const row = await db
+    .prepare(
+      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone FROM users WHERE id = ?',
+    )
+    .get<UserRow>(id);
+  return row ? toUser(row) : undefined;
 }
 
 export async function createSession(
@@ -77,13 +127,14 @@ export async function createSession(
 export async function deleteSession(db: Db, token: string) {
   await db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
 }
-function sessionUser(db: Db, token: string): Promise<User | undefined> {
-  return db
+async function sessionUser(db: Db, token: string): Promise<User | undefined> {
+  const row = await db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt, u.profile_completed_at, u.verify_channel AS verifyChannel, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
-    .get<User>(hashToken(token), new Date().toISOString());
+    .get<UserRow>(hashToken(token), new Date().toISOString());
+  return row ? toUser(row) : undefined;
 }
 
 /** Lee la cookie de sesión sin dependencias extra. */

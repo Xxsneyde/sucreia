@@ -1,13 +1,14 @@
 import type { CatalogAI } from '../catalog-ai.ts';
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { lessons as courseLessons } from '../../src/features/community/lessons.ts';
 import { randomUUID } from 'node:crypto';
 import { imageId, type ImageStorage } from '../images.ts';
 import type { Db } from '../db.ts';
 import { currentUser, requireUser } from '../auth.ts';
+import { pqrsRoutes } from './pqrs.ts';
 import { HttpError } from '../http.ts';
 import { afterReview, attendEvent, createEvent, deleteEvent, listEvents } from '../rewards.ts';
-import { getStore, listPublishedStores } from '../stores.ts';
+import { getStore, listPublishedStores, writePublication } from '../stores.ts';
 import {
   actOperation,
   balance,
@@ -22,7 +23,7 @@ import {
   redeem,
   setSettings,
   settings,
-  slots,
+  slotAvailability,
   setAvailability,
   setLocation,
   state,
@@ -32,6 +33,32 @@ import {
   type CreateOperation,
 } from '../platform.ts';
 import { dayNames, type Promotion, type Review } from '../../src/domain/platform.ts';
+import { canBuyRole } from '../../src/domain/roles.ts';
+import { isDesign, publishProject, type StoreDesign } from '../../src/domain/studio.ts';
+import {
+  documentKinds,
+  documentMaxBytes,
+  documentMimes,
+  missingDocuments,
+  type DocumentKind,
+  type PersonType,
+} from '../../src/domain/documents.ts';
+import {
+  orderLink,
+  orderMessage,
+  type WhatsappOrderRecord,
+} from '../../src/domain/whatsapp-order.ts';
+
+/** Comprar, reservar, cotizar y guardar favoritos es de clientes y emprendedores, no del admin. */
+function requireClient(res: Response) {
+  const user = requireUser(res);
+  if (!canBuyRole(user.role))
+    throw new HttpError(
+      403,
+      'La cuenta de administración no hace compras, reservas ni guarda favoritos.',
+    );
+  return user;
+}
 export function platformRoutes(db: Db, images: ImageStorage, assistant?: CatalogAI) {
   const r = Router();
   r.use((req, _res, next) => {
@@ -60,14 +87,14 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   r.get('/negocios/:id/horarios', async (req, res) => {
     if (!(await getStore(db, req.params.id))?.published)
       throw new HttpError(404, 'Negocio no publicado.');
-    res.json({
-      slots: await slots(
-        db,
-        req.params.id,
-        string(req.query.fecha, 10, 'la fecha'),
-        typeof req.query.servicio === 'string' ? req.query.servicio : undefined,
-      ),
-    });
+    // `detail` trae también las horas llenas, para mostrarlas como «Agotado».
+    const detail = await slotAvailability(
+      db,
+      req.params.id,
+      string(req.query.fecha, 10, 'la fecha'),
+      typeof req.query.servicio === 'string' ? req.query.servicio : undefined,
+    );
+    res.json({ slots: detail.filter((s) => s.free > 0).map((s) => s.slot), detail });
   });
   const views = new Map<string, number>();
   const aiAttempts = new Map<string, { until: number; count: number }>();
@@ -92,7 +119,8 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   });
   r.post('/operaciones', async (req, res) =>
     res.status(201).json({
-      operation: await createOperation(db, requireUser(res), req.body as CreateOperation),
+      // Comprar, reservar y cotizar es solo de las cuentas de cliente.
+      operation: await createOperation(db, requireClient(res), req.body as CreateOperation),
     }),
   );
   r.post('/operaciones/:id/:action', async (req, res) =>
@@ -107,7 +135,7 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     }),
   );
   r.post('/favoritos/:id', async (req, res) => {
-    const user = requireUser(res);
+    const user = requireClient(res);
     if (!(await getStore(db, req.params.id))?.published)
       throw new HttpError(404, 'Negocio no publicado.');
     if (
@@ -246,6 +274,112 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     await afterReview(db, user.id, op.id, op.storeName);
     res.status(201).json({ ok: true });
   });
+  // Reseña directa del negocio («Añadir reseña»): una por cliente; si ya existe, se actualiza.
+  r.post('/negocios/:id/resenas', async (req, res) => {
+    const user = requireUser(res);
+    if (user.role !== 'cliente')
+      throw new HttpError(403, 'Solo los clientes pueden escribir reseñas de los negocios.');
+    const store = await getStore(db, req.params.id);
+    if (!store?.published) throw new HttpError(404, 'Negocio no encontrado.');
+    if (store.ownerId === user.id) throw new HttpError(403, 'No puedes reseñar tu propio negocio.');
+    const rating = integer(req.body?.rating, 1, 5, 'la calificación'),
+      comment = string(req.body?.comment, 500, 'tu reseña');
+    const now = new Date().toISOString();
+    const mine = await db
+      .prepare('SELECT id FROM reviews WHERE store_id=? AND user_id=? AND operation_id IS NULL')
+      .get<{ id: string }>(store.id, user.id);
+    if (mine)
+      await db
+        .prepare('UPDATE reviews SET rating=?, comment=?, created_at=? WHERE id=?')
+        .run(rating, comment, now, mine.id);
+    else {
+      await db
+        .prepare(
+          'INSERT INTO reviews (id,operation_id,store_id,user_id,rating,comment,created_at,courier_rating) VALUES (?,?,?,?,?,?,?,?)',
+        )
+        .run(randomUUID(), null, store.id, user.id, rating, comment, now, null);
+      await notify(
+        db,
+        store.ownerId,
+        `${user.name} dejó una reseña de ${rating} ${rating === 1 ? 'estrella' : 'estrellas'} en ${store.published.design.name}.`,
+        `/tienda?id=${encodeURIComponent(store.id)}&ver=resenas`,
+      );
+    }
+    res.status(mine ? 200 : 201).json({ ok: true, updated: !!mine });
+  });
+  /** ¿Lo compró (por WhatsApp o en una operación completada)? Solo así puede valorarlo. */
+  async function boughtProduct(userId: string, storeId: string, productId: string) {
+    const orders = await db
+      .prepare('SELECT payload FROM whatsapp_orders WHERE client_id=? AND store_id=?')
+      .all(userId, storeId);
+    if (
+      orders.some((o) =>
+        (JSON.parse(String(o.payload)) as WhatsappOrderRecord).lines.some(
+          (l) => l.productId === productId,
+        ),
+      )
+    )
+      return true;
+    const ops = await db
+      .prepare(
+        "SELECT payload FROM operations WHERE client_id=? AND store_id=? AND status='completed'",
+      )
+      .all(userId, storeId);
+    return ops.some((o) =>
+      ((JSON.parse(String(o.payload)) as { lines?: { productId: string }[] }).lines ?? []).some(
+        (l) => l.productId === productId,
+      ),
+    );
+  }
+  async function publishedProduct(storeId: string, productId: string) {
+    const store = await getStore(db, storeId);
+    const product = store?.published?.design.products.find((x) => x.id === productId);
+    if (!store || !product) throw new HttpError(404, 'Producto no encontrado.');
+    return { store, product };
+  }
+  r.get('/negocios/:id/productos/:productId/resenas', async (req, res) => {
+    const { store } = await publishedProduct(req.params.id, req.params.productId);
+    const reviews = await db
+      .prepare(
+        'SELECT r.id,r.product_id AS productId,r.store_id AS storeId,u.name,r.rating,r.comment,r.created_at AS createdAt FROM product_reviews r JOIN users u ON u.id=r.user_id WHERE r.store_id=? AND r.product_id=? ORDER BY r.created_at DESC LIMIT 200',
+      )
+      .all(store.id, req.params.productId);
+    const user = currentUser(res);
+    const canReview =
+      !!user &&
+      store.ownerId !== user.id &&
+      (await boughtProduct(user.id, store.id, req.params.productId));
+    const mine = user
+      ? await db
+          .prepare(
+            'SELECT rating,comment FROM product_reviews WHERE store_id=? AND product_id=? AND user_id=?',
+          )
+          .get(store.id, req.params.productId, user.id)
+      : null;
+    res.json({ reviews, canReview, mine: mine ?? null });
+  });
+  r.post('/negocios/:id/productos/:productId/resenas', async (req, res) => {
+    const user = requireUser(res);
+    const { store, product } = await publishedProduct(req.params.id, req.params.productId);
+    if (store.ownerId === user.id)
+      throw new HttpError(403, 'No puedes valorar tu propio producto.');
+    if (!(await boughtProduct(user.id, store.id, product.id)))
+      throw new HttpError(403, 'Solo puede valorar este producto quien lo compró o lo contrató.');
+    const rating = integer(req.body?.rating, 1, 5, 'la calificación');
+    const comment = String(req.body?.comment ?? '').trim();
+    if (comment.length > 500)
+      throw new HttpError(400, 'El comentario debe tener máximo 500 caracteres.');
+    // Una valoración por persona y producto: la nueva reemplaza a la anterior.
+    await db
+      .prepare('DELETE FROM product_reviews WHERE store_id=? AND product_id=? AND user_id=?')
+      .run(store.id, product.id, user.id);
+    await db
+      .prepare(
+        'INSERT INTO product_reviews (id,store_id,product_id,user_id,rating,comment,created_at) VALUES (?,?,?,?,?,?,?)',
+      )
+      .run(randomUUID(), store.id, product.id, user.id, rating, comment, new Date().toISOString());
+    res.status(201).json({ ok: true });
+  });
   // Ferias y eventos: lista pública; asistencia con el código que se entrega en el evento.
   r.get('/eventos', async (_req, res) =>
     res.json({ events: await listEvents(db, currentUser(res)?.id) }),
@@ -358,7 +492,8 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
         .run(store.id, productId, integer(req.body.quantity, 0, 1000000, 'las existencias'));
     res.json(await commerceStore(db, store.id));
   });
-  r.post('/negocios/:id/promociones', async (req, res) => {
+  /** Crea un bono (POST) o edita uno activo (PUT con :promo). */
+  const savePromotion = async (req: Request<{ id: string; promo?: string }>, res: Response) => {
     const store = await owned(db, requireUser(res), req.params.id);
     if (store.published?.design.mode !== 'products')
       throw new HttpError(400, 'Publica un negocio de productos antes de crear bonos.');
@@ -371,7 +506,7 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     )
       throw new HttpError(400, 'Elige un vencimiento futuro dentro de un año.');
     const promotion: Promotion = {
-      id: randomUUID(),
+      id: req.params.promo || randomUUID(),
       storeId: store.id,
       storeName: store.published.design.name,
       title: string(v.title, 100, 'el título'),
@@ -380,11 +515,27 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       expires: new Date(expires).toISOString(),
       active: true,
     };
+    if (req.params.promo) {
+      await transaction(db, async (tx) => {
+        const row = await tx
+          .prepare('SELECT payload FROM promotions WHERE id=? AND store_id=?')
+          .get(promotion.id, store.id);
+        if (!row || !(JSON.parse(String(row.payload)) as Promotion).active)
+          throw new HttpError(404, 'No encontramos una promoción activa de tu negocio.');
+        await tx
+          .prepare('UPDATE promotions SET payload=? WHERE id=? AND store_id=?')
+          .run(JSON.stringify(promotion), promotion.id, store.id);
+      });
+      res.json({ promotion });
+      return;
+    }
     await db
       .prepare('INSERT INTO promotions VALUES (?,?,?)')
       .run(promotion.id, store.id, JSON.stringify(promotion));
     res.status(201).json({ promotion });
-  });
+  };
+  r.post('/negocios/:id/promociones', savePromotion);
+  r.put('/negocios/:id/promociones/:promo', savePromotion);
   r.delete('/promociones/:id', async (req, res) => {
     const row = await db
       .prepare('SELECT store_id,payload FROM promotions WHERE id=?')
@@ -440,6 +591,160 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   r.get('/operaciones/:id/rastreo', async (req, res) =>
     res.json(await tracking(db, requireUser(res), req.params.id)),
   );
+  r.use(pqrsRoutes(db));
+  // Compra por WhatsApp: se arma el mensaje con los precios publicados (no los del navegador),
+  // queda el registro para el cliente y el negocio, y se devuelve el enlace a wa.me.
+  r.post('/compras-whatsapp', async (req, res) => {
+    const user = requireClient(res);
+    const store = await getStore(db, string(req.body.storeId, 100, 'el negocio'));
+    const design = store?.published?.design;
+    if (!store || !design || design.mode !== 'products')
+      throw new HttpError(404, 'Este negocio no recibe compras en este momento.');
+    if (store.ownerId === user.id)
+      throw new HttpError(400, 'No puedes comprar en tu propio negocio.');
+    if (!Array.isArray(req.body.items) || !req.body.items.length || req.body.items.length > 60)
+      throw new HttpError(400, 'Agrega productos al carrito.');
+    const lines = (req.body.items as unknown[]).map((item) => {
+      const it = (item ?? {}) as { productId?: unknown; quantity?: unknown };
+      const product = design.products.find((p) => p.id === it.productId);
+      const quantity = Number(it.quantity);
+      if (!product)
+        throw new HttpError(409, 'Un producto ya no está en el catálogo. Revisa tu carrito.');
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99)
+        throw new HttpError(400, 'Revisa las cantidades.');
+      return { productId: product.id, name: product.name, price: product.price, quantity };
+    });
+    const rawNote = req.body.note ?? '';
+    if (typeof rawNote !== 'string' || rawNote.length > 500)
+      throw new HttpError(400, 'La nota debe tener máximo 500 caracteres.');
+    const note = rawNote.trim();
+    const order: WhatsappOrderRecord = {
+      id: randomUUID(),
+      storeId: store.id,
+      storeName: design.name,
+      clientName: user.name,
+      lines,
+      total: lines.reduce((n, l) => n + l.price * l.quantity, 0),
+      note,
+      createdAt: new Date().toISOString(),
+    };
+    const message = orderMessage(order);
+    const url = orderLink(design.whatsapp, message);
+    if (!url) throw new HttpError(409, 'Este negocio no tiene WhatsApp registrado.');
+    await db
+      .prepare(
+        'INSERT INTO whatsapp_orders (id,store_id,client_id,payload,created_at) VALUES (?,?,?,?,?)',
+      )
+      .run(order.id, store.id, user.id, JSON.stringify(order), order.createdAt);
+    await notify(
+      db,
+      store.ownerId,
+      `Nuevo pedido por WhatsApp de ${user.name}: ${lines.reduce((n, l) => n + l.quantity, 0)} producto(s).`,
+      '/panel',
+    );
+    res.status(201).json({ order, url, message });
+  });
+  /** Pedidos por WhatsApp hechos por la cuenta y recibidos en sus negocios. */
+  r.get('/compras-whatsapp', async (_req, res) => {
+    const user = requireUser(res);
+    const mine = await db
+      .prepare(
+        'SELECT payload FROM whatsapp_orders WHERE client_id=? ORDER BY created_at DESC LIMIT 100',
+      )
+      .all(user.id);
+    const received = await db
+      .prepare(
+        'SELECT w.payload FROM whatsapp_orders w JOIN stores s ON s.id=w.store_id WHERE s.owner_id=? ORDER BY w.created_at DESC LIMIT 100',
+      )
+      .all(user.id);
+    const read = (rows: { payload?: unknown }[]) =>
+      rows.map((row) => JSON.parse(String(row.payload)) as WhatsappOrderRecord);
+    res.json({ mine: read(mine), received: read(received) });
+  });
+
+  // Documentos del registro: los ve el dueño y la administración (nadie más).
+  async function documentAccess(res: Response, storeId: string) {
+    const user = requireUser(res);
+    const store = await getStore(db, storeId);
+    if (!store || (store.ownerId !== user.id && user.role !== 'admin'))
+      throw new HttpError(404, 'No encontramos el negocio.');
+    return { user, store };
+  }
+  async function documentsOf(storeId: string) {
+    const row = await db
+      .prepare('SELECT legal_type FROM stores WHERE id=?')
+      .get<{ legal_type: string }>(storeId);
+    const legalType: PersonType = row?.legal_type === 'juridica' ? 'juridica' : 'natural';
+    const documents = (
+      await db
+        .prepare(
+          'SELECT kind,name,mime,uploaded_at FROM store_documents WHERE store_id=? ORDER BY kind',
+        )
+        .all(storeId)
+    ).map((d) => ({
+      kind: d.kind as DocumentKind,
+      name: String(d.name),
+      mime: String(d.mime),
+      uploadedAt: String(d.uploaded_at),
+    }));
+    return { legalType, documents, missing: missingDocuments(legalType, documents) };
+  }
+  r.get('/negocios/:id/documentos', async (req, res) => {
+    const { store } = await documentAccess(res, req.params.id);
+    res.json(await documentsOf(store.id));
+  });
+  r.put('/negocios/:id/tipo-legal', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    const type = req.body.legalType;
+    if (type !== 'natural' && type !== 'juridica')
+      throw new HttpError(400, 'Elige persona natural o jurídica.');
+    await db.prepare('UPDATE stores SET legal_type=? WHERE id=?').run(type, store.id);
+    res.json(await documentsOf(store.id));
+  });
+  r.put('/negocios/:id/documentos/:kind', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    if (!documentKinds.some((k) => k.id === req.params.kind))
+      throw new HttpError(404, 'Documento desconocido.');
+    const name = string(req.body.name, 160, 'el nombre del archivo');
+    const match = /^data:([a-z/+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.data ?? ''));
+    if (!match || !(documentMimes as readonly string[]).includes(match[1]))
+      throw new HttpError(400, 'Sube el documento en PDF, JPG, PNG o WEBP.');
+    if (Buffer.byteLength(match[2], 'base64') > documentMaxBytes)
+      throw new HttpError(413, 'El archivo supera los 4 MB.');
+    await db
+      .prepare('DELETE FROM store_documents WHERE store_id=? AND kind=?')
+      .run(store.id, req.params.kind);
+    await db
+      .prepare(
+        'INSERT INTO store_documents (store_id,kind,name,mime,data,uploaded_at) VALUES (?,?,?,?,?,?)',
+      )
+      .run(store.id, req.params.kind, name, match[1], match[2], new Date().toISOString());
+    res.json(await documentsOf(store.id));
+  });
+  r.delete('/negocios/:id/documentos/:kind', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
+    await db
+      .prepare('DELETE FROM store_documents WHERE store_id=? AND kind=?')
+      .run(store.id, req.params.kind);
+    res.json(await documentsOf(store.id));
+  });
+  r.get('/negocios/:id/documentos/:kind/archivo', async (req, res) => {
+    const { store } = await documentAccess(res, req.params.id);
+    const doc = await db
+      .prepare('SELECT name,mime,data FROM store_documents WHERE store_id=? AND kind=?')
+      .get(store.id, req.params.kind);
+    if (!doc) throw new HttpError(404, 'Documento no encontrado.');
+    res.setHeader('Content-Type', String(doc.mime));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Un PDF o una imagen no deben poder ejecutar código en el dominio de SucreIA.
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${String(doc.name).replace(/[^\w.-]+/g, '_')}"`,
+    );
+    res.send(Buffer.from(String(doc.data), 'base64'));
+  });
   r.get('/admin', async (_req, res) => {
     requireUser(res, 'admin');
     const ids = (await db.prepare('SELECT id FROM stores').all()).map((row) => row.id as string);
@@ -449,11 +754,51 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
         stores.map(async (s) => ({
           id: s!.id,
           name: s!.published?.design.name || s!.draft.name,
+          registration: s!.registration,
+          // Lo que se revisa: el diseño enviado a revisión (o el borrador si no hay envío).
+          details: await (async () => {
+            const row = await db
+              .prepare('SELECT review_design FROM stores WHERE id=?')
+              .get<{ review_design: string | null }>(s!.id);
+            const design: StoreDesign = row?.review_design
+              ? JSON.parse(String(row.review_design))
+              : s!.draft;
+            return {
+              name: design.name,
+              category: design.category,
+              municipality: design.municipality,
+              description: design.description,
+              whatsapp: design.whatsapp,
+              phone: design.phone ?? '',
+              email: design.email ?? '',
+              subcategory: design.subcategory ?? '',
+              address: design.address,
+              hours: design.hours,
+              mode: design.mode,
+              logo: design.logo,
+              cover: design.content?.heroImage ?? '',
+              products: (design.products ?? []).map((p) => ({
+                name: p.name,
+                price: p.price,
+                image: p.image,
+                description: p.description,
+              })),
+            };
+          })(),
           ownerId: s!.ownerId,
+          owner: await db
+            .prepare('SELECT name,email,document_number,home_address FROM users WHERE id=?')
+            .get(s!.ownerId),
+          ...(await documentsOf(s!.id)),
           published: !!s!.published,
           settings: await settings(db, s!.id),
         })),
       ),
+      pqrs: await db
+        .prepare(
+          'SELECT p.id,p.kind,p.message,p.status,p.response,p.responded_at,u.email,u.name,p.created_at FROM pqrs p JOIN users u ON u.id=p.user_id ORDER BY p.created_at DESC LIMIT 200',
+        )
+        .all(),
       couriers: await couriers(db),
       users: (await db.prepare('SELECT COUNT(*) AS n FROM users').get<{ n: number }>())?.n ?? 0,
       audit: await db
@@ -468,7 +813,29 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     const decision = req.body?.approved === true,
       note = string(req.body?.note, 500, 'el motivo de la decisión');
     await transaction(db, async (db) => {
-      if (['suspender', 'reactivar'].includes(req.params.type)) {
+      if (req.params.type === 'registro') {
+        // Aprobar el registro publica la versión enviada a revisión (salvo negocio suspendido).
+        const store = await getStore(db, req.params.id);
+        if (!store || store.registration !== 'pending')
+          throw new HttpError(409, 'El registro ya no está pendiente.');
+        const row = await db
+          .prepare('SELECT review_design FROM stores WHERE id=?')
+          .get<{ review_design: string | null }>(store.id);
+        if (decision && row?.review_design && !(await settings(db, store.id)).suspended) {
+          const draft = JSON.parse(String(row.review_design));
+          if (!isDesign(draft)) throw new HttpError(422, 'La solicitud tiene datos inválidos.');
+          await writePublication(db, store.id, publishProject({ ...store, draft }).published!);
+        }
+        await db
+          .prepare('UPDATE stores SET registration=?,review_design=NULL WHERE id=?')
+          .run(decision ? 'approved' : 'rejected', store.id);
+        await notify(
+          db,
+          store.ownerId,
+          (decision ? 'Registro aprobado. ' : 'Registro rechazado. ') + note,
+          '/panel/perfil',
+        );
+      } else if (['suspender', 'reactivar'].includes(req.params.type)) {
         const store = await getStore(db, req.params.id);
         if (!store) throw new HttpError(404, 'Negocio no encontrado.');
         const cfg = await settings(db, store.id);
@@ -498,7 +865,9 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
         await notify(
           db,
           store.ownerId,
-          `Verificación de negocio: ${cfg.verification}`,
+          decision
+            ? `¡${store.published.design.name} ya tiene la insignia de negocio verificado! ${note}`
+            : `Se retiró la verificación de ${store.published.design.name}. ${note}`,
           '/panel/configuracion',
         );
       } else if (req.params.type === 'domiciliarios') {
@@ -528,64 +897,6 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
         );
     });
     res.status(204).end();
-  });
-  // Asistencia local basada exclusivamente en el catálogo: no se presenta como un modelo de IA.
-  r.post('/asistente/:id', async (req, res) => {
-    const question = string(req.body?.question, 500, 'tu pregunta').toLowerCase();
-    const store = await getStore(db, req.params.id);
-    if (!store?.published) throw new HttpError(404, 'Negocio no publicado.');
-    const d = store.published.design;
-    const words = question
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .split(/\W+/)
-      .filter((w) => w.length > 2);
-    const matches = d.products
-      .filter((p) =>
-        words.some((w) =>
-          `${p.name} ${p.description}`
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .includes(w),
-        ),
-      )
-      .slice(0, 5);
-    let answer = matches.length
-      ? matches
-          .map(
-            (p) =>
-              `${p.name}: ${d.mode === 'quote' ? 'bajo cotización' : new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(p.price)}. ${p.description}`,
-          )
-          .join('\n')
-      : `En ${d.name}: ${d.description}. Puedes consultar su catálogo o contactar al negocio para confirmar detalles.`;
-    if (/horario|hora|abren/.test(question))
-      answer = d.hours || 'El negocio todavía no indicó su horario.';
-    if (/direcci|ubic|donde/.test(question))
-      answer = `${d.address || 'Dirección por confirmar'}, ${d.municipality}.`;
-    let mode = 'catalogo-local';
-    const user = currentUser(res);
-    if (assistant && user) {
-      const entry = aiAttempts.get(user.id),
-        attempt =
-          entry && entry.until > Date.now() ? entry : { until: Date.now() + 60000, count: 0 };
-      if (aiAttempts.size > 5000) aiAttempts.clear();
-      attempt.count++;
-      aiAttempts.set(user.id, attempt);
-      if (aiBusy || attempt.count > 8)
-        throw new HttpError(429, 'El asistente está ocupado. Inténtalo en un momento.');
-      aiBusy = true;
-      try {
-        answer = await assistant.answer(d, question);
-        mode = 'ollama';
-      } catch {
-        mode = 'catalogo-respaldo';
-        answer = 'La IA local no respondió. Te mostramos la consulta del catálogo:\n' + answer;
-      } finally {
-        aiBusy = false;
-      }
-    }
-    res.json({ answer, mode });
   });
   return r;
 }
