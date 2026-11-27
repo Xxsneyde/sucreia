@@ -37,7 +37,9 @@ JSON. Los errores responden `{ "error": "mensaje en español" }` con el código 
 | POST   | `/salir`    | —                                                                        | 204                                                                                                  |
 | GET    | `/yo`       | —                                                                        | `{ user }` o `{ user: null }`                                                                        |
 
-Desde el flujo nuevo de cuenta: `user` incluye `profileComplete`, `verifyChannel` (`email` o `sms`) y `phone`.
+Desde el flujo nuevo de cuenta: `user` incluye `profileComplete`, `termsAccepted`, `verifyChannel` (`email` o `sms`) y `phone`.
+
+`/registro` exige `acceptTerms: true` (Política de uso y condiciones generales, `/terminos`; se guardan fecha y versión en `terms_accepted_at` y `terms_version`). Quien entra con Google desde la pestaña de registro la acepta antes de continuar (`?terminos=1`); si no, la acepta en `PUT /perfil/datos` con `acceptTerms: true`. El código de invitación (`referido`) llega en el enlace `?ref=`; el formulario ya no lo pide. Los correos de verificación y recuperación se envían en texto y HTML (`accountEmail` en `server/mail.ts`).
 
 | Método | Ruta                          | Cuerpo / qué hace                                                                                                                                      |
 | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |

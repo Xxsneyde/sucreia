@@ -15,11 +15,12 @@ test('cliente: menú principal; administración y páginas retiradas lo devuelve
     'Mis compras',
     'Mis reservas',
     'Favoritos',
-    'Notificaciones',
     '¿Quieres montar tu propio emprendimiento?',
   ])
     await expect(menu(page).getByRole('link', { name: label, exact: true })).toBeVisible();
   await expect(menu(page).locator('.sx-nav-title')).toHaveCount(0);
+  // Las notificaciones no están en el menú: solo en la campana de arriba.
+  await expect(menu(page).getByRole('link', { name: /Notificaciones/ })).toHaveCount(0);
   // «Mi cuenta» solo está en el menú de la cuenta, arriba a la derecha.
   await expect(page.getByRole('link', { name: 'Mi cuenta', exact: true })).toHaveCount(0);
   // En celular se cierra primero el menú lateral, que tapa la barra de arriba.
@@ -28,6 +29,12 @@ test('cliente: menú principal; administración y páginas retiradas lo devuelve
     await page.locator('.sx-scrim').click({ position: { x: width - 12, y: 300 } });
     await expect(page.locator('.sx-scrim')).toHaveCount(0);
   }
+  // La campana despliega las notificaciones ahí mismo (el cliente nuevo aún no tiene).
+  await page.getByRole('button', { name: 'Notificaciones: 0 sin leer' }).click();
+  const panel = page.getByRole('region', { name: 'Notificaciones' });
+  await expect(panel).toContainText('No tienes notificaciones todavía.');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
   await page.getByRole('button', { name: /Hola,/ }).click();
   await page.locator('.sx-menu').getByRole('link', { name: 'Mi cuenta', exact: true }).click();
   await expect(page).toHaveURL(/\/perfil\/?$/);
@@ -57,9 +64,18 @@ test('emprendedor: «Mi negocio» primero; con un negocio publicado aparece «Mi
   // Sin negocios, la invitación es «Registra tu emprendimiento».
   await expect(menu(page).getByRole('link', { name: 'Registra tu emprendimiento' })).toBeVisible();
   await expect(menu(page).getByRole('link', { name: 'Mis negocios' })).toHaveCount(0);
+  await expect(menu(page).getByRole('link', { name: /Notificaciones/ })).toHaveCount(0);
 
   const { design } = await publishedStore(page);
+  // La aprobación del negocio llega a la campana, que permite marcarla como leída.
   await page.goto('/buscar');
+  const bell = page.getByRole('button', { name: /^Notificaciones: [1-9]\d* sin leer$/ });
+  await bell.click();
+  const panel = page.getByRole('region', { name: 'Notificaciones' });
+  await expect(panel.getByRole('listitem').first()).toBeVisible();
+  await panel.getByRole('button', { name: 'Marcar todas como leídas' }).click();
+  await expect(page.getByRole('button', { name: 'Notificaciones: 0 sin leer' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await openMenu(page, isMobile);
   await expect(menu(page).getByRole('link', { name: 'Promociones y reseñas' })).toBeVisible();
   await expect(menu(page).getByRole('link', { name: 'Registrar emprendimiento' })).toBeVisible();

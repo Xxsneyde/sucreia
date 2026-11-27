@@ -153,10 +153,12 @@ test('referidos: el enlace con código llena el registro y cuenta al invitado', 
   const friend = await browser.newPage();
   await friend.goto(`/ingresar?ref=${code}`);
   await expect(friend.getByRole('button', { name: 'Registrarse', exact: true })).toHaveClass(/on/);
-  await expect(friend.getByLabel('Código de invitación (opcional)')).toHaveValue(code);
+  // El código llega en el enlace: el registro ya no muestra ese campo.
+  await expect(friend.getByLabel('Código de invitación (opcional)')).toHaveCount(0);
   await friend.getByText('Quiero comprar', { exact: true }).click();
   await friend.getByLabel('Correo electrónico').fill(`amiga-${crypto.randomUUID()}@ejemplo.co`);
   await friend.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+  await friend.getByRole('checkbox', { name: /Política de uso/ }).check();
   await friend.getByRole('button', { name: 'Crear mi cuenta' }).click();
   await expect(friend).toHaveURL(/verificar-correo/);
   await friend.close();

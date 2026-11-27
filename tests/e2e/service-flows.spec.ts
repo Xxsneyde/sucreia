@@ -13,7 +13,7 @@ test('reserva: el cliente elige día y hora y el negocio confirma la cita', asyn
     'booking',
   );
   const buyer = await browser.newPage();
-  await account(buyer, 'cliente', 'servicios');
+  await account(buyer, 'cliente', 'servicios', 'Clienta Reserva');
   await buyer.goto(`/tienda?id=${id}`);
   await buyer.getByRole('button', { name: 'Reservar ahora', exact: true }).click();
   const picker = buyer.getByRole('dialog', { name: `Reservar en ${design.name}` });
@@ -32,11 +32,21 @@ test('reserva: el cliente elige día y hora y el negocio confirma la cita', asyn
   const mine = buyer.locator('.flow-operation').filter({ hasText: design.name });
   await expect(mine.locator('.tag')).toHaveText('Recibido');
 
-  await page.goto('/panel/pedidos');
-  const card = page.locator('.flow-operation').filter({ hasText: design.name });
+  // Las reservas se abren desde el negocio en «Mis negocios».
+  await page.goto('/panel/negocios');
+  await page
+    .getByRole('navigation', { name: `Gestionar ${design.name}` })
+    .getByRole('button', { name: 'Reservas' })
+    .click();
+  await expect(page).toHaveURL(/\/panel\/pedidos\/?$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Reservas' })).toBeVisible();
+  const card = page.locator('.rb-item').filter({ hasText: 'Clienta Reserva' });
+  await expect(card).toContainText(design.products[1].name);
+  await expect(card.locator('.rb-status')).toHaveText('Recibido');
   await card.getByRole('button', { name: 'Confirmar cita' }).click();
-  // Cada lado actualiza cuando el otro ya guardó el cambio.
-  await expect(card.locator('.tag')).toHaveText('Aceptado / confirmado');
+  // Confirmada pasa a «Próximas». Cada lado actualiza cuando el otro ya guardó el cambio.
+  await page.getByRole('tab', { name: /Próximas/ }).click();
+  await expect(card.locator('.rb-status')).toHaveText('Aceptado / confirmado');
   await buyer.getByRole('button', { name: 'Actualizar estado' }).click();
   await expect(mine.locator('.tag')).toHaveText('Aceptado / confirmado');
   await buyer.close();
@@ -54,7 +64,7 @@ test('cotización aceptada, pagada y completada; el cliente deja su reseña', as
     'quote',
   );
   const buyer = await browser.newPage();
-  await account(buyer, 'cliente', 'servicios');
+  await account(buyer, 'cliente', 'servicios', 'Cliente Cotiza');
   await buyer.goto(`/tienda?id=${id}`);
   await buyer.getByRole('button', { name: 'Solicitar cotización', exact: true }).click();
   const dialog = buyer.getByRole('dialog');
@@ -65,20 +75,31 @@ test('cotización aceptada, pagada y completada; el cliente deja su reseña', as
   await dialog.getByRole('button', { name: 'Enviar solicitud de cotización', exact: true }).click();
   await expect(buyer).toHaveURL(/solicitudes/);
 
-  await page.goto('/panel/pedidos');
-  const card = page.locator('.flow-operation').filter({ hasText: design.name });
+  await page.goto('/panel/negocios');
+  await page
+    .getByRole('navigation', { name: `Gestionar ${design.name}` })
+    .getByRole('button', { name: 'Solicitudes' })
+    .click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Solicitudes de cotización' }),
+  ).toBeVisible();
+  const card = page.locator('.rb-item').filter({ hasText: 'Cliente Cotiza' });
   await card.getByLabel('Valor de la cotización (COP)').fill('40000');
   await card.getByRole('button', { name: 'Enviar cotización' }).click();
-  // Cada lado actualiza cuando el otro ya guardó el cambio.
-  await expect(card.locator('.tag')).toHaveText('Cotización enviada');
+  // Cotizada pasa a «En curso». Cada lado actualiza cuando el otro ya guardó el cambio.
+  await page.getByRole('tab', { name: /En curso/ }).click();
+  await expect(card.locator('.rb-status')).toHaveText('Cotización enviada');
   await buyer.getByRole('button', { name: 'Actualizar estado' }).click();
   const mine = buyer.locator('.flow-operation').filter({ hasText: design.name });
   await mine.getByRole('button', { name: /Aceptar cotización de/ }).click();
   await expect(mine.locator('.tag')).toHaveText('Aceptado / confirmado');
-  await page.getByRole('button', { name: 'Actualizar panel' }).click();
+  await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
+  await expect(card.locator('.rb-status')).toHaveText('Aceptado / confirmado');
   await card.getByRole('button', { name: 'Confirmar pago recibido' }).click();
   await card.getByRole('button', { name: 'Completar servicio' }).click();
-  await expect(card.locator('.tag')).toHaveText('Completado');
+  // Completada pasa al historial.
+  await page.getByRole('tab', { name: /Historial/ }).click();
+  await expect(card.locator('.rb-status')).toHaveText('Completado');
   await buyer.getByRole('button', { name: 'Actualizar estado' }).click();
   await expect(mine.locator('.tag')).toHaveText('Completado');
 

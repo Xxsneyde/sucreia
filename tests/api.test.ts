@@ -8,6 +8,7 @@ import { openDb, type Db } from '../server/db.ts';
 import { httpClient } from './http.ts';
 import { createApp } from '../server/app.ts';
 import { createDesign } from '../src/domain/studio.ts';
+import { USER_TERMS_VERSION } from '../src/domain/terms.ts';
 import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 // HTTP de Node y Express en memoria, con cookies y aislamiento por cliente, sin abrir puertos.
@@ -50,6 +51,7 @@ async function account(role: 'cliente' | 'emprendedor') {
     email,
     name: `Persona ${n}`,
     password: 'clave-segura-1',
+    acceptTerms: true,
     role,
   });
   assert.equal(res.status, 201);
@@ -62,6 +64,7 @@ test('registro, sesión con cookie httpOnly, ingreso y salida', async () => {
     email: 'Ana@Ejemplo.co',
     name: 'Ana',
     password: 'clave-segura-1',
+    acceptTerms: true,
     role: 'emprendedor',
   });
   assert.equal(reg.status, 201);
@@ -92,12 +95,21 @@ test('registro, sesión con cookie httpOnly, ingreso y salida', async () => {
 
 test('el registro valida datos y no permite crear administradores', async () => {
   const call = client();
-  const base = { email: 'luis@ejemplo.co', name: 'Luis', password: 'clave-segura-1' };
+  const base = {
+    email: 'luis@ejemplo.co',
+    name: 'Luis',
+    password: 'clave-segura-1',
+    acceptTerms: true,
+  };
   assert.equal(
     (await call('POST', '/auth/registro', { ...base, email: 'no-es-correo' })).status,
     400,
   );
   assert.equal((await call('POST', '/auth/registro', { ...base, password: 'corta' })).status, 400);
+  // Sin aceptar la Política de uso no se crea la cuenta.
+  const noTerms = await call('POST', '/auth/registro', { ...base, acceptTerms: false });
+  assert.equal(noTerms.status, 400);
+  assert.match(noTerms.json.error, /acepta la Política de uso/);
   // Contraseña nueva: letra, número y carácter especial, además de 8 caracteres.
   for (const [password, missing] of [
     ['clavesegura', /un número, al menos un carácter especial/],
@@ -110,6 +122,13 @@ test('el registro valida datos y no permite crear administradores', async () => 
   }
   const admin = await call('POST', '/auth/registro', { ...base, role: 'admin' });
   assert.equal(admin.json.user.role, 'cliente');
+  // La cuenta guarda que aceptó la Política de uso, con la versión vigente.
+  assert.equal(admin.json.user.termsAccepted, true);
+  const accepted = (await db
+    .prepare('SELECT terms_accepted_at, terms_version FROM users WHERE email = ?')
+    .get(base.email)) as { terms_accepted_at: string; terms_version: string };
+  assert.ok(accepted.terms_accepted_at);
+  assert.equal(accepted.terms_version, USER_TERMS_VERSION);
   assert.equal((await client()('POST', '/auth/registro', base)).status, 409);
   const stored = (await db
     .prepare('SELECT password_hash FROM users WHERE email = ?')

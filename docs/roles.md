@@ -19,18 +19,22 @@ Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta**
 
 ## Menús
 
-**Cliente** (y visitante, que al abrir una página con cuenta va al ingreso): Buscar negocios, Mapa de emprendimientos, Mis compras, Mis reservas, Favoritos, Notificaciones y, con sesión, «¿Quieres montar tu propio emprendimiento?» (`/emprender`).
+**Cliente** (y visitante, que al abrir una página con cuenta va al ingreso): Buscar negocios, Mapa de emprendimientos, Mis compras, Mis reservas, Favoritos y, con sesión, «¿Quieres montar tu propio emprendimiento?» (`/emprender`).
 
-**Emprendedor**: «Mi negocio» primero y luego «Explorar y comprar» (Buscar negocios, Mapa, Mis compras, Mis reservas, Favoritos). «Mi negocio» cambia según el negocio activo:
+**Emprendedor**: «Mi negocio» primero y luego «Explorar y comprar» (Buscar negocios, Mapa, Mis compras, Mis reservas, Favoritos). «Mi negocio» cambia según si ya tiene negocios:
 
-| Negocio               | Mi negocio                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Sin negocio           | Registra tu emprendimiento, Notificaciones, PQRS                                                                    |
-| Productos             | Mis negocios, Registrar emprendimiento, Promociones y reseñas, Notificaciones, PQRS                                 |
-| Servicios con reserva | Mis negocios, Registrar emprendimiento, Reservas (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS    |
-| Cotización            | Mis negocios, Registrar emprendimiento, Solicitudes (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS |
+| Negocio     | Mi negocio                                                          |
+| ----------- | ------------------------------------------------------------------- |
+| Sin negocio | Registra tu emprendimiento, PQRS                                    |
+| Con negocio | Mis negocios, Registrar emprendimiento, Promociones y reseñas, PQRS |
 
-**Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, Mis negocios, Registrar emprendimiento, PQRS, Notificaciones) y «Explorar». No compra, no reserva ni guarda favoritos.
+Las reservas (negocios con reserva) y las solicitudes de cotización se abren desde cada negocio en «Mis negocios» (botón «Reservas» o «Solicitudes», `/panel/pedidos`), junto a Panel, Datos del negocio, Productos o Servicios, Horario y cupos y Ver página.
+
+**Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, Mis negocios, Registrar emprendimiento, PQRS) y «Explorar». No compra, no reserva ni guarda favoritos.
+
+**Notificaciones**: solo en la campana de la barra superior, que las despliega ahí mismo (las 8 más recientes, «Marcar todas como leídas» y «Ver todas» si hay más). No están en el menú lateral.
+
+**Mi cuenta**: solo en el menú de la cuenta, arriba a la derecha.
 
 En celular, el menú inferior tiene cuatro pestañas: para el cliente Buscar, Mapa, Compras y Reservas; para el emprendedor las cuatro primeras de «Mi negocio» (sin avisos; si hay menos, se completa con Buscar); para el administrador Aprobar, Aprobados, Negocios y Registrar.
 

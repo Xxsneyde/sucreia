@@ -58,6 +58,10 @@ test('SMTP genera el enlace del sitio y oculta errores sensibles, sin abrir cone
   await mail.send('cliente@example.co', 'reset', 'token-de-prueba', '2099-01-01T00:00:00.000Z');
   assert.match(messages[0].text, /https:\/\/sucreia\.example\/recuperar\?token=token-de-prueba/);
   assert.ok(messages[0].disableFileAccess && messages[0].disableUrlAccess);
+  // También en HTML, con el diseño de SucreIA: botón, logo y enlace de respaldo.
+  assert.match(messages[0].html!, /Crear contraseña nueva/);
+  assert.match(messages[0].html!, /https:\/\/sucreia\.example\/marca\/sucreia-icono\.png/);
+  assert.match(messages[0].html!, /recuperar\?token=token-de-prueba/);
   await mail.send('cliente@example.co', 'verify', 'verificar', '2099-01-01T00:00:00.000Z');
   assert.match(messages[1].text, /verificar-correo/);
   const failed = smtpTransport(smtpConfig(env)!, {

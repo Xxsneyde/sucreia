@@ -205,6 +205,10 @@ export const migrations: Migration[] = [
   // administración.
   `CREATE TABLE pqrs_files (id TEXT PRIMARY KEY, pqrs_id TEXT NOT NULL REFERENCES pqrs(id) ON DELETE CASCADE, message_id TEXT, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
    CREATE INDEX pqrs_files_case ON pqrs_files(pqrs_id);`,
+  // Política de uso y condiciones generales: cuándo y qué versión aceptó cada cuenta al
+  // registrarse (o al completar su perfil, si entró con Google). Solo agrega columnas.
+  `ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
+   ALTER TABLE users ADD COLUMN terms_version TEXT;`,
 ];
 
 const sqlOf = (m: Migration, dialect: Db['dialect']) => (typeof m === 'string' ? m : m[dialect]);

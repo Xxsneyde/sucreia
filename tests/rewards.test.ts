@@ -33,6 +33,7 @@ async function fixture() {
       name: `Persona ${role}`,
       email: randomUUID() + '@example.co',
       password: 'clave-segura-1',
+      acceptTerms: true,
       role,
       referido,
     });

@@ -89,6 +89,7 @@ export async function register(page: Page, email: string, role: 'cliente' | 'emp
   }).toPass();
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+  await page.getByRole('checkbox', { name: /Política de uso/ }).check();
   await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
 }
 

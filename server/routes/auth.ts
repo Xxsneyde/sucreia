@@ -23,6 +23,7 @@ import type { MailTransport } from '../mail.ts';
 import { issueToken, consumeToken } from '../account-tokens.ts';
 import { hashCode, maskPhone, newCode, smsPhone, type SmsTransport } from '../sms.ts';
 import { passwordProblem } from '../../src/domain/password.ts';
+import { USER_TERMS_VERSION } from '../../src/domain/terms.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 
@@ -258,6 +259,11 @@ export function authRoutes(
     const role = req.body?.role === 'emprendedor' ? 'emprendedor' : ('cliente' as Role);
     if (!EMAIL.test(email)) throw new HttpError(400, 'Escribe un correo válido.');
     checkNewPassword(password);
+    if (req.body?.acceptTerms !== true)
+      throw new HttpError(
+        400,
+        'Para crear tu cuenta, acepta la Política de uso y condiciones generales de SucreIA.',
+      );
     // Los datos personales se piden después de confirmar la cuenta (completar perfil); si vienen
     // aquí, se guardan.
     const optional = (key: string, max: number) =>
@@ -288,6 +294,7 @@ export function authRoutes(
       documentNumber: documentNumber || undefined,
       address: address || undefined,
       passwordHash: await hashPassword(password),
+      termsVersion: USER_TERMS_VERSION,
     });
     // Código de quien invitó (opcional): premia al que invita cuando esta cuenta compre.
     await registerReferral(db, user.id, req.body?.referido);
@@ -350,6 +357,17 @@ export function authRoutes(
       throw new HttpError(400, 'Escribe la cédula sin puntos ni espacios.');
     await checkDocumentFree(db, documentNumber, user.id);
     const address = text(req.body, 'address', 180, 'la dirección');
+    // Quien entró con Google sin pasar por el registro acepta aquí la Política de uso.
+    if (!user.termsAccepted) {
+      if (req.body?.acceptTerms !== true)
+        throw new HttpError(
+          400,
+          'Para continuar, acepta la Política de uso y condiciones generales de SucreIA.',
+        );
+      await db
+        .prepare('UPDATE users SET terms_accepted_at=?, terms_version=? WHERE id=?')
+        .run(new Date().toISOString(), USER_TERMS_VERSION, user.id);
+    }
     await db
       .prepare(
         'UPDATE users SET name=?, document_number=?, home_address=?, profile_completed_at=COALESCE(profile_completed_at, ?) WHERE id=?',

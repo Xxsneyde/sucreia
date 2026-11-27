@@ -32,6 +32,7 @@ async function fixture() {
       name: role,
       email,
       password: 'clave-segura-1',
+      acceptTerms: true,
       role,
     });
     assert.equal(result.status, 201);

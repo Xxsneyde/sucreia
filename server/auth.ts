@@ -24,6 +24,8 @@ export interface User {
   profileComplete: boolean;
   verifyChannel: 'email' | 'sms';
   phone: string | null;
+  /** Aceptó la Política de uso y condiciones generales. */
+  termsAccepted: boolean;
 }
 export const SESSION_COOKIE = 'sucreia_sesion';
 const SESSION_DAYS = 30;
@@ -55,6 +57,8 @@ export async function createUser(
     emailVerified?: boolean;
     verifyChannel?: User['verifyChannel'];
     phone?: string | null;
+    /** Versión de la Política de uso que aceptó al registrarse. */
+    termsVersion?: string;
   },
 ): Promise<User> {
   const now = new Date().toISOString();
@@ -68,10 +72,11 @@ export async function createUser(
     profileComplete: complete,
     verifyChannel: data.verifyChannel ?? 'email',
     phone: data.phone ?? null,
+    termsAccepted: !!data.termsVersion,
   };
   await db
     .prepare(
-      'INSERT INTO users (id, email, name, password_hash, role, created_at, document_number, home_address, emailVerifiedAt, profile_completed_at, verify_channel, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (id, email, name, password_hash, role, created_at, document_number, home_address, emailVerifiedAt, profile_completed_at, verify_channel, phone, terms_accepted_at, terms_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       user.id,
@@ -86,18 +91,24 @@ export async function createUser(
       complete ? now : null,
       user.verifyChannel,
       user.phone,
+      data.termsVersion ? now : null,
+      data.termsVersion ?? null,
     );
   return user;
 }
-type UserRow = Omit<User, 'profileComplete'> & { profile_completed_at: string | null };
-const toUser = ({ profile_completed_at, ...row }: UserRow): User => ({
+type UserRow = Omit<User, 'profileComplete' | 'termsAccepted'> & {
+  profile_completed_at: string | null;
+  terms_accepted_at: string | null;
+};
+const toUser = ({ profile_completed_at, terms_accepted_at, ...row }: UserRow): User => ({
   ...row,
   profileComplete: !!profile_completed_at,
+  termsAccepted: !!terms_accepted_at,
 });
 export async function findUserByEmail(db: Db, email: string) {
   const row = await db
     .prepare(
-      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone, password_hash FROM users WHERE email = ?',
+      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, terms_accepted_at, verify_channel AS verifyChannel, phone, password_hash FROM users WHERE email = ?',
     )
     .get<UserRow & { password_hash: string }>(email);
   if (!row) return undefined;
@@ -107,7 +118,7 @@ export async function findUserByEmail(db: Db, email: string) {
 export async function findUserById(db: Db, id: string): Promise<User | undefined> {
   const row = await db
     .prepare(
-      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone FROM users WHERE id = ?',
+      'SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, terms_accepted_at, verify_channel AS verifyChannel, phone FROM users WHERE id = ?',
     )
     .get<UserRow>(id);
   return row ? toUser(row) : undefined;
@@ -130,7 +141,7 @@ export async function deleteSession(db: Db, token: string) {
 async function sessionUser(db: Db, token: string): Promise<User | undefined> {
   const row = await db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt, u.profile_completed_at, u.verify_channel AS verifyChannel, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt, u.profile_completed_at, u.terms_accepted_at, u.verify_channel AS verifyChannel, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
     .get<UserRow>(hashToken(token), new Date().toISOString());

@@ -14,6 +14,7 @@ import { httpClient } from './http.ts';
 import { createDesign, type StoreDesign } from '../src/domain/studio.ts';
 import { maskPhone, smsPhone } from '../server/sms.ts';
 import { sslFor } from '../server/db-ssl.ts';
+import { createUser, hashPassword } from '../server/auth.ts';
 import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 async function fixture() {
@@ -47,6 +48,7 @@ async function fixture() {
       name: role,
       email,
       password: 'clave-segura-1',
+      acceptTerms: true,
       role,
       ...extra,
     });
@@ -61,6 +63,7 @@ async function fixture() {
   return {
     db,
     http,
+    client,
     sent,
     account,
     admin,
@@ -442,6 +445,7 @@ test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y 
     const again = await other.call('POST', '/auth/registro', {
       email: `${randomUUID()}@example.co`,
       password: 'clave-segura-1',
+      acceptTerms: true,
       documentNumber: '1102345678',
     });
     assert.equal(again.status, 409);
@@ -449,6 +453,41 @@ test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y 
     const abroad = await f.account('cliente', { verifyBy: 'sms', phone: '+58 412 765 4321' });
     assert.equal(abroad.user.verifyChannel, 'sms');
     assert.equal(f.sent.at(-1)!.phone, '584127654321');
+  } finally {
+    f.close();
+  }
+});
+
+test('quien entró con Google sin aceptar la Política de uso la acepta al completar el perfil', async () => {
+  const f = await fixture();
+  try {
+    // Cuenta como la que crea el ingreso con Google desde la pestaña de ingresar.
+    await createUser(f.db, {
+      email: 'google@example.co',
+      name: 'Persona Google',
+      role: 'cliente',
+      emailVerified: true,
+      passwordHash: await hashPassword('clave-segura-1'),
+    });
+    const call = f.client();
+    assert.equal(
+      (
+        await call('POST', '/auth/ingresar', {
+          email: 'google@example.co',
+          password: 'clave-segura-1',
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await call('GET', '/auth/yo')).json.user.termsAccepted, false);
+    const data = { name: 'Persona Google', documentNumber: '1109988776', address: 'Calle 1 # 2-3' };
+    const missing = await call('PUT', '/auth/perfil/datos', data);
+    assert.equal(missing.status, 400);
+    assert.match(missing.json.error, /acepta la Política de uso/);
+    const ok = await call('PUT', '/auth/perfil/datos', { ...data, acceptTerms: true });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.json.user.termsAccepted, true);
+    assert.equal(ok.json.user.profileComplete, true);
   } finally {
     f.close();
   }

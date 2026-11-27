@@ -32,7 +32,6 @@ import {
   WandSparkles,
   X,
 } from '@lucide/vue';
-import { usePlatform } from '@/lib/platform-store';
 import { useStudio } from '@/lib/studio-store';
 import { useSession } from '@/lib/session';
 import { usePath } from '@/composables/path';
@@ -49,6 +48,7 @@ import {
 } from '@/domain/roles';
 import { requiresSession } from '@/domain/access';
 import LogoutButton from '@/components/LogoutButton.vue';
+import NotificationsBell from '@/components/NotificationsBell.vue';
 import SucreLogo from '@/components/sucre/SucreLogo.vue';
 import SearchBox from '@/components/sucre/SearchBox.vue';
 import AssistantFab from '@/components/sucre/AssistantFab.vue';
@@ -85,7 +85,6 @@ const icons: Record<IconName, unknown> = {
 };
 const route = useRoute();
 const path = usePath();
-const platform = usePlatform();
 const session = useSession();
 const mounted = ref(false);
 const drawer = ref(false);
@@ -112,7 +111,6 @@ const nav = computed(() =>
 const active = (item: NavItem) => path.value === item.href || !!item.also?.includes(path.value);
 // En el mapa el asistente flotante taparía los controles.
 const onMap = computed(() => /^\/mapa(\/|$)/.test(path.value));
-const unread = computed(() => (user.value ? platform.unread.value : 0));
 const firstName = computed(() => user.value?.name.trim().split(/\s+/)[0] ?? '');
 const banner = computed(() => route.meta.banner === true);
 // Las páginas con cuenta dependen de la sesión: se dibujan después de montar.
@@ -128,7 +126,7 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <aside :class="['sx-side', { open: drawer }]" aria-label="Menú de SucreIA">
       <NuxtLink class="sx-side-brand" :to="modeHome(mode)" aria-label="SucreIA, inicio">
-        <SucreLogo :size="42" />
+        <SucreLogo :size="36" />
         <small>El ecosistema digital de<br />emprendimientos de Sucre</small>
       </NuxtLink>
       <nav aria-label="Navegación principal">
@@ -144,9 +142,6 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
           >
             <component :is="icons[item.icon]" :size="21" :stroke-width="1.9" />
             <span>{{ item.label }}</span>
-            <span v-if="item.href === '/notificaciones' && unread" class="sx-badge">{{
-              unread
-            }}</span>
           </NuxtLink>
         </div>
       </nav>
@@ -176,15 +171,7 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
           placeholder="¿Qué producto o servicio necesitas en Sucre?"
         />
         <div class="sx-top-end">
-          <NuxtLink
-            v-if="user"
-            class="sx-iconbtn"
-            to="/notificaciones"
-            :aria-label="`Notificaciones: ${unread} sin leer`"
-          >
-            <Bell :size="21" />
-            <span v-if="unread" class="sx-dot" />
-          </NuxtLink>
+          <NotificationsBell v-if="user" />
           <div class="sx-user">
             <template v-if="user">
               <button

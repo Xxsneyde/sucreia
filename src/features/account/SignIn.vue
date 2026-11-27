@@ -9,7 +9,7 @@ import LogoutButton from '@/components/LogoutButton.vue';
 import PhoneField from '@/components/PhoneField.vue';
 import PasswordRules from '@/components/PasswordRules.vue';
 import { passwordProblem } from '@/domain/password';
-import { Eye, EyeOff, Gift, Lock, Mail, MessageSquareText, ShoppingBag, Store } from '@lucide/vue';
+import { Eye, EyeOff, Lock, Mail, MessageSquareText, ShoppingBag, Store } from '@lucide/vue';
 import { api } from '@/lib/api';
 import { useSession, type Role } from '@/lib/session';
 
@@ -82,8 +82,14 @@ function googleResult(code: string) {
   if (googleErrors[code]) error.value = googleErrors[code];
 }
 function google() {
+  if (mode.value === 'registro' && !acceptedTerms.value) {
+    error.value =
+      'Para crear tu cuenta, acepta la Política de uso y condiciones generales de SucreIA.';
+    return;
+  }
   const url = new URL('/api/auth/google', window.location.origin);
   url.searchParams.set('rol', mode.value === 'registro' ? role.value : 'cliente');
+  if (mode.value === 'registro') url.searchParams.set('terminos', '1');
   if (back.value) url.searchParams.set('volver', back.value);
   window.location.href = url.href;
 }
@@ -92,7 +98,10 @@ const password = ref('');
 const role = ref<Role>('emprendedor');
 const busy = ref(false);
 const show = ref(false);
+// Código de quien invitó: llega en el enlace (?ref=…) y se envía sin mostrar ningún campo.
 const referral = ref('');
+/** Aceptó la Política de uso y condiciones generales (obligatorio para crear la cuenta). */
+const acceptedTerms = ref(false);
 const verifyBy = ref<'email' | 'sms'>('email');
 const phone = ref('');
 const error = ref('');
@@ -131,6 +140,11 @@ async function submit() {
     error.value = passwordProblem(password.value);
     return;
   }
+  if (mode.value === 'registro' && !acceptedTerms.value) {
+    error.value =
+      'Para crear tu cuenta, acepta la Política de uso y condiciones generales de SucreIA.';
+    return;
+  }
   busy.value = true;
   try {
     if (mode.value === 'ingresar') await session.login(email.value, password.value);
@@ -139,6 +153,7 @@ async function submit() {
         email: email.value,
         password: password.value,
         role: role.value,
+        acceptTerms: true,
         ...(referral.value.trim() ? { referido: referral.value.trim().toUpperCase() } : {}),
         verifyBy: verifyBy.value,
         ...(verifyBy.value === 'sms' ? { phone: phone.value } : {}),
@@ -261,20 +276,6 @@ async function submit() {
           <li>Dirección, horario y WhatsApp donde recibirás los pedidos</li>
         </ul>
       </section>
-      <div class="ax-f">
-        <label for="ax-codigo" class="ax-label">Código de invitación (opcional)</label>
-        <div class="ax-field">
-          <Gift :size="18" aria-hidden="true" />
-          <input
-            id="ax-codigo"
-            v-model="referral"
-            maxlength="6"
-            autocomplete="off"
-            placeholder="Ej.: AB12CD"
-            style="text-transform: uppercase"
-          />
-        </div>
-      </div>
     </template>
     <div class="ax-f">
       <label for="ax-correo" class="ax-label">Correo electrónico</label>
@@ -345,6 +346,16 @@ async function submit() {
       required
       help="Elige el país y escribe el número. Te llegará un código de 6 dígitos por mensaje de texto."
     />
+    <label v-if="mode === 'registro'" :class="['ax-terms', { on: acceptedTerms }]">
+      <input v-model="acceptedTerms" type="checkbox" />
+      <span
+        >He leído y acepto la
+        <NuxtLink to="/terminos" target="_blank" rel="noopener"
+          >Política de uso y condiciones generales</NuxtLink
+        >
+        de SucreIA.</span
+      >
+    </label>
     <p v-if="error" role="alert" class="field-error">{{ error }}</p>
     <button class="sx-btn sx-btn--block ax-submit" :disabled="busy || !session.ready">
       {{ busy ? 'Un momento…' : mode === 'ingresar' ? 'Iniciar sesión' : 'Crear mi cuenta' }}
@@ -691,6 +702,43 @@ async function submit() {
 .ax-roles label.off {
   opacity: 0.6;
   cursor: not-allowed;
+}
+/* Aceptación de la Política de uso: una opción grande que se marca en verde. */
+.ax-terms {
+  cursor: pointer;
+  color: var(--text);
+  background: #fff;
+  border: 1.5px solid #d3deec;
+  border-radius: 14px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  display: flex;
+}
+.ax-terms:hover {
+  border-color: var(--green, #1fa548);
+}
+.ax-terms.on {
+  background: var(--green-soft, #e8f7ee);
+  border-color: var(--green, #1fa548);
+}
+.ax-terms input {
+  accent-color: var(--green, #1fa548);
+  flex: none;
+  width: 19px;
+  height: 19px;
+  margin-top: 1px;
+}
+.ax-terms a {
+  color: var(--blue, #1565c0);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .ax-done {
   text-align: center;

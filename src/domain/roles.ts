@@ -53,7 +53,7 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/** Menú principal: descubrir, comprar, reservar y avisos. */
+/** Menú principal: descubrir, comprar y reservar. Las notificaciones están en la campana de arriba. */
 const principal: NavSection = {
   id: 'principal',
   title: '',
@@ -63,7 +63,6 @@ const principal: NavSection = {
     { href: '/pedidos', label: 'Mis compras', icon: 'cart' },
     { href: '/solicitudes', label: 'Mis reservas', icon: 'calendar' },
     { href: '/favoritos', label: 'Favoritos', icon: 'heart' },
-    { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
   ],
 };
 /** El cliente con sesión ve además la invitación a montar su emprendimiento. */
@@ -111,21 +110,19 @@ function negocio(kind: StoreKind): NavSection {
             href: '/panel/negocios',
             label: 'Mis negocios',
             icon: 'store',
-            also: ['/panel', '/panel/perfil', '/panel/productos', '/panel/agenda'],
+            // Reservas y solicitudes se abren desde cada negocio en «Mis negocios».
+            also: [
+              '/panel',
+              '/panel/perfil',
+              '/panel/productos',
+              '/panel/agenda',
+              '/panel/pedidos',
+            ],
           },
           registrar,
-          ...(kind === 'booking'
-            ? [{ href: '/panel/pedidos', label: 'Reservas', icon: 'inbox' } as const]
-            : []),
-          ...(kind === 'quote'
-            ? [{ href: '/panel/pedidos', label: 'Solicitudes', icon: 'inbox' } as const]
-            : []),
           { href: '/panel/descuentos', label: 'Promociones y reseñas', icon: 'tag' },
         ];
-  items.push(
-    { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
-    { href: '/pqrs', label: 'PQRS', icon: 'inbox' },
-  );
+  items.push({ href: '/pqrs', label: 'PQRS', icon: 'inbox' });
   return { id: 'negocio', title: 'Mi negocio', items };
 }
 const admin: NavSection = {
@@ -137,7 +134,6 @@ const admin: NavSection = {
     { href: '/panel/negocios', label: 'Mis negocios', icon: 'store' },
     registrar,
     { href: '/admin/pqrs', label: 'PQRS', icon: 'inbox' },
-    { href: '/notificaciones', label: 'Notificaciones', icon: 'bell' },
   ],
 };
 
@@ -198,10 +194,8 @@ export function navFor(
     const section = negocio(kind);
     return {
       sections: [section, explorarYComprar],
-      // Cuatro accesos del negocio (sin avisos); si hay menos, se completa con Buscar.
-      mobile: shorten(
-        [...section.items.filter((i) => i.href !== '/notificaciones'), buscarCorto].slice(0, 4),
-      ),
+      // Cuatro accesos del negocio; si hay menos, se completa con Buscar.
+      mobile: shorten([...section.items, buscarCorto].slice(0, 4)),
     };
   }
   return {

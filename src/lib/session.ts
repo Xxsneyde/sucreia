@@ -14,6 +14,8 @@ export interface SessionUser {
   /** Por dónde confirma su cuenta: enlace al correo o código por mensaje de texto. */
   verifyChannel: 'email' | 'sms';
   phone: string | null;
+  /** Aceptó la Política de uso y condiciones generales. */
+  termsAccepted: boolean;
 }
 
 const user = ref<SessionUser | null>(null);
@@ -71,6 +73,8 @@ const session = {
     name?: string;
     password: string;
     role: Role;
+    /** Aceptó la Política de uso y condiciones generales (obligatorio). */
+    acceptTerms: true;
     referido?: string;
     documentNumber?: string;
     address?: string;

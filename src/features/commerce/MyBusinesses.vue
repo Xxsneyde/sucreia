@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  CalendarCheck,
   CalendarClock,
   ExternalLink,
   LayoutDashboard,
@@ -92,42 +93,38 @@ async function manage(p: StoreProject, to = '/panel') {
         <span :class="['mb-status', statusOf(p).tone]">{{ statusOf(p).label }}</span>
         <span v-if="p.id === studio.selectedId" class="mb-current">Negocio activo</span>
       </div>
-      <div class="mb-actions">
-        <button type="button" class="sx-btn sx-btn--sm" @click="manage(p)">
-          <LayoutDashboard :size="16" /> Gestionar
+      <nav class="mb-actions" :aria-label="`Gestionar ${p.draft.name || 'negocio'}`">
+        <button type="button" class="mb-action primary" @click="manage(p)">
+          <LayoutDashboard :size="18" /> <span>Panel</span>
+        </button>
+        <button type="button" class="mb-action" @click="manage(p, '/panel/perfil')">
+          <Settings :size="18" /> <span>Datos del negocio</span>
+        </button>
+        <button type="button" class="mb-action" @click="manage(p, '/panel/productos')">
+          <Package :size="18" />
+          <span>{{ p.draft.mode === 'products' ? 'Productos' : 'Servicios' }}</span>
         </button>
         <button
+          v-if="p.draft.mode !== 'products'"
           type="button"
-          class="sx-btn sx-btn--outline sx-btn--sm"
-          @click="manage(p, '/panel/perfil')"
+          class="mb-action"
+          @click="manage(p, '/panel/pedidos')"
         >
-          <Settings :size="16" /> Gestionar datos del negocio
-        </button>
-        <button
-          type="button"
-          class="sx-btn sx-btn--outline sx-btn--sm"
-          @click="manage(p, '/panel/productos')"
-        >
-          <Package :size="16" />
-          {{ p.draft.mode === 'products' ? 'Gestionar productos' : 'Gestionar servicios' }} del
-          negocio
+          <CalendarCheck :size="18" />
+          <span>{{ p.draft.mode === 'quote' ? 'Solicitudes' : 'Reservas' }}</span>
         </button>
         <button
           v-if="p.draft.mode === 'booking'"
           type="button"
-          class="sx-btn sx-btn--outline sx-btn--sm"
+          class="mb-action"
           @click="manage(p, '/panel/agenda')"
         >
-          <CalendarClock :size="16" /> Gestionar horario y cupos
+          <CalendarClock :size="18" /> <span>Horario y cupos</span>
         </button>
-        <NuxtLink
-          v-if="p.published"
-          class="sx-btn sx-btn--outline sx-btn--sm"
-          :to="businessHref(p.id)"
-          target="_blank"
-          ><ExternalLink :size="16" /> Ver página</NuxtLink
+        <NuxtLink v-if="p.published" class="mb-action" :to="businessHref(p.id)" target="_blank"
+          ><ExternalLink :size="18" /> <span>Ver página</span></NuxtLink
         >
-      </div>
+      </nav>
     </li>
   </ul>
 </template>
@@ -154,10 +151,12 @@ async function manage(p: StoreProject, to = '/panel') {
   list-style: none;
   display: grid;
 }
+/* Arriba el logo y los datos; debajo los accesos, parejos y a todo el ancho. */
 .mb-item {
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  display: flex;
+  gap: 14px 16px;
+  display: grid;
 }
 .mb-item.active {
   box-shadow:
@@ -221,21 +220,49 @@ async function manage(p: StoreProject, to = '/panel') {
   color: var(--blue);
 }
 .mb-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  grid-column: 1 / -1;
   gap: 8px;
-  max-width: 560px;
+  padding-top: 14px;
+  display: grid;
+}
+.mb-action {
+  color: var(--navy-800);
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   display: flex;
 }
-@media (width<=640px) {
-  .mb-item {
-    flex-wrap: wrap;
-  }
+.mb-action:hover {
+  background: #fff;
+  border-color: var(--line);
+}
+.mb-action svg {
+  flex: none;
+}
+.mb-action.primary {
+  color: #fff;
+  background: var(--green);
+}
+.mb-action.primary:hover {
+  background: var(--green-dark);
+}
+@media (width<=520px) {
   .mb-actions {
-    width: 100%;
-  }
-  .mb-actions > :deep(*) {
-    flex: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

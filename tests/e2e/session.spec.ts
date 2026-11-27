@@ -20,6 +20,33 @@ test('ingreso y recuperación tienen su propia vista y se adaptan al celular', a
   expect(await fits(page)).toBe(true);
 });
 
+test('el registro pide aceptar la Política de uso, que se abre en otra pestaña', async ({
+  page,
+}) => {
+  await page.goto('/ingresar?cuenta=nueva');
+  // Sin campo de código de invitación.
+  await expect(page.getByLabel('Código de invitación (opcional)')).toHaveCount(0);
+  const terms = page.getByRole('checkbox', { name: /Política de uso/ });
+  await expect(terms).not.toBeChecked();
+  const opened = page.waitForEvent('popup');
+  await page.getByRole('link', { name: 'Política de uso y condiciones generales' }).click();
+  const doc = await opened;
+  await expect(doc).toHaveURL(/\/terminos\/?$/);
+  await expect(
+    doc.getByRole('heading', {
+      level: 1,
+      name: 'Política de uso y condiciones generales de SucreIA',
+    }),
+  ).toBeVisible();
+  const toc = doc.getByRole('navigation', { name: 'Contenido de la política' });
+  await expect(toc.getByRole('link')).toHaveCount(14);
+  await expect(
+    doc.getByRole('heading', { level: 2, name: /Legislación aplicable/ }),
+  ).toBeAttached();
+  expect(await fits(doc)).toBe(true);
+  await doc.close();
+});
+
 test('sin sesión el panel redirige al ingreso y vuelve al destino tras confirmar y completar el perfil', async ({
   page,
 }) => {
@@ -48,6 +75,11 @@ test('sin sesión el panel redirige al ingreso y vuelve al destino tras confirma
   await expect(page).toHaveURL(/ingresar/);
   await page.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
   await expect(rules.locator('li.ok')).toHaveCount(4);
+  // Sin aceptar la Política de uso no se crea la cuenta.
+  await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
+  await expect(page.getByRole('alert')).toContainText('acepta la Política de uso');
+  await expect(page).toHaveURL(/\/ingresar\/?\?volver=/);
+  await page.getByRole('checkbox', { name: /Política de uso/ }).check();
   await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
   // El emprendedor no queda con la sesión abierta: va al ingreso con el aviso del correo.
   await expect(page).toHaveURL(/ingresar\/?\?registrado=1/);

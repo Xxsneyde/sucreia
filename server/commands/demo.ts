@@ -70,7 +70,14 @@ async function register(
 ) {
   const call = account();
   try {
-    await call('POST', '/auth/registro', { name, email, password, role, referido });
+    await call('POST', '/auth/registro', {
+      name,
+      email,
+      password,
+      role,
+      referido,
+      acceptTerms: true,
+    });
   } catch (e) {
     if (!String((e as Error).message).includes('409')) throw e;
     await call('POST', '/auth/ingresar', { email, password }).catch(() => {

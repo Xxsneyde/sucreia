@@ -27,14 +27,8 @@ test('cada rol tiene una sola vista y todos empiezan buscando negocios', () => {
 });
 
 test('visitantes y clientes ven el menú principal; el cliente además la invitación a emprender', () => {
-  const principal = [
-    '/buscar',
-    '/mapa',
-    '/pedidos',
-    '/solicitudes',
-    '/favoritos',
-    '/notificaciones',
-  ];
+  const principal = ['/buscar', '/mapa', '/pedidos', '/solicitudes', '/favoritos'];
+  // Las notificaciones no están en el menú: se abren desde la campana de arriba.
   assert.deepEqual(hrefs(navFor(null).sections), principal);
   assert.deepEqual(hrefs(navFor(cliente).sections), [...principal, '/emprender']);
   // Una vista que no es del rol se ignora.
@@ -51,16 +45,16 @@ test('visitantes y clientes ven el menú principal; el cliente además la invita
 test('el menú del emprendedor cambia según tenga negocio y su modalidad', () => {
   const menu = (kind: 'none' | 'products' | 'booking' | 'quote') =>
     navFor(emprendedor, 'negocio', kind).sections[0].items.map((i) => i.label);
-  assert.deepEqual(menu('none'), ['Registra tu emprendimiento', 'Notificaciones', 'PQRS']);
+  assert.deepEqual(menu('none'), ['Registra tu emprendimiento', 'PQRS']);
   assert.deepEqual(menu('products'), [
     'Mis negocios',
     'Registrar emprendimiento',
     'Promociones y reseñas',
-    'Notificaciones',
     'PQRS',
   ]);
-  assert.ok(menu('booking').includes('Reservas'));
-  assert.ok(menu('quote').includes('Solicitudes'));
+  // Reservas y solicitudes se abren desde cada negocio en «Mis negocios», no desde el menú.
+  assert.deepEqual(menu('booking'), menu('products'));
+  assert.deepEqual(menu('quote'), menu('products'));
   const nav = navFor(emprendedor, 'negocio', 'products');
   assert.deepEqual(
     nav.sections.map((s) => s.id),

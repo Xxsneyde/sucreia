@@ -9,6 +9,7 @@ export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   disableFileAccess: boolean;
   disableUrlAccess: boolean;
 }
@@ -97,16 +98,12 @@ export function smtpSender(config: SmtpConfig): MailSender {
 export function smtpTransport(config: SmtpConfig, sender = smtpSender(config)): MailTransport {
   return {
     async send(to, purpose, token, expiresAt) {
-      const link = new URL(purpose === 'reset' ? '/recuperar' : '/verificar-correo', config.origin);
-      link.searchParams.set('token', token);
-      const subject =
-        purpose === 'reset' ? 'Recupera tu contraseña de SucreIA' : 'Verifica tu correo en SucreIA';
+      const mail = accountEmail(config.origin, purpose, token, expiresAt);
       try {
         const result = await sender.sendMail({
           from: config.from,
           to,
-          subject,
-          text: `${subject}\n\nAbre este enlace para continuar:\n${link.href}\n\nEl enlace vence el ${new Date(expiresAt).toISOString()} y solo se puede usar una vez. Si no solicitaste este mensaje, puedes ignorarlo.`,
+          ...mail,
           disableFileAccess: true,
           disableUrlAccess: true,
         });
@@ -144,24 +141,89 @@ export function resendConfig(env: NodeJS.ProcessEnv): ResendConfig | undefined {
     throw new Error('MAIL_FROM debe ser una dirección de correo («Nombre <correo@dominio>»).');
   return { apiKey: env.RESEND_API_KEY, from, origin: new URL(env.PUBLIC_URL).origin };
 }
-/** Asunto, texto y HTML del correo de cuenta (verificar o recuperar la contraseña). */
+/** Textos de cada correo de cuenta. */
+const accountCopy: Record<
+  Purpose,
+  { subject: string; badge: string; title: string; intro: string; action: string; extra: string }
+> = {
+  verify: {
+    subject: 'Verifica tu correo en SucreIA',
+    badge: 'Confirma tu cuenta',
+    title: 'Confirma tu correo',
+    intro:
+      'Gracias por unirte a SucreIA. Confirma tu correo para activar tu cuenta y empezar a descubrir, comprar y publicar en los emprendimientos de Sucre.',
+    action: 'Confirmar mi correo',
+    extra: 'Después de confirmar, ingresa con tu correo y la contraseña que creaste.',
+  },
+  reset: {
+    subject: 'Recupera tu contraseña de SucreIA',
+    badge: 'Recupera tu acceso',
+    title: 'Crea una contraseña nueva',
+    intro:
+      'Recibimos una solicitud para cambiar la contraseña de tu cuenta en SucreIA. Toca el botón para crear una nueva.',
+    action: 'Crear contraseña nueva',
+    extra:
+      'Tu nueva contraseña debe tener mínimo 8 caracteres, una letra, un número y un carácter especial. Al guardarla, cerraremos las sesiones abiertas.',
+  },
+};
+const esc = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Asunto, texto y HTML del correo de cuenta (verificar o recuperar la contraseña). El HTML usa
+ * tablas y estilos en línea para verse igual en Gmail, Outlook y el celular.
+ */
 export function accountEmail(origin: string, purpose: Purpose, token: string, expiresAt: string) {
   const link = new URL(purpose === 'reset' ? '/recuperar' : '/verificar-correo', origin);
   link.searchParams.set('token', token);
-  const subject =
-    purpose === 'reset' ? 'Recupera tu contraseña de SucreIA' : 'Verifica tu correo en SucreIA';
-  const action = purpose === 'reset' ? 'Crear una contraseña nueva' : 'Verificar mi correo';
-  const until = new Date(expiresAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-  const text = `${subject}\n\nAbre este enlace para continuar:\n${link.href}\n\nEl enlace vence el ${until} y solo se puede usar una vez. Si no solicitaste este mensaje, puedes ignorarlo.`;
-  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#eef4fb;font-family:Arial,sans-serif;color:#0f1f3d">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 12px">
-<table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;padding:28px">
-<tr><td><p style="margin:0 0 6px;font-size:22px;font-weight:bold;color:#0a2357">Sucre<span style="color:#22b14c">IA</span></p>
-<h1 style="font-size:20px;margin:16px 0 8px">${subject}</h1>
-<p style="margin:0 0 20px;line-height:1.5">Toca el botón para continuar. El enlace vence el ${until} y solo se puede usar una vez.</p>
-<p style="margin:0 0 24px"><a href="${link.href}" style="display:inline-block;background:#22b14c;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px">${action}</a></p>
-<p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Si el botón no abre, copia este enlace:<br>${link.href}<br><br>Si no solicitaste este mensaje, puedes ignorarlo.</p>
-</td></tr></table></td></tr></table></body></html>`;
+  const copy = accountCopy[purpose];
+  const subject = copy.subject;
+  const until = new Date(expiresAt).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
+    dateStyle: 'long',
+    timeStyle: 'short',
+  });
+  const href = esc(link.href);
+  const logo = esc(new URL('/marca/sucreia-icono.png', origin).href);
+  const home = esc(new URL('/', origin).href);
+  const text = `${copy.title}\n\n${copy.intro}\n\n${copy.action}: ${link.href}\n\nEl enlace vence el ${until} y solo se puede usar una vez. ${copy.extra}\n\nSi no solicitaste este mensaje, puedes ignorarlo: tu cuenta sigue segura.\n\nSucreIA · El ecosistema digital de emprendimientos de Sucre`;
+  const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#eef4fb;font-family:'Poppins','Segoe UI',Arial,sans-serif;color:#0f1f3d;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(copy.intro)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef4fb"><tr><td align="center" style="padding:32px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 10px 30px rgba(16,42,90,.10)">
+<tr><td style="background:#0a2357;background-image:linear-gradient(120deg,#0a2357,#12408f);padding:26px 32px">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="padding-right:12px"><img src="${logo}" width="44" height="44" alt="" style="display:block;border-radius:12px;background:#ffffff"></td>
+<td><p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-.01em">Sucre<span style="color:#4ade80">IA</span></p>
+<p style="margin:2px 0 0;font-size:12px;color:#c7d7f5">El ecosistema digital de emprendimientos de Sucre</p></td>
+</tr></table></td></tr>
+<tr><td style="padding:32px 32px 8px">
+<p style="margin:0 0 14px"><span style="display:inline-block;background:#e8f8ed;color:#15803d;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px;border-radius:999px">${esc(copy.badge)}</span></p>
+<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;color:#0a2357">${esc(copy.title)}</h1>
+<p style="margin:0 0 26px;font-size:15px;line-height:1.65;color:#334155">${esc(copy.intro)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:14px;background:#15803d">
+<a href="${href}" style="display:inline-block;padding:15px 30px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:14px">${esc(copy.action)} &rarr;</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:22px 32px 6px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;border-radius:14px"><tr><td style="padding:14px 16px;font-size:13.5px;line-height:1.6;color:#334155">
+<strong style="color:#0a2357">El enlace vence el ${esc(until)}</strong> y solo se puede usar una vez. ${esc(copy.extra)}
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:18px 32px 30px;font-size:12.5px;line-height:1.6;color:#64748b">
+Si el botón no abre, copia y pega este enlace en tu navegador:<br>
+<a href="${href}" style="color:#1565c0;word-break:break-all">${href}</a><br><br>
+¿No solicitaste este mensaje? Puedes ignorarlo: tu cuenta sigue segura.
+</td></tr>
+<tr><td style="border-top:1px solid #e2e9f3;padding:18px 32px;background:#fbfdff;font-size:12px;line-height:1.6;color:#64748b;text-align:center">
+<a href="${home}" style="color:#0a2357;font-weight:700;text-decoration:none">SucreIA</a> · Conectamos a Sucre con sus emprendedores<br>
+Este es un mensaje automático, no respondas a este correo.
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
   return { subject, text, html };
 }
 export function resendTransport(

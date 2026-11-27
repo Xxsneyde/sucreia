@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { IdCard, MapPin, UserRound } from '@lucide/vue';
 import PageTitle from '@/components/PageTitle.vue';
@@ -36,15 +36,23 @@ function savedBack() {
     return '';
   }
 }
+/** Quien entró con Google sin pasar por el registro acepta aquí la Política de uso. */
+const needsTerms = computed(() => !!session.user && !session.user.termsAccepted);
+const acceptedTerms = ref(false);
 async function save() {
   if (busy.value || !session.user) return;
-  busy.value = true;
   error.value = '';
+  if (needsTerms.value && !acceptedTerms.value) {
+    error.value = 'Para continuar, acepta la Política de uso y condiciones generales de SucreIA.';
+    return;
+  }
+  busy.value = true;
   try {
     const result = await api<{ user: SessionUser }>('PUT', '/auth/perfil/datos', {
       name: name.value,
       documentNumber: documentNumber.value,
       address: address.value,
+      ...(needsTerms.value ? { acceptTerms: acceptedTerms.value } : {}),
     });
     session.setUser(result.user);
     await router.replace(savedBack() || (await startPage(result.user)));
@@ -101,6 +109,16 @@ async function save() {
       <p v-if="session.user.role === 'emprendedor'" class="muted small" style="margin: 0">
         Al guardar pasas al formulario para registrar tu emprendimiento.
       </p>
+      <label v-if="needsTerms" class="cp-terms">
+        <input v-model="acceptedTerms" type="checkbox" />
+        <span
+          >He leído y acepto la
+          <NuxtLink to="/terminos" target="_blank" rel="noopener"
+            >Política de uso y condiciones generales</NuxtLink
+          >
+          de SucreIA.</span
+        >
+      </label>
       <p v-if="error" role="alert" class="field-error">{{ error }}</p>
       <button class="button" :disabled="busy">
         {{ busy ? 'Guardando…' : 'Guardar y continuar' }}

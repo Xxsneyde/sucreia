@@ -145,12 +145,13 @@ fieldset {
   min-height: 100dvh;
   display: grid;
 }
+/* Menú compacto: la ilustración de abajo (fondo-iguana) queda a la vista. */
 .sx-side {
   z-index: 30;
   color: #fff;
   scrollbar-width: thin;
   background:
-    url('/sucre/fondo-iguana.webp') 38% bottom/auto 300px no-repeat,
+    url('/sucre/fondo-iguana.webp') 38% bottom/auto 280px no-repeat,
     linear-gradient(#0b2864, #0e3a86 48%, #0c3070 78%, #0a2357);
   flex-direction: column;
   height: 100dvh;
@@ -163,8 +164,8 @@ fieldset {
 .sx-side-brand {
   text-align: center;
   justify-items: center;
-  gap: 4px;
-  margin-bottom: 22px;
+  gap: 2px;
+  margin-bottom: 12px;
   display: grid;
 }
 .sx-side-brand small {
@@ -180,7 +181,7 @@ fieldset {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #9fb6e3;
-  margin: 16px 10px 6px;
+  margin: 12px 10px 4px;
   font-size: 10.5px;
   font-weight: 600;
 }
@@ -188,10 +189,10 @@ fieldset {
   color: #f1f6ff;
   border-radius: 11px;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
-  padding: 8px 12px;
-  font-size: 14px;
+  gap: 11px;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.2;
   transition: background 0.15s ease-out;

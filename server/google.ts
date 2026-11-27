@@ -16,6 +16,7 @@ import {
 import { issueToken } from './account-tokens.ts';
 import type { MailTransport } from './mail.ts';
 import { internalReturn } from '../src/domain/navigation.ts';
+import { USER_TERMS_VERSION } from '../src/domain/terms.ts';
 
 export interface GoogleConfig {
   clientId: string;
@@ -65,6 +66,8 @@ interface GoogleState {
   state: string;
   role: Role;
   back: string;
+  /** Aceptó la Política de uso en el registro antes de ir a Google. */
+  terms?: boolean;
 }
 interface GoogleProfile {
   email?: string;
@@ -94,6 +97,8 @@ export function googleRoutes(
       state,
       role,
       back: internalReturn(req.query.volver),
+      // Marcó «Acepto la Política de uso» en el registro antes de elegir Google.
+      terms: req.query.terminos === '1',
     } satisfies GoogleState);
     shortCookie(res, STATE_COOKIE, id, secure);
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -157,6 +162,8 @@ export function googleRoutes(
       role: saved.role,
       // Contraseña aleatoria que nadie conoce: se entra con Google (o se crea una con «Recuperar»).
       passwordHash: await hashPassword(randomUUID() + randomBytes(16).toString('hex')),
+      // Si no aceptó la Política de uso en el registro, se le pide al completar el perfil.
+      termsVersion: saved.terms ? USER_TERMS_VERSION : undefined,
     });
     const session = await createSession(db, user.id);
     setSessionCookie(res, session.token, session.expires, secure);
