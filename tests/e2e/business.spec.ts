@@ -61,9 +61,17 @@ test('registro en siete pasos, revisión de la administración y negocio visible
   await reviewer
     .getByLabel('Motivo o comentario para el emprendedor')
     .fill('Documentos completos.');
-  await reviewer.getByRole('button', { name: 'Aprobar y publicar' }).click();
-  // Aprobado sale de «Por revisar» y se vuelve a la lista.
-  await expect(reviewer.getByRole('status')).toContainText(`${name} fue aprobado`);
+  // Un clic durante el desplazamiento al abrir el detalle puede perderse: se repite solo si el
+  // botón sigue activo (mientras se aprueba queda deshabilitado; aprobado, ya no está).
+  const approveButton = reviewer.getByRole('button', { name: 'Aprobar y publicar' });
+  await expect(async () => {
+    if ((await approveButton.isVisible()) && (await approveButton.isEnabled()))
+      await approveButton.click();
+    // Aprobado sale de «Por revisar» y se vuelve a la lista.
+    await expect(reviewer.getByRole('status')).toContainText(`${name} fue aprobado`, {
+      timeout: 3000,
+    });
+  }).toPass({ timeout: 20_000 });
   await expect(pending).toHaveCount(0);
   await reviewer.close();
 

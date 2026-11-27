@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { account, fits, PASSWORD } from './helpers.ts';
+import { account, cedula, fits, PASSWORD } from './helpers.ts';
 
 const userMenu = async (page: import('@playwright/test').Page) => {
   await page.getByRole('button', { name: /Hola,/ }).click();
@@ -34,7 +34,20 @@ test('sin sesión el panel redirige al ingreso y vuelve al destino tras confirma
   }).toPass();
   await page.getByText('Tengo un negocio', { exact: true }).click();
   await page.getByLabel('Correo electrónico').fill(email);
+  // Una contraseña sin número ni carácter especial no se acepta: la lista dice qué falta.
+  await page.getByLabel('Contraseña', { exact: true }).fill('clavesegura');
+  const rules = page.getByRole('list', { name: 'Requisitos de la contraseña' });
+  await expect(rules.getByRole('listitem').filter({ hasText: 'Mínimo 8 caracteres' })).toHaveClass(
+    /ok/,
+  );
+  await expect(
+    rules.getByRole('listitem').filter({ hasText: 'Al menos un número' }),
+  ).not.toHaveClass(/ok/);
+  await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
+  await expect(page.getByRole('alert')).toContainText('al menos un carácter especial');
+  await expect(page).toHaveURL(/ingresar/);
   await page.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+  await expect(rules.locator('li.ok')).toHaveCount(4);
   await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
   await expect(page).toHaveURL(/verificar-correo/);
 
@@ -53,7 +66,7 @@ test('sin sesión el panel redirige al ingreso y vuelve al destino tras confirma
 
   await expect(page).toHaveURL(/completar-perfil/);
   await page.getByLabel('Nombre completo').fill('Persona de prueba');
-  await page.getByLabel('Número de cédula').fill('1100223344');
+  await page.getByLabel('Número de cédula').fill(cedula());
   await page.getByLabel('Dirección').fill('Calle 20 # 18-35, Sincelejo');
   // Al emprendedor se le abre el registro del negocio en otra pestaña.
   const registration = page.waitForEvent('popup');

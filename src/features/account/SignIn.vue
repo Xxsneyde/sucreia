@@ -6,6 +6,8 @@ import { internalReturn } from '@/domain/navigation';
 import { profileGate } from '@/domain/access';
 import LogoutButton from '@/components/LogoutButton.vue';
 import PhoneField from '@/components/PhoneField.vue';
+import PasswordRules from '@/components/PasswordRules.vue';
+import { passwordProblem } from '@/domain/password';
 import { Eye, EyeOff, Gift, Lock, Mail, MessageSquareText, ShoppingBag, Store } from '@lucide/vue';
 import { api } from '@/lib/api';
 import { useSession, type Role } from '@/lib/session';
@@ -117,6 +119,11 @@ async function submit() {
   if (busy.value || !session.ready) return;
   error.value = '';
   notice.value = '';
+  // La contraseña nueva se revisa aquí también, para avisar sin esperar al servidor.
+  if (mode.value === 'registro' && passwordProblem(password.value)) {
+    error.value = passwordProblem(password.value);
+    return;
+  }
   busy.value = true;
   try {
     if (mode.value === 'ingresar') await session.login(email.value, password.value);
@@ -287,7 +294,7 @@ async function submit() {
           <EyeOff v-if="show" :size="19" /><Eye v-else :size="19" />
         </button>
       </div>
-      <span v-if="mode === 'registro'" id="clave-ayuda" class="ax-help">Mínimo 8 caracteres.</span>
+      <PasswordRules v-if="mode === 'registro'" id="clave-ayuda" :password="password" />
     </div>
     <NuxtLink v-if="mode !== 'registro'" to="/recuperar" class="ax-forgot"
       >¿Olvidaste tu contraseña?</NuxtLink

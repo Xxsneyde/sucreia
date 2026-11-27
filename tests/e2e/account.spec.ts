@@ -1,9 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { fits, PASSWORD, register } from './helpers.ts';
+import { account, cedula, fits, PASSWORD, register } from './helpers.ts';
 
 test('confirmar la cuenta, completar el perfil y recuperar la contraseña desde la bandeja local', async ({
   page,
+  browser,
 }) => {
+  // Otra cuenta ya registró esta cédula.
+  const taken = cedula();
+  const other = await browser.newPage();
+  await account(other, 'cliente', 'cedula', 'Otra persona', taken);
+  await other.close();
+
   const email = `cuenta-${crypto.randomUUID()}@ejemplo.co`;
   await register(page, email, 'cliente');
   await expect(page).toHaveURL(/verificar-correo/);
@@ -32,8 +39,15 @@ test('confirmar la cuenta, completar el perfil y recuperar la contraseña desde 
   await page.goto('/pedidos');
   await expect(page).toHaveURL(/completar-perfil/);
   await page.getByLabel('Nombre completo').fill('Compradora de prueba');
-  await page.getByLabel('Número de cédula').fill('1100223344');
+  await page.getByLabel('Número de cédula').fill(taken);
   await page.getByLabel('Dirección').fill('Calle 20 # 18-35, Sincelejo');
+  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  // Una cédula solo puede tener una cuenta.
+  await expect(page.getByRole('alert')).toContainText(
+    'Ya hay una cuenta registrada con esa cédula',
+  );
+  await expect(page).toHaveURL(/completar-perfil/);
+  await page.getByLabel('Número de cédula').fill(cedula());
   await page.getByRole('button', { name: 'Guardar y continuar' }).click();
   await expect(page).toHaveURL(/buscar/);
   await page.goto('/perfil');

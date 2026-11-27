@@ -22,8 +22,30 @@ import {
 import type { MailTransport } from '../mail.ts';
 import { issueToken, consumeToken } from '../account-tokens.ts';
 import { hashCode, maskPhone, newCode, smsPhone, type SmsTransport } from '../sms.ts';
+import { passwordProblem } from '../../src/domain/password.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+
+/** Contraseña nueva: mínimo 8 caracteres, una letra, un número y un carácter especial. */
+function checkNewPassword(password: string) {
+  const problem = passwordProblem(password);
+  if (problem) throw new HttpError(400, problem);
+}
+
+/**
+ * Una cédula solo puede tener una cuenta. Se comprueba aquí y no con un índice único: la base
+ * de producción puede tener cédulas repetidas de pruebas anteriores y el índice no se crearía.
+ */
+async function checkDocumentFree(db: Db, documentNumber: string, userId = '') {
+  const taken = await db
+    .prepare('SELECT 1 AS ok FROM users WHERE document_number=? AND id<>? LIMIT 1')
+    .get(documentNumber, userId);
+  if (taken)
+    throw new HttpError(
+      409,
+      'Ya hay una cuenta registrada con esa cédula. Si es tuya, ingresa con esa cuenta o recupera su contraseña.',
+    );
+}
 // Hash de referencia para comparar aunque el correo no exista (mismo tiempo de respuesta).
 const DUMMY_HASH = await hashPassword('contraseña-de-referencia');
 
@@ -142,8 +164,7 @@ export function authRoutes(
     limitConfirm(`reset|${req.ip}`);
     const token = text(req.body, 'token', 128, 'el enlace');
     const password = text(req.body, 'password', 200, 'la contraseña');
-    if (password.length < 8)
-      throw new HttpError(400, 'La contraseña debe tener al menos 8 caracteres.');
+    checkNewPassword(password);
     const passwordHash = await hashPassword(password);
     await db.transaction(async (tx) => {
       const userId = await consumeToken(tx, token, 'reset');
@@ -236,8 +257,7 @@ export function authRoutes(
     const password = text(req.body, 'password', 200, 'la contraseña');
     const role = req.body?.role === 'emprendedor' ? 'emprendedor' : ('cliente' as Role);
     if (!EMAIL.test(email)) throw new HttpError(400, 'Escribe un correo válido.');
-    if (password.length < 8)
-      throw new HttpError(400, 'La contraseña debe tener al menos 8 caracteres.');
+    checkNewPassword(password);
     // Los datos personales se piden después de confirmar la cuenta (completar perfil); si vienen
     // aquí, se guardan.
     const optional = (key: string, max: number) =>
@@ -258,6 +278,7 @@ export function authRoutes(
       );
     if (await findUserByEmail(db, email))
       throw new HttpError(409, 'Ya existe una cuenta con ese correo.');
+    if (documentNumber) await checkDocumentFree(db, documentNumber);
     const user = await createUser(db, {
       verifyChannel: viaSms ? 'sms' : 'email',
       phone,
@@ -327,6 +348,7 @@ export function authRoutes(
     const documentNumber = text(req.body, 'documentNumber', 12, 'el número de cédula');
     if (!/^\d{5,12}$/.test(documentNumber))
       throw new HttpError(400, 'Escribe la cédula sin puntos ni espacios.');
+    await checkDocumentFree(db, documentNumber, user.id);
     const address = text(req.body, 'address', 180, 'la dirección');
     await db
       .prepare(

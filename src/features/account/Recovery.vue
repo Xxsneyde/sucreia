@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import PageTitle from '@/components/PageTitle.vue';
+import PasswordRules from '@/components/PasswordRules.vue';
+import { passwordProblem } from '@/domain/password';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/session';
 const route = useRoute();
@@ -25,6 +27,10 @@ async function submit() {
   error.value = '';
   if (token.value && password.value !== confirmation.value) {
     error.value = 'Las contraseñas no coinciden.';
+    return;
+  }
+  if (token.value && passwordProblem(password.value)) {
+    error.value = passwordProblem(password.value);
     return;
   }
   busy.value = true;
@@ -71,8 +77,10 @@ async function submit() {
             minlength="8"
             maxlength="200"
             autocomplete="new-password"
+            aria-describedby="clave-nueva-requisitos"
             required
         /></label>
+        <PasswordRules id="clave-nueva-requisitos" class="rc-rules" :password="password" />
         <label
           >Repite la contraseña<input
             v-model="confirmation"
@@ -109,3 +117,10 @@ async function submit() {
     <LocalMailLink />
   </section>
 </template>
+
+<style scoped>
+/* La lista de requisitos va pegada al campo de la contraseña. */
+.rc-rules {
+  margin-top: -10px;
+}
+</style>

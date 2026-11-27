@@ -17,11 +17,19 @@ export const admin = () => ({
 /** Versión de los términos que se aceptan al crear un negocio (src/lib/studio-store.ts). */
 export const TERMS_VERSION = '2026-11-23';
 
+/** Una cédula distinta para cada cuenta: dos cuentas no pueden tener la misma. */
+export const cedula = () => String(1_000_000_000 + Math.floor(Math.random() * 8_999_999_999));
+
 /**
  * Confirma la cuenta con el enlace de la bandeja local y completa el perfil, por la API y con la
  * sesión de `page`. Las pantallas de confirmar y completar perfil se prueban en account.spec.ts.
  */
-export async function confirmAccount(page: Page, email: string, name = 'Persona de prueba') {
+export async function confirmAccount(
+  page: Page,
+  email: string,
+  name = 'Persona de prueba',
+  documentNumber = cedula(),
+) {
   const { messages } = (await (await page.request.get('/api/desarrollo/correos')).json()) as {
     messages: { to: string; subject: string; path: string }[];
   };
@@ -32,7 +40,7 @@ export async function confirmAccount(page: Page, email: string, name = 'Persona 
     (await page.request.post('/api/auth/verificar-correo', { data: { token } })).status(),
   ).toBe(200);
   const profile = await page.request.put('/api/auth/perfil/datos', {
-    data: { name, documentNumber: '1100223344', address: 'Calle 20 # 18-35, Sincelejo' },
+    data: { name, documentNumber, address: 'Calle 20 # 18-35, Sincelejo' },
   });
   expect(profile.status()).toBe(200);
 }
@@ -46,11 +54,12 @@ export async function account(
   role: 'cliente' | 'emprendedor' = 'cliente',
   prefix = 'prueba',
   name = 'Persona de prueba',
+  documentNumber = cedula(),
 ) {
   const email = `${prefix}-${crypto.randomUUID()}@ejemplo.co`;
   await register(page, email, role);
   await expect(page).toHaveURL(/verificar-correo/);
-  await confirmAccount(page, email, name);
+  await confirmAccount(page, email, name, documentNumber);
   await page.goto('/buscar');
   await expect(page).toHaveURL(/buscar/);
   return email;

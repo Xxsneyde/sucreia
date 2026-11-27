@@ -98,6 +98,16 @@ test('el registro valida datos y no permite crear administradores', async () => 
     400,
   );
   assert.equal((await call('POST', '/auth/registro', { ...base, password: 'corta' })).status, 400);
+  // Contraseña nueva: letra, número y carácter especial, además de 8 caracteres.
+  for (const [password, missing] of [
+    ['clavesegura', /un número, al menos un carácter especial/],
+    ['12345678!', /una letra/],
+    ['clavesegura1', /un carácter especial/],
+  ] as const) {
+    const weak = await call('POST', '/auth/registro', { ...base, password });
+    assert.equal(weak.status, 400, password);
+    assert.match(weak.json.error, missing);
+  }
   const admin = await call('POST', '/auth/registro', { ...base, role: 'admin' });
   assert.equal(admin.json.user.role, 'cliente');
   assert.equal((await client()('POST', '/auth/registro', base)).status, 409);
@@ -292,6 +302,11 @@ test('recuperación genérica, caducidad, validación y revocación de todas las
   const token = tokenFrom(await mailFor(email, 'Recupera tu contraseña'));
   assert.equal((await anon('POST', '/auth/verificar-correo', { token })).status, 400);
   assert.equal((await anon('POST', '/auth/restablecer', { token, password: 'corta' })).status, 400);
+  assert.equal(
+    (await anon('POST', '/auth/restablecer', { token, password: 'nuevaclave2' })).status,
+    400,
+    'sin carácter especial',
+  );
   assert.equal(
     (await anon('POST', '/auth/restablecer', { token, password: 'nueva-clave-2' })).status,
     200,

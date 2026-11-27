@@ -415,6 +415,36 @@ test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y 
     });
     assert.equal(profile.status, 200);
     assert.equal(profile.json.user.profileComplete, true);
+    // Guardar otra vez su propia cédula se permite; otra cuenta no puede usarla.
+    assert.equal(
+      (
+        await person.call('PUT', '/auth/perfil/datos', {
+          name: 'Ana María Pérez',
+          documentNumber: '1102345678',
+          address: 'Carrera 20 # 15-30, Sincelejo',
+        })
+      ).status,
+      200,
+    );
+    const other = await f.account('cliente');
+    await f.db
+      .prepare('UPDATE users SET emailVerifiedAt=? WHERE id=?')
+      .run(new Date().toISOString(), other.user.id);
+    const copy = await other.call('PUT', '/auth/perfil/datos', {
+      name: 'Otra persona',
+      documentNumber: '1102345678',
+      address: 'Calle 1 # 2-3, Corozal',
+    });
+    assert.equal(copy.status, 409);
+    assert.match(copy.json.error, /Ya hay una cuenta registrada con esa cédula/);
+    assert.equal((await other.call('GET', '/auth/yo')).json.user.profileComplete, false);
+    // Tampoco al crear la cuenta con la cédula incluida.
+    const again = await other.call('POST', '/auth/registro', {
+      email: `${randomUUID()}@example.co`,
+      password: 'clave-segura-1',
+      documentNumber: '1102345678',
+    });
+    assert.equal(again.status, 409);
     // Un celular de Venezuela también recibe el código.
     const abroad = await f.account('cliente', { verifyBy: 'sms', phone: '+58 412 765 4321' });
     assert.equal(abroad.user.verifyChannel, 'sms');
