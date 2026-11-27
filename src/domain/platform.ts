@@ -194,6 +194,8 @@ export interface CommerceStore {
   reviewCount: number;
   completed365: number;
   rating: number | null;
+  /** Promedio y número de valoraciones de cada producto. */
+  productRatings?: Record<string, { rating: number; count: number }>;
 }
 
 export const verificationNames = {
