@@ -29812,56 +29812,6 @@ function returnTarget(routePath, routeFullPath, location) {
   return i < 0 ? trim(routeFullPath) : trim(routeFullPath.slice(0, i)) + routeFullPath.slice(i);
 }
 
-// src/domain/roles.ts
-var principal = {
-  id: "principal",
-  title: "",
-  items: [
-    { href: "/buscar", label: "Buscar negocios", icon: "search" },
-    { href: "/mapa", label: "Mapa de emprendimientos", icon: "map" },
-    { href: "/pedidos", label: "Mis compras", icon: "cart" },
-    { href: "/solicitudes", label: "Mis reservas", icon: "calendar" },
-    { href: "/favoritos", label: "Favoritos", icon: "heart" },
-    { href: "/notificaciones", label: "Notificaciones", icon: "bell" }
-  ]
-};
-var principalCliente = {
-  ...principal,
-  items: [
-    ...principal.items,
-    { href: "/emprender", label: "\xBFQuieres montar tu propio emprendimiento?", icon: "rocket" }
-  ]
-};
-var explorar = {
-  id: "explorar",
-  title: "Explorar",
-  items: [
-    { href: "/buscar", label: "Buscar negocios", icon: "search" },
-    { href: "/mapa", label: "Mapa de emprendimientos", icon: "map" }
-  ]
-};
-var explorarYComprar = {
-  ...explorar,
-  title: "Explorar y comprar",
-  items: [
-    ...explorar.items,
-    { href: "/pedidos", label: "Mis compras", icon: "cart" },
-    { href: "/solicitudes", label: "Mis reservas", icon: "calendar" },
-    { href: "/favoritos", label: "Favoritos", icon: "heart" }
-  ]
-};
-var canBuyRole = (role) => role === "cliente" || role === "emprendedor";
-function roleHome(_role) {
-  return "/buscar";
-}
-function requiredRole(path) {
-  const clean = path.replace(/\/+$/, "") || "/";
-  if (/^\/(admin|equipo)(\/|$)/.test(clean)) return "admin";
-  if (/^\/(panel|registro-negocio)(\/|$)/.test(clean)) return "emprendedor";
-  if (/^\/(pedidos|solicitudes|favoritos|carrito)(\/|$)/.test(clean)) return "cliente";
-  return null;
-}
-
 // server/google.ts
 function googleConfig(env2) {
   if (!env2.GOOGLE_CLIENT_ID && !env2.GOOGLE_CLIENT_SECRET) return;
@@ -29958,7 +29908,7 @@ function googleRoutes(db2, config, secure, fetchImpl = fetch, mailbox) {
         await db2.prepare("UPDATE users SET emailVerifiedAt = ? WHERE id = ?").run((/* @__PURE__ */ new Date()).toISOString(), found.id);
       const session2 = await createSession(db2, found.id);
       setSessionCookie(res, session2.token, session2.expires, secure);
-      return res.redirect(302, saved.back || `${roleHome(found.role)}/`);
+      return res.redirect(302, saved.back || "/");
     }
     const user = await createUser(db2, {
       email,
@@ -30763,6 +30713,62 @@ function requiresSession(path) {
     "/admin",
     "/equipo"
   ].some((base) => clean === base || clean.startsWith(base + "/"));
+}
+
+// src/domain/roles.ts
+var principal = {
+  id: "principal",
+  title: "",
+  items: [
+    { href: "/buscar", label: "Buscar negocios", icon: "search" },
+    { href: "/mapa", label: "Mapa de emprendimientos", icon: "map" },
+    { href: "/pedidos", label: "Mis compras", icon: "cart" },
+    { href: "/solicitudes", label: "Mis reservas", icon: "calendar" },
+    { href: "/favoritos", label: "Favoritos", icon: "heart" },
+    { href: "/notificaciones", label: "Notificaciones", icon: "bell" }
+  ]
+};
+var principalCliente = {
+  ...principal,
+  items: [
+    ...principal.items,
+    { href: "/emprender", label: "\xBFQuieres montar tu propio emprendimiento?", icon: "rocket" }
+  ]
+};
+var registrar = {
+  href: "/panel/configurar",
+  label: "Registrar emprendimiento",
+  icon: "wand"
+};
+var registrarPrimero = { ...registrar, label: "Registra tu emprendimiento" };
+var explorar = {
+  id: "explorar",
+  title: "Explorar",
+  items: [
+    { href: "/buscar", label: "Buscar negocios", icon: "search" },
+    { href: "/mapa", label: "Mapa de emprendimientos", icon: "map" }
+  ]
+};
+var explorarYComprar = {
+  ...explorar,
+  title: "Explorar y comprar",
+  items: [
+    ...explorar.items,
+    { href: "/pedidos", label: "Mis compras", icon: "cart" },
+    { href: "/solicitudes", label: "Mis reservas", icon: "calendar" },
+    { href: "/favoritos", label: "Favoritos", icon: "heart" }
+  ]
+};
+var canBuyRole = (role) => role === "cliente" || role === "emprendedor";
+function roleHome(_role) {
+  return "/buscar";
+}
+function requiredRole(path) {
+  const clean = path.replace(/\/+$/, "") || "/";
+  if (/^\/(admin|equipo)(\/|$)/.test(clean)) return "admin";
+  if (/^\/(panel|registro-negocio)(\/|$)/.test(clean)) return "emprendedor";
+  if (/^\/(pedidos|solicitudes|favoritos|carrito)(\/|$)/.test(clean)) return "cliente";
+  return null;
 }
 
 // server/routes/platform.ts
@@ -36126,9 +36132,13 @@ function createApp({
       if (req.path.split("/").some((part) => part.startsWith("."))) res.status(404).end();
       else next();
     });
-    app.use(loadUser(db2), (req, res, next) => {
-      if (["GET", "HEAD"].includes(req.method) && req.path === "/")
-        return res.redirect(302, currentUser(res) ? "/buscar/" : "/ingresar/");
+    app.use(loadUser(db2), async (req, res, next) => {
+      if (["GET", "HEAD"].includes(req.method) && req.path === "/") {
+        const user2 = currentUser(res);
+        if (!user2) return res.redirect(302, "/ingresar/");
+        const firstBusiness = user2.role === "emprendedor" && !await db2.prepare("SELECT 1 AS ok FROM stores WHERE owner_id=? LIMIT 1").get(user2.id);
+        return res.redirect(302, firstBusiness ? "/panel/configurar/" : "/buscar/");
+      }
       const isFile = /\.[a-z0-9]+$/i.test(req.path);
       if (!["GET", "HEAD"].includes(req.method) || isFile || !requiresSession(req.path))
         return next();
