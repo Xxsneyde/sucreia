@@ -25,7 +25,7 @@ test('reserva: el cliente elige día y hora y el negocio confirma la cita', asyn
   await picker.locator('[aria-label="Día"] [role=radio]:not([disabled])').nth(1).click();
   await picker.locator('.bk-grid [role=radio]:not([disabled])').first().click();
   await expect(picker.locator('.bk-summary')).toContainText(design.products[1].name);
-  await picker.getByLabel('Tu WhatsApp (con código de país)').fill('+573001234567');
+  await picker.getByLabel('Tu WhatsApp', { exact: true }).fill('+573001234567');
   await picker.getByLabel('Nota para el negocio (opcional)').fill('Primera vez.');
   await picker.getByRole('button', { name: 'Confirmar reserva' }).click();
   await expect(buyer).toHaveURL(/solicitudes/);
@@ -61,7 +61,7 @@ test('cotización aceptada, pagada y completada; el cliente deja su reseña', as
   await dialog
     .getByLabel('Detalle de tu solicitud')
     .fill('Quiero conocer y contratar el servicio.');
-  await dialog.getByLabel('WhatsApp con código de país').fill('+573001234567');
+  await dialog.getByLabel('Tu WhatsApp', { exact: true }).fill('+573001234567');
   await dialog.getByRole('button', { name: 'Enviar solicitud de cotización', exact: true }).click();
   await expect(buyer).toHaveURL(/solicitudes/);
 

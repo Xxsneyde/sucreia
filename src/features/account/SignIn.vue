@@ -5,17 +5,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { internalReturn } from '@/domain/navigation';
 import { profileGate } from '@/domain/access';
 import LogoutButton from '@/components/LogoutButton.vue';
-import {
-  Eye,
-  EyeOff,
-  Gift,
-  Lock,
-  Mail,
-  MessageSquareText,
-  ShoppingBag,
-  Smartphone,
-  Store,
-} from '@lucide/vue';
+import PhoneField from '@/components/PhoneField.vue';
+import { Eye, EyeOff, Gift, Lock, Mail, MessageSquareText, ShoppingBag, Store } from '@lucide/vue';
 import { api } from '@/lib/api';
 import { useSession, type Role } from '@/lib/session';
 
@@ -317,27 +308,14 @@ async function submit() {
         >
       </label>
     </fieldset>
-    <div v-if="mode === 'registro' && verifyBy === 'sms'" class="ax-f">
-      <label for="ax-celular" class="ax-label">Celular</label>
-      <div class="ax-field">
-        <Smartphone :size="18" aria-hidden="true" />
-        <span class="ax-prefix" aria-hidden="true">+57</span>
-        <input
-          id="ax-celular"
-          v-model="phone"
-          type="tel"
-          inputmode="tel"
-          required
-          maxlength="16"
-          autocomplete="tel-national"
-          placeholder="300 123 4567"
-          aria-describedby="ax-celular-ayuda"
-        />
-      </div>
-      <span id="ax-celular-ayuda" class="ax-help"
-        >Te llegará un código de 6 dígitos por mensaje de texto.</span
-      >
-    </div>
+    <PhoneField
+      v-if="mode === 'registro' && verifyBy === 'sms'"
+      v-model="phone"
+      class="ax-f"
+      label="Celular"
+      required
+      help="Elige el país y escribe el número. Te llegará un código de 6 dígitos por mensaje de texto."
+    />
     <p v-if="error" role="alert" class="field-error">{{ error }}</p>
     <button class="sx-btn sx-btn--block ax-submit" :disabled="busy || !session.ready">
       {{ busy ? 'Un momento…' : mode === 'ingresar' ? 'Iniciar sesión' : 'Crear mi cuenta' }}
@@ -684,13 +662,6 @@ async function submit() {
 .ax-roles label.off {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.ax-prefix {
-  color: var(--text);
-  border-right: 1.5px solid #d3deec;
-  padding-right: 8px;
-  font-size: 15px;
-  font-weight: 600;
 }
 .ax-done {
   text-align: center;

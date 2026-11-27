@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { currency } from '../../src/domain/rules.ts';
 import {
   account,
@@ -38,12 +38,32 @@ test('registro en siete pasos, revisión de la administración y negocio visible
   const reviewer = await browser.newPage();
   await signIn(reviewer, admin().email, admin().password);
   await reviewer.goto('/admin');
-  const pending = reviewer.getByRole('list', { name: 'Negocios' }).getByRole('button', { name });
+  const pending = reviewer.getByRole('button', { name: `Revisar ${name}` });
+  // Filtro de municipio: Corozal lo muestra, Sampués no.
+  await reviewer.getByRole('combobox', { name: 'Municipio' }).selectOption('Sampués');
+  await expect(pending).toHaveCount(0);
+  await expect(reviewer.getByText('No hay negocios con estos filtros.')).toBeVisible();
+  await reviewer.getByRole('combobox', { name: 'Municipio' }).selectOption('Corozal');
+  await reviewer
+    .getByRole('combobox', { name: 'Categoría' })
+    .selectOption({ label: 'Gastronomía y alimentos' });
   await pending.click();
+  // Las fotos del registro (aún no publicado) se ven: portada, logo y catálogo.
+  const loaded = (img: Locator) =>
+    expect
+      .poll(() => img.evaluate((e: HTMLImageElement) => e.complete && e.naturalWidth > 0))
+      .toBe(true);
+  await loaded(reviewer.getByRole('img', { name: `Portada de ${name}` }));
+  await loaded(reviewer.getByRole('img', { name: `Logo de ${name}` }));
+  const products = reviewer.locator('.adm-products img');
+  await expect(products).toHaveCount(3);
+  for (const img of await products.all()) await loaded(img);
   await reviewer
     .getByLabel('Motivo o comentario para el emprendedor')
     .fill('Documentos completos.');
   await reviewer.getByRole('button', { name: 'Aprobar y publicar' }).click();
+  // Aprobado sale de «Por revisar» y se vuelve a la lista.
+  await expect(reviewer.getByRole('status')).toContainText(`${name} fue aprobado`);
   await expect(pending).toHaveCount(0);
   await reviewer.close();
 
@@ -72,7 +92,9 @@ test('editar los datos y el catálogo de un negocio publicado y verlo como clien
   await page.getByLabel('Descripción corta').fill('Repostería artesanal y tortas personalizadas.');
   await page.getByLabel('Tu historia').fill('Hacemos tortas con recetas de la abuela.');
   await page.getByLabel('Destacado 4').fill('Desde 2022');
-  await page.getByLabel('WhatsApp (con código de país)').fill('+573001112233');
+  // WhatsApp de otro país: el campo elige Venezuela por el indicativo.
+  await page.getByLabel('WhatsApp', { exact: true }).fill('+58 412 765 4321');
+  await expect(page.getByRole('combobox', { name: 'País de WhatsApp' })).toHaveValue('VE');
   await page.getByLabel('Correo', { exact: true }).fill('contacto@ejemplo.co');
   await page.getByRole('button', { name: 'Publicar cambios' }).click();
   await expect(
@@ -103,7 +125,7 @@ test('editar los datos y el catálogo de un negocio publicado y verlo como clien
   await expect(visitor.getByText('Sin reseñas todavía').first()).toBeVisible();
   await expect(visitor.getByRole('link', { name: 'Contactar' })).toHaveAttribute(
     'href',
-    /wa\.me\/573001112233/,
+    /wa\.me\/584127654321/,
   );
   await visitor.getByRole('tab', { name: 'Productos y servicios' }).click();
   await visitor.getByRole('button', { name: 'Postres', exact: true }).click();

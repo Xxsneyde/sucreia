@@ -12,7 +12,7 @@ import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign, type StoreDesign } from '../src/domain/studio.ts';
-import { colombianMobile, maskPhone } from '../server/sms.ts';
+import { maskPhone, smsPhone } from '../server/sms.ts';
 import { sslFor } from '../server/db-ssl.ts';
 import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
@@ -171,6 +171,16 @@ test('registro del negocio: términos, documentos, revisión y aprobación que p
     assert.equal(row.details.name, 'Dulces de Sampués');
     assert.equal(row.owner.email, owner.email);
     assert.deepEqual(row.missing, []);
+    // La administración ve las fotos del registro aunque aún no estén publicadas (logo,
+    // portada y catálogo, también en miniatura); otra cuenta no.
+    for (const url of [design.logo, design.content.heroImage, design.products[0].image]) {
+      assert.equal((await boss.call('GET', url.replace('/api', ''))).status, 200, url);
+      assert.equal(
+        (await boss.call('GET', url.replace('/api', '').replace('.webp', '-480.webp'))).status,
+        200,
+      );
+      assert.equal((await stranger.call('GET', url.replace('/api', ''))).status, 404);
+    }
     // Aprobar publica la versión enviada.
     assert.equal(
       (
@@ -366,11 +376,22 @@ test('asistente: responde con los negocios publicados y limita preguntas', async
   }
 });
 
-test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y celular colombiano', async () => {
-  assert.equal(colombianMobile('300 123 4567'), '573001234567');
-  assert.equal(colombianMobile('+57 300-123-4567'), '573001234567');
-  assert.equal(colombianMobile('6012345678'), null);
-  assert.equal(maskPhone('573001234567'), '300 *** 4567');
+test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y celular de cualquier país', async () => {
+  // Celular colombiano con o sin indicativo, como antes.
+  assert.equal(smsPhone('300 123 4567'), '573001234567');
+  assert.equal(smsPhone('+57 300-123-4567'), '573001234567');
+  assert.equal(smsPhone('573001234567'), '573001234567');
+  // Otros países, con su indicativo.
+  assert.equal(smsPhone('+58 412 123 4567'), '584121234567');
+  assert.equal(smsPhone('+507 6123-4567'), '50761234567');
+  assert.equal(smsPhone('+1 (305) 555-1234'), '13055551234');
+  assert.equal(smsPhone('+34 612 34 56 78'), '34612345678');
+  // Números incompletos o sin sentido.
+  assert.equal(smsPhone('+58 412 123'), null);
+  assert.equal(smsPhone('+57 123 456 7890'), null);
+  assert.equal(smsPhone('abc'), null);
+  assert.equal(maskPhone('573001234567'), '+57 *** 4567');
+  assert.equal(maskPhone('584121234567'), '+58 *** 4567');
   const f = await fixture();
   try {
     const person = await f.account('cliente', { verifyBy: 'sms', phone: '3001234567' });
@@ -394,6 +415,10 @@ test('confirmar la cuenta por SMS: código de un solo uso, intentos limitados y 
     });
     assert.equal(profile.status, 200);
     assert.equal(profile.json.user.profileComplete, true);
+    // Un celular de Venezuela también recibe el código.
+    const abroad = await f.account('cliente', { verifyBy: 'sms', phone: '+58 412 765 4321' });
+    assert.equal(abroad.user.verifyChannel, 'sms');
+    assert.equal(f.sent.at(-1)!.phone, '584127654321');
   } finally {
     f.close();
   }

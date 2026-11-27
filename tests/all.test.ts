@@ -15,3 +15,4 @@ import './logistics.test.ts';
 import './brain.test.ts';
 import './registration.test.ts';
 import './migrations.test.ts';
+import './phone.test.ts';

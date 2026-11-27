@@ -311,12 +311,15 @@ export class ImageStorage {
         : await this.isPublic(id);
     let allowed = isPublic || row.owner_id === userId;
     if (!allowed && userId) {
+      const url = `/api/imagenes/${id}.webp`;
       const [reviewer, participant] = await Promise.all([
+        // La administración revisa la foto de cada domiciliario y las de cada negocio aún sin
+        // publicar (logo, portada y catálogo del registro enviado o del borrador).
         this.db
           .prepare(
-            "SELECT 1 AS ok FROM users WHERE id=? AND role='admin' AND EXISTS(SELECT 1 FROM couriers WHERE avatar=?)",
+            "SELECT 1 AS ok FROM users WHERE id=? AND role='admin' AND (EXISTS(SELECT 1 FROM couriers WHERE avatar=?) OR EXISTS(SELECT 1 FROM stores WHERE review_design LIKE ? OR draft LIKE ?))",
           )
-          .get(userId, `/api/imagenes/${id}.webp`),
+          .get(userId, url, `%${url}%`, `%${url}%`),
         this.db
           .prepare(
             "SELECT 1 AS ok FROM operations WHERE json_extract(payload,'$.courierAvatar')=? AND (client_id=? OR json_extract(payload,'$.ownerId')=? OR json_extract(payload,'$.courierId')=?) LIMIT 1",

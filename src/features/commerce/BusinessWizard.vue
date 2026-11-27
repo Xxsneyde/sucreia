@@ -40,6 +40,8 @@ import type { BusinessMode } from '@/domain/types';
 import ImageField from '@/components/images/ImageField.vue';
 import SxMap from '@/components/maps/SxMap.vue';
 import WeekHoursPicker from '@/components/business/WeekHoursPicker.vue';
+import PhoneField from '@/components/PhoneField.vue';
+import { normalizePhone } from '@/domain/phone';
 
 // Registro del emprendimiento en siete pasos. Al enviarlo, la administración revisa los datos y
 // documentos y, al aprobarlo, el negocio aparece en SucreIA. Con `standalone` va en su propia
@@ -256,8 +258,8 @@ const stepError = computed(() => {
     if (week.value.some((d) => !d.closed && d.closes <= d.opens))
       return 'Revisa el horario: la hora de cierre debe ser después de la de apertura.';
     if (!basics.value.address.trim()) return 'Escribe la dirección del negocio.';
-    if (!/^\+?[1-9]\d{9,14}$/.test(basics.value.whatsapp))
-      return 'Escribe el WhatsApp con código de país (por ejemplo +573001234567): por ahí te llegan las compras.';
+    if (!normalizePhone(basics.value.whatsapp))
+      return 'Revisa el WhatsApp: elige el país y escribe el número completo. Por ahí te llegan las compras.';
   }
   if (step.value === 2 && (!logo.value || !cover.value))
     return 'Sube el logo y la foto de portada (mínimo 360 × 360 px, mejor horizontal).';
@@ -469,12 +471,12 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
                 maxlength="160"
                 placeholder="Calle 23 # 20-11"
             /></label>
-            <label
-              >WhatsApp (con código de país)<input
-                v-model="basics.whatsapp"
-                maxlength="16"
-                placeholder="+573001234567"
-            /></label>
+            <PhoneField
+              v-model="basics.whatsapp"
+              label="WhatsApp"
+              required
+              help="Elige el país: aquí te llegan los pedidos."
+            />
           </div>
           <WeekHoursPicker v-model="week" />
         </div>

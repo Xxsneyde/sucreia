@@ -90,40 +90,54 @@ async function start() {
         Publica tu catálogo, recibe pedidos directo en tu WhatsApp y llega a clientes de todo Sucre.
         Puedes registrar uno o varios negocios con la misma cuenta.
       </p>
-      <div v-if="session.user?.role === 'cliente'" class="er-warning" role="note">
-        <TriangleAlert :size="22" />
-        <div>
-          <strong>Este cambio no tiene vuelta atrás.</strong>
-          <p>
-            Tu cuenta pasa a ser de emprendedor y no podrás volver a la cuenta de cliente. Podrás
-            seguir comprando, reservando y guardando favoritos en otros negocios a tu nombre, desde
-            «Explorar y comprar» en tu menú.
-          </p>
-          <label class="er-accept">
-            <input v-model="accepted" type="checkbox" />
-            Entiendo y acepto que mi cuenta pasará a ser de emprendedor.
-          </label>
-        </div>
-      </div>
-      <button
-        type="button"
-        class="sx-btn er-cta"
-        :disabled="busy || (session.user?.role === 'cliente' && !accepted)"
-        @click="start"
-      >
-        <Rocket :size="19" />
-        {{
-          session.user
-            ? session.user.role === 'cliente'
-              ? 'Pasarme a emprendedor y registrar mi negocio'
-              : 'Registrar mi negocio'
-            : 'Ingresar para empezar'
-        }}
-      </button>
-      <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     </div>
     <img src="/art/hero.svg" alt="" />
   </section>
+
+  <section class="sx-card er-start" aria-labelledby="er-start-title">
+    <template v-if="session.user?.role === 'cliente'">
+      <div class="er-notice" role="note">
+        <span class="er-notice-icon"><TriangleAlert :size="22" /></span>
+        <div>
+          <h2 id="er-start-title">Antes de continuar</h2>
+          <p>
+            <strong>Este cambio no tiene vuelta atrás:</strong> tu cuenta pasa a ser de emprendedor.
+            Podrás seguir comprando, reservando y guardando favoritos desde «Explorar y comprar» en
+            tu menú.
+          </p>
+        </div>
+      </div>
+      <div class="er-action">
+        <label :class="['er-accept', { on: accepted }]">
+          <input v-model="accepted" type="checkbox" />
+          <span>Entiendo y acepto que mi cuenta pasará a ser de emprendedor.</span>
+        </label>
+        <button
+          type="button"
+          class="sx-btn er-cta"
+          :disabled="busy || !accepted"
+          aria-describedby="er-cta-help"
+          @click="start"
+        >
+          <Rocket :size="19" /> Pasarme a emprendedor y registrar mi negocio
+        </button>
+        <small v-if="!accepted" id="er-cta-help" class="er-help"
+          >Marca la casilla para continuar.</small
+        >
+      </div>
+    </template>
+    <div v-else class="er-action er-action--solo">
+      <h2 id="er-start-title">
+        {{ session.user ? '¿Listo para registrar tu negocio?' : 'Empieza con tu cuenta' }}
+      </h2>
+      <button type="button" class="sx-btn er-cta" :disabled="busy" @click="start">
+        <Rocket :size="19" />
+        {{ session.user ? 'Registrar mi negocio' : 'Ingresar para empezar' }}
+      </button>
+    </div>
+    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+  </section>
+
   <h2 class="er-title">Ten esto listo para registrarte más rápido</h2>
   <div class="er-grid">
     <article v-for="n in needs" :key="n.title" class="sx-card">
@@ -137,15 +151,22 @@ async function start() {
     <h2><ShieldCheck :size="22" /> ¿Cómo funciona?</h2>
     <ol>
       <li>
-        <strong>Envía tu solicitud</strong> y llena el registro previo con tus datos y documentos.
+        <span>1</span>
+        <p><strong>Envía tu solicitud</strong> con tus datos y documentos.</p>
       </li>
       <li>
-        <strong>La administración de SucreIA revisa</strong> tu información. Te avisamos por
-        notificación si se aprueba o si falta algo.
+        <span>2</span>
+        <p>
+          <strong>La administración de SucreIA revisa</strong> tu información y te avisa si se
+          aprueba o si falta algo.
+        </p>
       </li>
       <li>
-        <strong>Tu negocio aparece en la plataforma</strong> y los clientes te envían sus pedidos o
-        reservas.
+        <span>3</span>
+        <p>
+          <strong>Tu negocio aparece en la plataforma</strong> y los clientes te envían sus pedidos
+          o reservas.
+        </p>
       </li>
     </ol>
   </section>
@@ -156,10 +177,10 @@ async function start() {
   background: linear-gradient(135deg, var(--navy-900), var(--navy-700));
   color: #fff;
   border-radius: 22px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   align-items: center;
   gap: 24px;
-  padding: 28px;
+  padding: 28px 32px;
   display: grid;
 }
 .er-hero h1 {
@@ -172,51 +193,112 @@ async function start() {
 }
 .er-hero p {
   color: #dbe7ff;
+  max-width: 60ch;
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.55;
 }
 .er-hero img {
   object-fit: contain;
   width: 100%;
-  max-height: 240px;
+  max-height: 200px;
 }
-.er-warning {
-  color: #fff;
-  background: #ffc4001f;
-  border: 1px solid #ffd6668c;
-  border-radius: 14px;
-  gap: 12px;
-  margin: 14px 0 4px;
-  padding: 14px 16px;
+/* Antes de continuar: el aviso a la izquierda, la casilla y el botón a la derecha. */
+.er-start {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px 32px;
+  margin-top: 18px;
+  padding: 24px;
+  display: grid;
+}
+.er-start > .field-error {
+  grid-column: 1 / -1;
+}
+.er-notice {
+  gap: 14px;
   display: flex;
 }
-.er-warning svg {
-  color: #ffd166;
+.er-notice-icon {
+  color: #b45309;
+  background: #fff4d6;
+  border-radius: 14px;
   flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  display: grid;
 }
-.er-warning p {
-  margin: 4px 0 8px;
-  font-size: 13.5px;
+.er-start h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+.er-notice p {
+  color: var(--text);
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.er-action {
+  min-width: 0;
+  gap: 12px;
+  display: grid;
+}
+.er-action--solo {
+  grid-column: 1 / -1;
+  justify-items: start;
 }
 .er-accept {
   cursor: pointer;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13.5px;
+  border: 1.5px solid var(--line, #dfe6f0);
+  color: var(--ink);
+  background: #fff;
+  border-radius: 14px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 14.5px;
   font-weight: 600;
+  line-height: 1.4;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   display: flex;
 }
+.er-accept:hover {
+  border-color: var(--green, #1fa548);
+}
+.er-accept.on {
+  border-color: var(--green, #1fa548);
+  background: var(--green-soft, #e8f7ee);
+}
 .er-accept input {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   accent-color: var(--green);
   flex: none;
-  margin-top: 1px;
 }
 .er-cta {
-  min-height: 50px;
-  margin-top: 8px;
+  white-space: normal;
+  text-align: center;
+  justify-content: center;
+  min-height: 52px;
+  font-size: 15.5px;
+}
+.er-cta:disabled {
+  opacity: 1;
+  color: #64748b;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: #e2e8f0;
+}
+.er-help {
+  color: var(--muted);
+  text-align: center;
+  font-size: 13px;
 }
 .er-title {
-  margin: 28px 0 14px;
+  margin: 30px 0 14px;
 }
 .er-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
@@ -226,20 +308,22 @@ async function start() {
 .er-grid h3 {
   align-items: center;
   gap: 8px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 16px;
   display: flex;
 }
 .er-grid ul {
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
 }
 .er-grid li {
+  color: var(--text);
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 14px;
+  line-height: 1.45;
   display: flex;
 }
 .er-grid li svg {
@@ -253,26 +337,62 @@ async function start() {
 .er-steps h2 {
   align-items: center;
   gap: 8px;
+  margin: 0 0 14px;
   display: flex;
 }
 .er-steps ol {
-  gap: 10px;
-  margin: 10px 0 0;
-  padding-left: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: grid;
+}
+.er-steps li {
+  background: var(--bg, #f4f7fc);
+  border-radius: 14px;
+  gap: 12px;
+  padding: 14px;
+  display: flex;
+}
+.er-steps li span {
+  background: var(--navy-800, #0a2357);
+  color: #fff;
+  border-radius: 999px;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  font-weight: 700;
+  display: grid;
+}
+.er-steps li p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+@media (width<=900px) {
+  .er-start,
+  .er-steps ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (width<=760px) {
   .er-hero {
     grid-template-columns: minmax(0, 1fr);
-    padding: 20px 16px;
+    padding: 22px 18px;
+  }
+  .er-hero img {
+    display: none;
+  }
+  .er-start {
+    padding: 18px;
   }
   .er-cta {
     white-space: normal;
     text-align: center;
     width: 100%;
-  }
-  .er-hero img {
-    display: none;
   }
 }
 </style>

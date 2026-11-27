@@ -1,20 +1,22 @@
-// Mensajes de texto para confirmar la cuenta (Onurix, Colombia). El código de 6 dígitos nunca se
+// Mensajes de texto para confirmar la cuenta (Onurix). El código de 6 dígitos nunca se
 // guarda tal cual: solo su hash, ligado a la cuenta.
 import { createHash, randomInt } from 'node:crypto';
+import { maskPhone, normalizePhone } from '../src/domain/phone.ts';
 
 export interface SmsTransport {
   send(phone: string, text: string): Promise<void>;
 }
 
-/** Celular colombiano como 57 + 10 dígitos (acepta espacios, guiones y +57); null si no lo es. */
-export function colombianMobile(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  let digits = raw.replace(/\D/g, '');
-  if (digits.length === 12 && digits.startsWith('57')) digits = digits.slice(2);
-  return /^3\d{9}$/.test(digits) ? `57${digits}` : null;
+/**
+ * Celular de cualquier país como indicativo + número, solo dígitos («573001234567»,
+ * «584121234567»): así se guarda y se envía a Onurix. null si no es válido. Un celular
+ * colombiano sin indicativo se completa con 57 (ver src/domain/phone.ts).
+ */
+export function smsPhone(raw: unknown): string | null {
+  return normalizePhone(raw)?.slice(1) ?? null;
 }
-/** «300 *** 4567»: para decir a dónde se envió sin mostrar el número completo. */
-export const maskPhone = (phone: string) => `${phone.slice(2, 5)} *** ${phone.slice(-4)}`;
+/** «+57 *** 4567»: a dónde se envió el código sin mostrar el número completo. */
+export { maskPhone };
 export const newCode = () => String(randomInt(0, 1_000_000)).padStart(6, '0');
 export const hashCode = (userId: string, code: string) =>
   createHash('sha256').update(`${userId}:${code}`).digest('hex');

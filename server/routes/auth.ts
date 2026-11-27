@@ -21,7 +21,7 @@ import {
 
 import type { MailTransport } from '../mail.ts';
 import { issueToken, consumeToken } from '../account-tokens.ts';
-import { colombianMobile, hashCode, maskPhone, newCode, type SmsTransport } from '../sms.ts';
+import { hashCode, maskPhone, newCode, smsPhone, type SmsTransport } from '../sms.ts';
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 // Hash de referencia para comparar aunque el correo no exista (mismo tiempo de respuesta).
@@ -214,8 +214,9 @@ export function authRoutes(
     }
     const channel = req.body?.channel === 'sms' ? 'sms' : 'email';
     if (channel === 'sms') {
-      const phone = colombianMobile(req.body?.phone) ?? user.phone;
-      if (!phone) throw new HttpError(400, 'Escribe un celular colombiano de 10 dígitos.');
+      const phone = smsPhone(req.body?.phone) ?? user.phone;
+      if (!phone)
+        throw new HttpError(400, 'Escribe un celular válido con el indicativo de su país.');
       await sendCode(user, phone);
       await db
         .prepare("UPDATE users SET verify_channel='sms', phone=? WHERE id=?")
@@ -247,8 +248,9 @@ export function authRoutes(
     if (documentNumber && !/^\d{5,12}$/.test(documentNumber))
       throw new HttpError(400, 'Escribe la cédula sin puntos ni espacios.');
     const viaSms = req.body?.verifyBy === 'sms';
-    const phone = viaSms ? colombianMobile(req.body?.phone) : null;
-    if (viaSms && !phone) throw new HttpError(400, 'Escribe un celular colombiano de 10 dígitos.');
+    const phone = viaSms ? smsPhone(req.body?.phone) : null;
+    if (viaSms && !phone)
+      throw new HttpError(400, 'Escribe un celular válido con el indicativo de su país.');
     if (viaSms && !sms)
       throw new HttpError(
         503,

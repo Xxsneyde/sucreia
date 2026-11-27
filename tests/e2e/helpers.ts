@@ -153,7 +153,7 @@ export async function registerBusiness(
     .getByLabel('Descripción corta')
     .fill(options.description ?? 'Hecho en Sucre, con cariño y precios claros.');
   await page.getByLabel('Dirección').fill('Calle 28 # 26-14');
-  await page.getByLabel('WhatsApp (con código de país)').fill(options.whatsapp ?? '+573001112233');
+  await page.getByLabel('WhatsApp', { exact: true }).fill(options.whatsapp ?? '+573001112233');
   await next();
 
   await step('¿Cómo atiendes a tus clientes?');

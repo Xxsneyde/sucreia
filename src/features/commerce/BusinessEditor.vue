@@ -18,6 +18,7 @@ import {
 } from '@/domain/sectors';
 import ImageField from '@/components/images/ImageField.vue';
 import PageTitle from '@/components/PageTitle.vue';
+import PhoneField from '@/components/PhoneField.vue';
 
 // Datos del negocio: el emprendedor llena sus datos y fotos, y su página pública sale con el
 // diseño de la presentación (features/explore/BusinessPage.vue). Un negocio nuevo se registra
@@ -292,13 +293,12 @@ const invalidSocial = (id: SocialNetwork) => !!d.value?.[id]?.trim() && !socialU
       <section class="sx-card form-stack">
         <h2>Contacto y atención</h2>
         <div class="be-two">
-          <label
-            >WhatsApp (con código de país)<input
-              :value="d.whatsapp"
-              maxlength="16"
-              placeholder="+573004567890"
-              @input="set({ whatsapp: ($event.target as HTMLInputElement).value.trim() })"
-          /></label>
+          <PhoneField
+            :model-value="d.whatsapp"
+            label="WhatsApp"
+            required
+            @update:model-value="(v: string) => set({ whatsapp: v })"
+          />
           <label
             >Teléfono para llamadas<input
               :value="d.phone ?? ''"

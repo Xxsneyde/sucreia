@@ -45,6 +45,7 @@ import ShareMenu from '@/components/sucre/ShareMenu.vue';
 import ReviewList from '@/components/sucre/ReviewList.vue';
 import ProductSheet from '@/components/business/ProductSheet.vue';
 import BookingPicker from '@/components/business/BookingPicker.vue';
+import PhoneField from '@/components/PhoneField.vue';
 
 // Página pública de un negocio (diseño fijo de la presentación): inicio, catálogo, reseñas,
 // ubicación y el asistente del negocio. Las compras se envían por WhatsApp desde el carrito;
@@ -1046,13 +1047,7 @@ const assistantBullets = computed(() => [
         <label
           >Detalle de tu solicitud<textarea v-model="detail" required maxlength="1500" />
         </label>
-        <label
-          >WhatsApp con código de país<input
-            v-model="phone"
-            required
-            maxlength="16"
-            placeholder="+57…"
-        /></label>
+        <PhoneField v-model="phone" label="Tu WhatsApp" required />
         <template v-if="design.mode === 'booking'">
           <label>Fecha preferida<input v-model="date" type="date" required /></label>
           <label

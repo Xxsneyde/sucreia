@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { MailCheck, MessageSquareText } from '@lucide/vue';
 import PageTitle from '@/components/PageTitle.vue';
 import LogoutButton from '@/components/LogoutButton.vue';
+import PhoneField from '@/components/PhoneField.vue';
+import { maskPhone } from '@/domain/phone';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import { profileGate } from '@/domain/access';
@@ -21,10 +23,10 @@ const code = ref('');
 const newPhone = ref('');
 const changingPhone = ref(false);
 const bySms = computed(() => session.user?.verifyChannel === 'sms');
-/** 573001234567 → «300 *** 4567». */
+/** 573001234567 → «+57 *** 4567». */
 const maskedPhone = computed(() => {
   const phone = session.user?.phone ?? '';
-  return phone ? `${phone.slice(2, 5)} *** ${phone.slice(-4)}` : '';
+  return phone ? maskPhone(phone) : '';
 });
 let usedToken = '';
 async function next() {
@@ -147,15 +149,7 @@ async function resend(channel?: 'email' | 'sms') {
         </button>
       </div>
       <form v-if="changingPhone" class="form-stack" @submit.prevent="resend('sms')">
-        <label
-          >Nuevo celular<input
-            v-model="newPhone"
-            type="tel"
-            inputmode="tel"
-            required
-            maxlength="16"
-            placeholder="300 123 4567"
-        /></label>
+        <PhoneField v-model="newPhone" label="Nuevo celular" required />
         <button class="button secondary" :disabled="busy">Enviar código a este número</button>
       </form>
       <LogoutButton label="Usar otra cuenta" destination="/ingresar?cuenta=nueva" />

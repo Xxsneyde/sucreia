@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, X } from '@lucide/vue';
 import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
+import { normalizePhone } from '@/domain/phone';
+import PhoneField from '@/components/PhoneField.vue';
 import type { StoreSettings } from '@/domain/platform';
 import type { StoreProduct } from '@/domain/studio';
 // Reservar una cita: servicio, día (próximas tres semanas) y hora con los cupos libres que da la
@@ -124,7 +126,7 @@ const dayLabel = computed(() => {
 function scrollDays(direction: number) {
   strip.value?.scrollBy({ left: direction * 280, behavior: 'smooth' });
 }
-const ready = computed(() => !!chosen.value && /^\+?[1-9]\d{9,14}$/.test(phone.value.trim()));
+const ready = computed(() => !!chosen.value && !!normalizePhone(phone.value));
 function confirm() {
   if (!ready.value) return;
   emit('confirm', {
@@ -233,14 +235,7 @@ function confirm() {
         <Clock :size="17" /> {{ current?.name }} · {{ dayLabel.toLowerCase() }} ·
         {{ time(chosen) }}
       </p>
-      <label
-        >Tu WhatsApp (con código de país)<input
-          v-model="phone"
-          required
-          maxlength="16"
-          inputmode="tel"
-          placeholder="+573001234567"
-      /></label>
+      <PhoneField v-model="phone" label="Tu WhatsApp" required />
       <label>Nota para el negocio (opcional)<input v-model="note" maxlength="500" /></label>
       <p v-if="error" class="field-error" role="alert">{{ error }}</p>
       <button class="sx-btn sx-btn--block" :disabled="busy || !ready">
