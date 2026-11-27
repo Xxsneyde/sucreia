@@ -34004,7 +34004,44 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
 
 // server/routes/auth.ts
 var import_express5 = __toESM(require_express2(), 1);
+
+// src/domain/password.ts
+var PASSWORD_MIN = 8;
+var passwordRules = [
+  {
+    id: "length",
+    label: `M\xEDnimo ${PASSWORD_MIN} caracteres`,
+    test: (p) => [...p].length >= PASSWORD_MIN
+  },
+  { id: "letter", label: "Al menos una letra", test: (p) => new RegExp("\\p{L}", "u").test(p) },
+  { id: "number", label: "Al menos un n\xFAmero", test: (p) => new RegExp("\\p{N}", "u").test(p) },
+  {
+    id: "symbol",
+    label: "Al menos un car\xE1cter especial (por ejemplo ! # $ - _ . @)",
+    // Cualquier cosa que no sea letra, número ni espacio.
+    test: (p) => /[^\p{L}\p{N}\s]/u.test(p)
+  }
+];
+function passwordProblem(password) {
+  const missing = passwordRules.filter((r) => !r.test(password));
+  if (!missing.length) return "";
+  return `La contrase\xF1a necesita: ${missing.map((r) => r.label.toLowerCase()).join(", ")}.`;
+}
+
+// server/routes/auth.ts
 var EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+function checkNewPassword(password) {
+  const problem = passwordProblem(password);
+  if (problem) throw new HttpError(400, problem);
+}
+async function checkDocumentFree(db2, documentNumber, userId = "") {
+  const taken = await db2.prepare("SELECT 1 AS ok FROM users WHERE document_number=? AND id<>? LIMIT 1").get(documentNumber, userId);
+  if (taken)
+    throw new HttpError(
+      409,
+      "Ya hay una cuenta registrada con esa c\xE9dula. Si es tuya, ingresa con esa cuenta o recupera su contrase\xF1a."
+    );
+}
 var DUMMY_HASH = await hashPassword("contrase\xF1a-de-referencia");
 function attemptLimiter(max = 10) {
   const attempts2 = /* @__PURE__ */ new Map();
@@ -34096,8 +34133,7 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     limitConfirm(`reset|${req.ip}`);
     const token = text(req.body, "token", 128, "el enlace");
     const password = text(req.body, "password", 200, "la contrase\xF1a");
-    if (password.length < 8)
-      throw new HttpError(400, "La contrase\xF1a debe tener al menos 8 caracteres.");
+    checkNewPassword(password);
     const passwordHash = await hashPassword(password);
     await db2.transaction(async (tx) => {
       const userId = await consumeToken(tx, token, "reset");
@@ -34171,8 +34207,7 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     const password = text(req.body, "password", 200, "la contrase\xF1a");
     const role = req.body?.role === "emprendedor" ? "emprendedor" : "cliente";
     if (!EMAIL.test(email)) throw new HttpError(400, "Escribe un correo v\xE1lido.");
-    if (password.length < 8)
-      throw new HttpError(400, "La contrase\xF1a debe tener al menos 8 caracteres.");
+    checkNewPassword(password);
     const optional = (key, max) => typeof req.body?.[key] === "string" ? req.body[key].trim().slice(0, max) : "";
     const name = optional("name", 80);
     const documentNumber = optional("documentNumber", 12);
@@ -34190,6 +34225,7 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
       );
     if (await findUserByEmail(db2, email))
       throw new HttpError(409, "Ya existe una cuenta con ese correo.");
+    if (documentNumber) await checkDocumentFree(db2, documentNumber);
     const user = await createUser(db2, {
       verifyChannel: viaSms ? "sms" : "email",
       phone,
@@ -34252,6 +34288,7 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     const documentNumber = text(req.body, "documentNumber", 12, "el n\xFAmero de c\xE9dula");
     if (!/^\d{5,12}$/.test(documentNumber))
       throw new HttpError(400, "Escribe la c\xE9dula sin puntos ni espacios.");
+    await checkDocumentFree(db2, documentNumber, user.id);
     const address = text(req.body, "address", 180, "la direcci\xF3n");
     await db2.prepare(
       "UPDATE users SET name=?, document_number=?, home_address=?, profile_completed_at=COALESCE(profile_completed_at, ?) WHERE id=?"
