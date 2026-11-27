@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import RequireMerchant from '@/components/RequireMerchant.vue';
-import View from '@/features/commerce/MerchantHome.vue';
-useHead({ title: 'Mi negocio' });
+import MerchantOverview from '@/features/commerce/MerchantOverview.vue';
+useHead({ title: 'Panel del negocio' });
 </script>
 <template>
-  <RequireMerchant><View /></RequireMerchant>
+  <RequireMerchant><MerchantOverview /></RequireMerchant>
 </template>
