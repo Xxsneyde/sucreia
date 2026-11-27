@@ -31,3 +31,43 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # Si todo pasó en main, arma el paquete de Hostinger (el mismo contenido de hostinger.zip) y lo
+  # publica en la rama hostinger-pruebas, de la que despliega el sitio de pruebas en Hostinger.
+  # Hostinger no compila nada: instala sharp y nodemailer y arranca server.mjs, como producción.
+  paquete:
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # Node 22, como el servidor de Hostinger: la prueba del paquete corre en esa versión.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:hostinger
+      - name: Publicar el paquete en hostinger-pruebas
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$url" hostinger-pruebas >/dev/null; then
+            git clone -q --depth 1 --branch hostinger-pruebas "$url" despliegue
+          else
+            git init -q -b hostinger-pruebas despliegue
+            git -C despliegue remote add origin "$url"
+          fi
+          find despliegue -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r hostinger/. despliegue/
+          cd despliegue
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "El paquete no cambió."; exit 0; fi
+          git commit -q -m "Paquete de main ${GITHUB_SHA::7}"
+          git push -q origin hostinger-pruebas

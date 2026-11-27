@@ -2,6 +2,33 @@
 
 SucreIA corre en Hostinger como **aplicación Node.js** (Node 22): un solo proceso de Express entrega la API (`/api`) y el sitio de Nuxt ya compilado. La base es Postgres (Supabase) y las fotos van dentro de la base. Vercel ya no se usa; [vercel.md](vercel.md) queda solo como referencia histórica.
 
+## Sitio de pruebas (despliegue automático desde GitHub)
+
+Cada push a `main` corre la CI (tipos, pruebas de la API, build y pruebas de navegador). Si todo pasa, el trabajo `paquete` arma el paquete de Hostinger (`npm run build:hostinger`, en Node 22) y lo publica en la rama **`hostinger-pruebas`**: `server.mjs`, `package.json` y `public/`, lo mismo que va en `hostinger.zip`. Si una prueba falla, la rama no cambia y el sitio de pruebas sigue como estaba.
+
+Configuración del sitio de pruebas en Hostinger (Node.js web app conectada a GitHub):
+
+| Campo                | Valor                                                    |
+| -------------------- | -------------------------------------------------------- |
+| Repositorio / Branch | `Xxsneyde/sucreia` / **`hostinger-pruebas`** (no `main`) |
+| Framework preset     | Express (u «Other»)                                      |
+| Root directory       | La raíz (vacío o `/`)                                    |
+| Node.js version      | 22                                                       |
+| Build command        | Ninguno (el paquete ya viene compilado)                  |
+| Output directory     | Vacío                                                    |
+| Entry file           | `server.mjs`                                             |
+| Package manager      | npm                                                      |
+
+Variables de entorno del sitio de pruebas (mismos nombres que producción, **otros valores**):
+
+- `DATABASE_URL`: una base **distinta** de la de producción (otro proyecto de Supabase). Con la de producción, las pruebas crearían cuentas y negocios reales. Para comparar con datos reales, restaura ahí un respaldo de producción.
+- `PUBLIC_URL`: el dominio del sitio de pruebas, para que los enlaces de los correos apunten a él.
+- `RESEND_API_KEY` y `MAIL_FROM`: sin correo no se pueden confirmar las cuentas nuevas.
+- `TRUST_PROXY`: el mismo número que producción (compruébalo con `/api/salud/red`).
+- Google y SMS: déjalos sin configurar, salvo que registres el dominio de pruebas en Google y en Onurix.
+
+Hostinger despliega solo en cada push a `hostinger-pruebas`; «Redeploy» lo repite a mano. Producción sigue con su zip y no cambia por esto.
+
 ## Subir un cambio, paso a paso
 
 ```bash
