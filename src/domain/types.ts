@@ -30,6 +30,11 @@ export interface Business {
   hours?: string;
   /** Precio más bajo del catálogo (0 si no hay productos). */
   minPrice?: number;
+  /** Punto exacto del negocio (null si no lo marcó). */
+  lat?: number | null;
+  lng?: number | null;
+  /** Mayor descuento de sus promociones activas (%). */
+  discount?: number;
 }
 export interface CartLine {
   businessId: string;

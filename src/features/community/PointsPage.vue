@@ -702,8 +702,8 @@ const tabs = [
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid #d7e0ec;
-  border-radius: 10px;
+  border: 1.5px solid var(--field-border);
+  border-radius: 12px;
   background: #fff;
 }
 .pt-filters select {

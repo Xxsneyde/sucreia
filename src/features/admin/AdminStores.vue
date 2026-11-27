@@ -425,7 +425,7 @@ function exportExcel() {
   .as-actions {
     width: 100%;
   }
-  .as-actions > * {
+  .as-actions > :deep(*) {
     flex: 1;
   }
 }

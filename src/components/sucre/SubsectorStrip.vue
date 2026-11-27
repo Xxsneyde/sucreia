@@ -95,7 +95,7 @@ watch(
 .ss-row::-webkit-scrollbar {
   display: none;
 }
-.ss-row > * {
+.ss-row > :deep(*) {
   scroll-snap-align: start;
   flex: none;
 }

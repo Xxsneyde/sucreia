@@ -234,7 +234,7 @@ async function manage(p: StoreProject, to = '/panel') {
   .mb-actions {
     width: 100%;
   }
-  .mb-actions > * {
+  .mb-actions > :deep(*) {
     flex: 1;
   }
 }

@@ -479,8 +479,8 @@ const earned = computed(() => ({
   width: 130px;
   min-height: 34px;
   padding: 4px 10px;
-  border: 1px solid #d7e0ec;
-  border-radius: 10px;
+  border: 1.5px solid var(--field-border);
+  border-radius: 12px;
 }
 .cr-pool,
 .cr-history {

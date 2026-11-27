@@ -648,11 +648,11 @@ const priceLabel = computed(
 .sx-results.list {
   grid-template-columns: minmax(0, 1fr);
 }
-.sx-results.list .sx-biz {
+.sx-results.list :deep(.sx-biz) {
   grid-template-columns: 260px minmax(0, 1fr);
   display: grid;
 }
-.sx-results.list .sx-biz-media {
+.sx-results.list :deep(.sx-biz-media) {
   aspect-ratio: auto;
   min-height: 170px;
 }
@@ -687,7 +687,7 @@ const priceLabel = computed(
     position: sticky;
     bottom: -16px;
   }
-  .sx-results.list .sx-biz {
+  .sx-results.list :deep(.sx-biz) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
