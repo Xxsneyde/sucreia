@@ -16,7 +16,6 @@ import {
 import { issueToken } from './account-tokens.ts';
 import type { MailTransport } from './mail.ts';
 import { internalReturn } from '../src/domain/navigation.ts';
-import { roleHome } from '../src/domain/roles.ts';
 
 export interface GoogleConfig {
   clientId: string;
@@ -149,7 +148,8 @@ export function googleRoutes(
           .run(new Date().toISOString(), found.id);
       const session = await createSession(db, found.id);
       setSessionCookie(res, session.token, session.expires, secure);
-      return res.redirect(302, saved.back || `${roleHome(found.role)}/`);
+      // Sin destino guardado, la raíz decide: buscar, o el formulario del primer emprendimiento.
+      return res.redirect(302, saved.back || '/');
     }
     const user = await createUser(db, {
       email,

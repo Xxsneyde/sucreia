@@ -39,6 +39,13 @@ export async function confirmAccount(
   expect(
     (await page.request.post('/api/auth/verificar-correo', { data: { token } })).status(),
   ).toBe(200);
+  // El emprendedor queda sin sesión después de registrarse: ingresa con su correo y contraseña.
+  if (!(await (await page.request.get('/api/auth/yo')).json()).user)
+    expect(
+      (
+        await page.request.post('/api/auth/ingresar', { data: { email, password: PASSWORD } })
+      ).status(),
+    ).toBe(200);
   const profile = await page.request.put('/api/auth/perfil/datos', {
     data: { name, documentNumber, address: 'Calle 20 # 18-35, Sincelejo' },
   });
@@ -46,8 +53,9 @@ export async function confirmAccount(
 }
 
 /**
- * Crea una cuenta desde «Registrarse», la confirma, completa el perfil y abre la vista de
- * inicio (todos los roles empiezan en /buscar).
+ * Crea una cuenta desde «Registrarse», la confirma, completa el perfil y abre «Buscar negocios».
+ * (El emprendedor sin negocios entraría al formulario del emprendimiento: eso se prueba en
+ * session.spec.ts; aquí se va directo a /buscar.)
  */
 export async function account(
   page: Page,
@@ -58,7 +66,10 @@ export async function account(
 ) {
   const email = `${prefix}-${crypto.randomUUID()}@ejemplo.co`;
   await register(page, email, role);
-  await expect(page).toHaveURL(/verificar-correo/);
+  // El cliente queda en «Confirma tu correo»; el emprendedor, en el ingreso sin sesión.
+  await expect(page).toHaveURL(
+    role === 'emprendedor' ? /ingresar\/?\?registrado=1/ : /verificar-correo/,
+  );
   await confirmAccount(page, email, name, documentNumber);
   await page.goto('/buscar');
   await expect(page).toHaveURL(/buscar/);

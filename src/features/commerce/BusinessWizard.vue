@@ -207,6 +207,8 @@ function closeTab() {
 }
 /** Negocio ya creado (si un envío falló a mitad de camino, se reintenta sobre el mismo). */
 const createdId = ref('');
+/** ¿Es su primer negocio? (sin contar el que se está creando en este formulario) */
+const firstBusiness = computed(() => !studio.projects.some((p) => p.id !== createdId.value));
 watch(point, (p) => {
   if (p) {
     latInput.value = String(p[0]);
@@ -391,7 +393,13 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
         <p class="eyebrow">
           {{ props.standalone ? 'Paso 2 de 2 · Registro del emprendimiento' : 'Mi negocio' }}
         </p>
-        <h1>{{ props.standalone ? 'Registra tu emprendimiento' : 'Registrar emprendimiento' }}</h1>
+        <h1>
+          {{
+            props.standalone || firstBusiness
+              ? 'Registra tu emprendimiento'
+              : 'Registrar emprendimiento'
+          }}
+        </h1>
         <p class="muted">
           Llena todos los datos y adjunta los documentos. La administración de SucreIA los revisa y,
           al aprobarlos, tu negocio aparece en la plataforma.

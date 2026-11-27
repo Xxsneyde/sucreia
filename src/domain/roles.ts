@@ -79,6 +79,8 @@ const registrar: NavItem = {
   label: 'Registrar emprendimiento',
   icon: 'wand',
 };
+/** Mientras el emprendedor no tiene ningún negocio, la invitación habla de «tu» emprendimiento. */
+const registrarPrimero: NavItem = { ...registrar, label: 'Registra tu emprendimiento' };
 const explorar: NavSection = {
   id: 'explorar',
   title: 'Explorar',
@@ -103,7 +105,7 @@ export type StoreKind = 'products' | 'booking' | 'quote' | 'none';
 function negocio(kind: StoreKind): NavSection {
   const items: NavItem[] =
     kind === 'none'
-      ? [registrar]
+      ? [registrarPrimero]
       : [
           {
             href: '/panel/negocios',
@@ -146,6 +148,7 @@ export const canBuyRole = (role: Role) => role === 'cliente' || role === 'empren
 /** Nombres cortos para el menú inferior del celular. */
 const shortLabels: Record<string, string> = {
   'Registrar emprendimiento': 'Registrar',
+  'Registra tu emprendimiento': 'Registrar',
   'Mapa de emprendimientos': 'Mapa',
   'Mis negocios': 'Negocios',
   'Negocios aprobados': 'Aprobados',

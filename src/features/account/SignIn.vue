@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { roleHome } from '@/domain/roles';
+import { startPage } from '@/lib/start';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { internalReturn } from '@/domain/navigation';
@@ -33,6 +34,12 @@ function readQuery() {
     mode.value = 'ingresar';
     if (read('correo')) email.value = read('correo');
     notice.value = '¡Tu cuenta quedó confirmada! Ingresa con tu correo y contraseña.';
+  }
+  // Emprendedor recién registrado: confirma su cuenta por correo y luego ingresa.
+  if (read('registrado') === '1') {
+    mode.value = 'ingresar';
+    if (read('correo')) email.value = read('correo');
+    notice.value = `Tu cuenta quedó creada. Te enviamos un enlace a ${email.value || 'tu correo'}: confírmalo y luego ingresa con tu correo y contraseña para registrar tu emprendimiento.`;
   }
   googleResult(read('google'));
 }
@@ -136,6 +143,21 @@ async function submit() {
         verifyBy: verifyBy.value,
         ...(verifyBy.value === 'sms' ? { phone: phone.value } : {}),
       });
+    // El emprendedor que confirma por correo no queda con la sesión abierta: va al ingreso, y
+    // después de confirmar e ingresar empieza a registrar su emprendimiento. (Con SMS se queda
+    // para escribir el código; si el correo no salió, se queda para pedir otro enlace.)
+    if (
+      mode.value === 'registro' &&
+      session.user?.role === 'emprendedor' &&
+      verifyBy.value === 'email' &&
+      !session.emailNotice
+    ) {
+      const created = email.value;
+      await session.logout();
+      password.value = '';
+      await router.push({ path: '/ingresar', query: { registrado: '1', correo: created } });
+      return;
+    }
     // Primero confirmar la cuenta o completar el perfil, si falta.
     const gate = profileGate(session.user, '/');
     if (gate) {
@@ -143,7 +165,7 @@ async function submit() {
       return;
     }
     forgetBack();
-    await router.push(back.value || roleHome(session.user!.role));
+    await router.push(back.value || (await startPage(session.user!)));
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -224,7 +246,7 @@ async function submit() {
         <ol class="ax-flow">
           <li><span>1</span> Crea tu cuenta.</li>
           <li><span>2</span> Confirma tu cuenta (por correo o mensaje de texto) e ingresa.</li>
-          <li><span>3</span> Registra tu negocio (se abre en una pestaña nueva).</li>
+          <li><span>3</span> Al entrar, registra tu emprendimiento en el formulario.</li>
         </ol>
         <p>Ten a la mano lo que la administración de SucreIA revisará antes de publicarlo:</p>
         <ul>

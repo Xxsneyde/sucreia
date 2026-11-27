@@ -23,9 +23,11 @@ const server = createApp({
   imagesDir,
   localMail: true,
   staticDir: resolve('.output/public'),
-  // Las pruebas crean muchas cuentas desde 127.0.0.1; el servidor real mantiene 60.
+  // Las pruebas crean muchas cuentas e ingresan muchas veces desde 127.0.0.1; el servidor real
+  // mantiene sus límites (60 registros y 50 ingresos por IP cada 15 minutos).
   registrationLimit: 10_000,
   linkLimit: 10_000,
+  loginLimit: 10_000,
 }).listen(Number(process.env.E2E_PORT ?? 4173), '127.0.0.1');
 function stop() {
   server.close(() => {

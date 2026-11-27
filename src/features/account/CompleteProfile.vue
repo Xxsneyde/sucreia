@@ -6,11 +6,10 @@ import PageTitle from '@/components/PageTitle.vue';
 import LogoutButton from '@/components/LogoutButton.vue';
 import { api } from '@/lib/api';
 import { useSession, type SessionUser } from '@/lib/session';
-import { openBlankTab, sendToRegistration } from '@/lib/registration-tab';
+import { startPage } from '@/lib/start';
 import { internalReturn } from '@/domain/navigation';
-import { roleHome } from '@/domain/roles';
-// Paso 2 de 2: nombre, cédula y dirección. Al emprendedor se le abre el registro de su negocio
-// en una pestaña nueva.
+// Paso 2 de 2: nombre, cédula y dirección. Después, el emprendedor sin negocios entra directo al
+// formulario para registrar su emprendimiento (en la misma pestaña).
 const session = useSession();
 const router = useRouter();
 const name = ref('');
@@ -41,7 +40,6 @@ async function save() {
   if (busy.value || !session.user) return;
   busy.value = true;
   error.value = '';
-  const tab = session.user.role === 'emprendedor' ? openBlankTab() : null;
   try {
     const result = await api<{ user: SessionUser }>('PUT', '/auth/perfil/datos', {
       name: name.value,
@@ -49,10 +47,8 @@ async function save() {
       address: address.value,
     });
     session.setUser(result.user);
-    if (result.user.role === 'emprendedor') sendToRegistration(tab);
-    await router.replace(savedBack() || roleHome(result.user.role));
+    await router.replace(savedBack() || (await startPage(result.user)));
   } catch (e) {
-    tab?.close();
     error.value = (e as Error).message;
   } finally {
     busy.value = false;
@@ -103,7 +99,7 @@ async function save() {
         />
       </label>
       <p v-if="session.user.role === 'emprendedor'" class="muted small" style="margin: 0">
-        Al guardar se abre el registro de tu negocio en una pestaña nueva.
+        Al guardar pasas al formulario para registrar tu emprendimiento.
       </p>
       <p v-if="error" role="alert" class="field-error">{{ error }}</p>
       <button class="button" :disabled="busy">

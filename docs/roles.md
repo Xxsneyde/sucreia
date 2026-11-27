@@ -13,7 +13,9 @@ El servidor comprueba permisos en cada operación de la API; estas reglas decide
 | **Emprendedor**   | Crear cuenta con «Tengo un negocio», o pasarse desde `/emprender` (no tiene vuelta atrás) | `/buscar`   |
 | **Administrador** | Solo desde la terminal (ver `docs/operacion.md`)                                          | `/buscar`   |
 
-Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta** (`/verificar-correo`, por correo o SMS) y **completan el perfil** (`/completar-perfil`: nombre, cédula y dirección). El middleware lleva ahí a quien le falte un paso. Al emprendedor, al completar el perfil, se le abre el registro de su negocio en otra pestaña (`/registro-negocio`).
+Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta** (`/verificar-correo`, por correo o SMS) y **completan el perfil** (`/completar-perfil`: nombre, cédula y dirección). El middleware lleva ahí a quien le falte un paso.
+
+**Emprendedor nuevo:** al pulsar «Crear mi cuenta» (confirmando por correo) no queda con la sesión abierta: va a `/ingresar` con el aviso de que confirme su correo. Después de confirmar, ingresar y completar el perfil, entra directo al formulario `/panel/configurar`, en la misma pestaña. Mientras no tenga negocios, ese es su inicio (`src/lib/start.ts` y la raíz `/` en `server/app.ts`) y la pestaña del menú y el título se llaman «Registra tu emprendimiento»; con un negocio pasan a «Registrar emprendimiento» y su inicio es `/buscar`.
 
 ## Menús
 
@@ -23,7 +25,7 @@ Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta**
 
 | Negocio               | Mi negocio                                                                                                          |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Sin negocio           | Registrar emprendimiento, Notificaciones, PQRS                                                                      |
+| Sin negocio           | Registra tu emprendimiento, Notificaciones, PQRS                                                                    |
 | Productos             | Mis negocios, Registrar emprendimiento, Promociones y reseñas, Notificaciones, PQRS                                 |
 | Servicios con reserva | Mis negocios, Registrar emprendimiento, Reservas (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS    |
 | Cotización            | Mis negocios, Registrar emprendimiento, Solicitudes (`/panel/pedidos`), Promociones y reseñas, Notificaciones, PQRS |

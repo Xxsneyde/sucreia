@@ -43,13 +43,15 @@ test('emprendedor: «Mi negocio» primero; con un negocio publicado aparece «Mi
   await openMenu(page, isMobile);
   const titles = menu(page).locator('.sx-nav-title');
   await expect(titles).toHaveText(['Mi negocio', 'Explorar y comprar']);
-  await expect(menu(page).getByRole('link', { name: 'Registrar emprendimiento' })).toBeVisible();
+  // Sin negocios, la invitación es «Registra tu emprendimiento».
+  await expect(menu(page).getByRole('link', { name: 'Registra tu emprendimiento' })).toBeVisible();
   await expect(menu(page).getByRole('link', { name: 'Mis negocios' })).toHaveCount(0);
 
   const { design } = await publishedStore(page);
   await page.goto('/buscar');
   await openMenu(page, isMobile);
   await expect(menu(page).getByRole('link', { name: 'Promociones y reseñas' })).toBeVisible();
+  await expect(menu(page).getByRole('link', { name: 'Registrar emprendimiento' })).toBeVisible();
   await menu(page).getByRole('link', { name: 'Mis negocios' }).click();
   await expect(page).toHaveURL(/panel\/negocios/);
   await expect(page.getByRole('listitem').filter({ hasText: design.name })).toContainText(

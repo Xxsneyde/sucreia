@@ -134,13 +134,12 @@ const pageUrl = computed(() =>
     <p class="eyebrow">Paso 2 de 2</p>
     <h1>Registra tu emprendimiento</h1>
     <p>
-      Llena el formulario en la pestaña que se abrió al crear tu cuenta o aquí, en «Registrar
-      emprendimiento». Ten listos tus documentos (identidad, RUT, certificado bancario y Cámara de
-      Comercio si eres persona jurídica), tu logo, una foto de portada y las fotos de tus productos
-      o servicios.
+      Llena el formulario en «Registra tu emprendimiento». Ten listos tus documentos (identidad,
+      RUT, certificado bancario y Cámara de Comercio si eres persona jurídica), tu logo, una foto de
+      portada y las fotos de tus productos o servicios.
     </p>
     <NuxtLink class="sx-btn mo-start-btn" :to="REGISTER_PATH"
-      ><Plus :size="18" /> Registrar emprendimiento</NuxtLink
+      ><Plus :size="18" /> Registra tu emprendimiento</NuxtLink
     >
     <small class="muted">Cuando lo envíes, esta página mostrará el estado de la revisión.</small>
   </section>

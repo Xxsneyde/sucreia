@@ -219,10 +219,17 @@ export function createApp({
     // Páginas de la plataforma sin sesión: redirigir antes de enviar su HTML. Así el visitante
     // no ve ni un instante de la página y no hay diferencias de hidratación en el navegador.
     // Misma lista que el middleware del frontend (src/domain/access.ts).
-    app.use(loadUser(db), (req, res, next) => {
-      // Sin portada: la raíz lleva a buscar (con sesión) o a ingresar.
-      if (['GET', 'HEAD'].includes(req.method) && req.path === '/')
-        return res.redirect(302, currentUser(res) ? '/buscar/' : '/ingresar/');
+    app.use(loadUser(db), async (req, res, next) => {
+      // Sin portada: la raíz lleva a ingresar (sin sesión), al formulario del emprendimiento (el
+      // emprendedor que aún no tiene negocios, como src/lib/start.ts) o a buscar.
+      if (['GET', 'HEAD'].includes(req.method) && req.path === '/') {
+        const user = currentUser(res);
+        if (!user) return res.redirect(302, '/ingresar/');
+        const firstBusiness =
+          user.role === 'emprendedor' &&
+          !(await db.prepare('SELECT 1 AS ok FROM stores WHERE owner_id=? LIMIT 1').get(user.id));
+        return res.redirect(302, firstBusiness ? '/panel/configurar/' : '/buscar/');
+      }
       // Solo páginas: los archivos generados (`_payload.json`, imágenes…) no tienen datos
       // personales y Nuxt los descarga por adelantado al mostrar enlaces.
       const isFile = /\.[a-z0-9]+$/i.test(req.path);

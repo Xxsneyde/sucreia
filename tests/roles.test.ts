@@ -51,7 +51,7 @@ test('visitantes y clientes ven el menú principal; el cliente además la invita
 test('el menú del emprendedor cambia según tenga negocio y su modalidad', () => {
   const menu = (kind: 'none' | 'products' | 'booking' | 'quote') =>
     navFor(emprendedor, 'negocio', kind).sections[0].items.map((i) => i.label);
-  assert.deepEqual(menu('none'), ['Registrar emprendimiento', 'Notificaciones', 'PQRS']);
+  assert.deepEqual(menu('none'), ['Registra tu emprendimiento', 'Notificaciones', 'PQRS']);
   assert.deepEqual(menu('products'), [
     'Mis negocios',
     'Registrar emprendimiento',
