@@ -150,9 +150,10 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
           </NuxtLink>
         </div>
       </nav>
-      <NuxtLink class="sx-side-account" :to="user ? '/perfil' : login">
+      <!-- Con sesión, la cuenta se administra desde el menú de arriba a la derecha. -->
+      <NuxtLink v-if="!user" class="sx-side-account" :to="login">
         <CircleUser :size="24" />
-        <span>{{ user ? 'Mi cuenta' : 'Ingresar' }}</span>
+        <span>Ingresar</span>
         <ChevronRight :size="18" />
       </NuxtLink>
     </aside>
@@ -200,6 +201,7 @@ const showSearch = computed(() => mode.value === 'comprar' || /^\/buscar(\/|$)/.
               </button>
               <div v-if="menu" class="sx-menu">
                 <p class="sx-menu-note">Cuenta de {{ modeNames[mode].toLowerCase() }}</p>
+                <NuxtLink to="/perfil"><CircleUser :size="18" /> Mi cuenta</NuxtLink>
                 <NuxtLink v-if="buyer" to="/pedidos"
                   ><ShoppingCart :size="18" /> Mis compras</NuxtLink
                 >

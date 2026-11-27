@@ -20,6 +20,17 @@ test('cliente: menú principal; administración y páginas retiradas lo devuelve
   ])
     await expect(menu(page).getByRole('link', { name: label, exact: true })).toBeVisible();
   await expect(menu(page).locator('.sx-nav-title')).toHaveCount(0);
+  // «Mi cuenta» solo está en el menú de la cuenta, arriba a la derecha.
+  await expect(page.getByRole('link', { name: 'Mi cuenta', exact: true })).toHaveCount(0);
+  // En celular se cierra primero el menú lateral, que tapa la barra de arriba.
+  if (isMobile) {
+    const width = page.viewportSize()!.width;
+    await page.locator('.sx-scrim').click({ position: { x: width - 12, y: 300 } });
+    await expect(page.locator('.sx-scrim')).toHaveCount(0);
+  }
+  await page.getByRole('button', { name: /Hola,/ }).click();
+  await page.locator('.sx-menu').getByRole('link', { name: 'Mi cuenta', exact: true }).click();
+  await expect(page).toHaveURL(/\/perfil\/?$/);
   for (const path of ['/admin', '/inicio', '/puntos', '/escuela', '/domiciliario']) {
     await page.goto(path);
     await expect(page, path).toHaveURL(/\/buscar\/?$/);

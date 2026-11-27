@@ -32,7 +32,9 @@ Antes de usar la plataforma, el cliente y el emprendedor **confirman la cuenta**
 
 **Administrador**: «Administración» (Aprobación de negocios, Negocios aprobados, Mis negocios, Registrar emprendimiento, PQRS, Notificaciones) y «Explorar». No compra, no reserva ni guarda favoritos.
 
-En celular, el menú inferior tiene cuatro pestañas: para el cliente Buscar, Mapa, Compras y Mi cuenta; para el emprendedor las tres primeras de «Mi negocio» y Mi cuenta; para el administrador Aprobar, Aprobados, Negocios y Mi cuenta.
+En celular, el menú inferior tiene cuatro pestañas: para el cliente Buscar, Mapa, Compras y Reservas; para el emprendedor las cuatro primeras de «Mi negocio» (sin avisos; si hay menos, se completa con Buscar); para el administrador Aprobar, Aprobados, Negocios y Registrar.
+
+**Mi cuenta** (`/perfil`) se abre solo desde el menú de la cuenta, arriba a la derecha («Hola, …»). El menú lateral no la repite; sin sesión, ahí aparece «Ingresar».
 
 ## Páginas
 

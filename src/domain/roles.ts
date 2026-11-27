@@ -174,7 +174,9 @@ export const modeNames: Record<Mode, string> = {
   admin: 'Administrador',
 };
 
-const account: NavItem = { href: '/perfil', label: 'Mi cuenta', icon: 'user' };
+// «Mi cuenta» no va en estos menús: el perfil se administra desde el menú de la cuenta, arriba a
+// la derecha (src/layouts/default.vue).
+const buscarCorto: NavItem = { href: '/buscar', label: 'Buscar', icon: 'search' };
 
 /**
  * Secciones del menú lateral y del menú inferior (celular). Sin sesión se ve el menú principal:
@@ -190,27 +192,25 @@ export function navFor(
   if (current === 'admin')
     return {
       sections: [admin, explorar],
-      mobile: shorten([admin.items[0], admin.items[1], admin.items[2], account]),
+      mobile: shorten(admin.items.slice(0, 4)),
     };
   if (current === 'negocio') {
     const section = negocio(kind);
     return {
       sections: [section, explorarYComprar],
+      // Cuatro accesos del negocio (sin avisos); si hay menos, se completa con Buscar.
       mobile: shorten(
-        section.items
-          .filter((i) => i.href !== '/notificaciones')
-          .slice(0, 3)
-          .concat(account),
+        [...section.items.filter((i) => i.href !== '/notificaciones'), buscarCorto].slice(0, 4),
       ),
     };
   }
   return {
     sections: [viewer ? principalCliente : principal],
     mobile: [
-      { href: '/buscar', label: 'Buscar', icon: 'search' },
+      buscarCorto,
       { href: '/mapa', label: 'Mapa', icon: 'map' },
       { href: '/pedidos', label: 'Compras', icon: 'cart' },
-      account,
+      { href: '/solicitudes', label: 'Reservas', icon: 'calendar' },
     ],
   };
 }

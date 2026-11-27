@@ -44,7 +44,7 @@ test('visitantes y clientes ven el menú principal; el cliente además la invita
   );
   assert.deepEqual(
     navFor(cliente).mobile.map((i) => i.label),
-    ['Buscar', 'Mapa', 'Compras', 'Mi cuenta'],
+    ['Buscar', 'Mapa', 'Compras', 'Reservas'],
   );
 });
 
@@ -67,10 +67,10 @@ test('el menú del emprendedor cambia según tenga negocio y su modalidad', () =
     ['negocio', 'explorar'],
   );
   assert.equal(nav.sections[1].title, 'Explorar y comprar');
-  // En el celular: tres accesos del negocio (sin avisos) y la cuenta, con nombres cortos.
+  // En el celular: cuatro accesos del negocio (sin avisos), con nombres cortos.
   assert.deepEqual(
     nav.mobile.map((i) => i.label),
-    ['Negocios', 'Registrar', 'Promos', 'Mi cuenta'],
+    ['Negocios', 'Registrar', 'Promos', 'PQRS'],
   );
 });
 
@@ -83,7 +83,7 @@ test('el administrador ve aprobación, negocios aprobados y PQRS', () => {
   assert.ok(hrefs(nav.sections).includes('/admin/pqrs'));
   assert.deepEqual(
     nav.mobile.map((i) => i.label),
-    ['Aprobar', 'Aprobados', 'Negocios', 'Mi cuenta'],
+    ['Aprobar', 'Aprobados', 'Negocios', 'Registrar'],
   );
 });
 
