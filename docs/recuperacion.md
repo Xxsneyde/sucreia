@@ -10,7 +10,9 @@ El 26 de noviembre de 2026 se perdió el código local más reciente, que nunca 
 
 Las cinco fases están hechas: el frontend y el backend del repo coinciden con lo publicado y `npm run build:hostinger` arma el paquete (`hostinger/server.mjs`, `public/` y `package.json`) con la misma forma que lo que corre hoy en Hostinger. El paquete se probó arrancándolo con una base temporal y responde igual que el publicado.
 
-**Antes de reemplazar lo publicado** falta lo que no se puede comprobar desde aquí: los recorridos en navegador (`npm run test:e2e`), una revisión visual en el celular y un respaldo de lo que está en Hostinger y en Supabase. Pasos en [hostinger.md](hostinger.md). Lo que está publicado hoy sigue funcionando mientras tanto.
+Las pruebas de navegador (`npm run test:e2e`) ya siguen la interfaz publicada; ver [Pruebas de navegador](#pruebas-de-navegador).
+
+**Antes de reemplazar lo publicado** falta lo que no se puede comprobar desde aquí: una revisión visual en el celular y un respaldo de lo que está en Hostinger y en Supabase. Pasos en [hostinger.md](hostinger.md). Lo que está publicado hoy sigue funcionando mientras tanto.
 
 ## Fases
 
@@ -139,6 +141,22 @@ Cada archivo de `server/` se pasó a JavaScript (quitando los tipos con esbuild)
 14. Pruebas: `tests/registration.ts` (ayuda) y `tests/registration.test.ts` (nueva: registro con revisión, documentos, PQRS, compras por WhatsApp, valoraciones, asistente, SMS, cabeceras); las pruebas que crean negocios aceptan los términos y parten de un registro aprobado
 
 Validación de la fase 5: TypeScript del servidor, las pruebas y el frontend sin errores; 92 de 92 pruebas correctas con SQLite y con Postgres (PGlite). El paquete de `build:hostinger` pesa lo mismo que el publicado (1,6 MB) y, arrancados los dos con una base temporal, responden igual (salud, redirecciones, páginas, `/.env` bloqueado, asistente).
+
+## Pruebas de navegador
+
+Las pruebas de `tests/e2e` se escribieron para la interfaz anterior y se adaptaron a la publicada. La regla fue la misma de toda la recuperación: la app no se tocó; cada prueba sigue lo que muestra la versión publicada. Son 23 recorridos, en escritorio y en celular (46 en total).
+
+Lo que cambió en los recorridos:
+
+- **Cuenta**: el registro pide solo correo y contraseña. Después se confirma la cuenta (el enlace cierra la sesión y se vuelve a ingresar) y se completa el perfil (nombre, cédula y dirección). Al emprendedor se le abre el registro del negocio en otra pestaña. Todos los roles empiezan en `/buscar`, que ahora también pide cuenta.
+- **Negocio**: se registra en siete pasos (`/panel/configurar`) con logo encuadrado, portada y fotos de al menos 360 px, tres productos y documentos. Solo aparece cuando la administración lo aprueba en `/admin`.
+- **Compras**: el carrito envía el pedido por WhatsApp. Las pruebas responden `wa.me` con una página vacía (no salen a internet) y revisan el mensaje, «Mis compras» y el panel del negocio.
+- **Reservas**: el cliente elige servicio, día y hora en el selector; la reseña se prueba al final de la cotización completada.
+- **Menús**: los de `src/domain/roles.ts`: cliente, emprendedor (con y sin negocio) y administración.
+
+Se quitaron las pruebas de páginas que lo publicado retiró del menú y redirige a `/buscar` (Escuela, SucrePuntos, Domiciliario, inicio). En su lugar se comprueba esa redirección. La lógica de esas funciones sigue cubierta por las pruebas de la API (`rewards.test.ts`, `logistics.test.ts`). Los referidos se prueban con el código que devuelve `/api/plataforma/estado`. `logistics.spec.ts` pasó a llamarse `agenda.spec.ts` (negocio con reservas, cupo por hora y agenda).
+
+El servidor de pruebas (`tests/browser-server.ts`) crea una cuenta de administración por proceso de Playwright (`admin-0@pruebas.co`, `admin-1@…`). El ingreso admite 10 intentos por correo cada 15 minutos, y con una sola cuenta las aprobaciones en paralelo recibían 429.
 
 ## Diferencias que no se pudieron confirmar
 

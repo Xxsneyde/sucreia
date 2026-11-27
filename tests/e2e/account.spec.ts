@@ -1,23 +1,45 @@
 import { test, expect } from '@playwright/test';
+import { fits, PASSWORD, register } from './helpers.ts';
 
-test('verificar correo y recuperar contraseña desde la bandeja local', async ({ page }) => {
+test('confirmar la cuenta, completar el perfil y recuperar la contraseña desde la bandeja local', async ({
+  page,
+}) => {
   const email = `cuenta-${crypto.randomUUID()}@ejemplo.co`;
-  await page.goto('/ingresar?cuenta=nueva');
-  await page.getByLabel('Tu nombre').fill('Emprendedora');
-  await page.getByLabel('Correo electrónico').fill(email);
-  await page.getByLabel('Contraseña', { exact: true }).fill('clave-inicial-1');
-  await page.getByRole('button', { name: 'Crear mi cuenta' }).click();
-  await expect(page).toHaveURL(/panel/);
-  await page.goto('/correo-local');
-  const verification = page
+  await register(page, email, 'cliente');
+  await expect(page).toHaveURL(/verificar-correo/);
+  await expect(page.getByRole('heading', { name: 'Confirma tu correo.' })).toBeVisible();
+  await expect(page.getByText(email)).toBeVisible();
+  // Sin confirmar, la plataforma devuelve a este paso.
+  await page.goto('/buscar');
+  await expect(page).toHaveURL(/verificar-correo/);
+
+  await page.getByRole('link', { name: 'bandeja de desarrollo' }).click();
+  await page
     .locator('li')
     .filter({ hasText: email })
-    .filter({ hasText: 'Verifica tu correo' });
-  await verification.getByRole('link', { name: 'Abrir enlace' }).click();
-  await page.getByRole('button', { name: 'Confirmar mi correo' }).click();
-  await expect(page.getByRole('heading', { name: 'Correo verificado', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Volver a mi perfil' }).click();
+    .filter({ hasText: 'Verifica tu correo' })
+    .getByRole('link', { name: 'Abrir enlace' })
+    .click();
+  await expect(page).toHaveURL(/ingresar\/?\?confirmado=1/);
+  await expect(page.getByRole('status')).toContainText('¡Tu cuenta quedó confirmada!');
+  await expect(page.getByLabel('Correo electrónico')).toHaveValue(email);
+  await page.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).last().click();
+
+  await expect(page).toHaveURL(/completar-perfil/);
+  await expect(page.getByRole('heading', { name: 'Completa tus datos.' })).toBeVisible();
+  // Sin perfil completo tampoco se entra a la plataforma.
+  await page.goto('/pedidos');
+  await expect(page).toHaveURL(/completar-perfil/);
+  await page.getByLabel('Nombre completo').fill('Compradora de prueba');
+  await page.getByLabel('Número de cédula').fill('1100223344');
+  await page.getByLabel('Dirección').fill('Calle 20 # 18-35, Sincelejo');
+  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  await expect(page).toHaveURL(/buscar/);
+  await page.goto('/perfil');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hola, Compradora de prueba.');
   await expect(page.getByText('Correo verificado', { exact: true })).toBeVisible();
+
   await page.getByRole('button', { name: /Hola,/ }).click();
   await page
     .locator('.sx-menu')
@@ -41,20 +63,27 @@ test('verificar correo y recuperar contraseña desde la bandeja local', async ({
   await page.getByLabel('Repite la contraseña').fill('clave-nueva-2');
   await page.getByRole('button', { name: 'Guardar contraseña' }).click();
   await expect(page.getByRole('heading', { name: 'Ya puedes volver' })).toBeVisible();
-  await page.getByRole('link', { name: 'Volver a ingresar' }).click();
+  await page.getByRole('link', { name: 'Volver a ingresar →' }).click();
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill('clave-nueva-2');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).last().click();
-  await expect(page).toHaveURL(/panel/);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
+  await expect(page).toHaveURL(/buscar/);
+  expect(await fits(page)).toBe(true);
 });
 
 test('enlaces inválidos permiten volver a solicitarlos', async ({ page }) => {
+  // El enlace de confirmación se usa al abrirlo.
   await page.goto('/verificar-correo?token=invalido');
-  await page.getByRole('button', { name: 'Confirmar mi correo' }).click();
   await expect(page.getByRole('alert')).toContainText('ya se usó o venció');
+  await page.getByRole('link', { name: 'Iniciar sesión →' }).click();
+  await expect(page).toHaveURL(/ingresar/);
+
+  await page.goto('/recuperar?token=invalido');
+  await page.getByLabel('Nueva contraseña', { exact: true }).fill('clave-nueva-2');
+  await page.getByLabel('Repite la contraseña').fill('clave-nueva-2');
+  await page.getByRole('button', { name: 'Guardar contraseña' }).click();
+  await expect(page.getByRole('alert')).toContainText('venció');
   await page.getByRole('link', { name: 'Solicitar otro enlace' }).click();
-  await expect(page.getByRole('link', { name: 'Ingresar', exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recupera tu acceso.' })).toBeVisible();
+  await expect(page.getByLabel('Correo de tu cuenta')).toBeVisible();
 });

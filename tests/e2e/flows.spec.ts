@@ -1,71 +1,74 @@
 import { test, expect } from '@playwright/test';
-import { account, fits, publishedStore } from './helpers.ts';
+import { currency } from '../../src/domain/rules.ts';
+import { account, fits, PASSWORD, publishedStore, stubWhatsapp } from './helpers.ts';
 
-test('dos cuentas: publicación, pedido, pago, entrega con PIN, reseña y puntos', async ({
+test('compra por WhatsApp: el carrito arma el pedido y queda en Mis compras y en el panel', async ({
   page,
   browser,
 }) => {
   await account(page, 'emprendedor', 'recorrido');
-  const design = (await import('../../src/domain/studio.ts')).createDesign(
-    'Artesanías',
-    `Artesanías ${crypto.randomUUID().slice(0, 6)}`,
-  );
-  design.products[0].price = 12000;
-  const created = await page.request.post('/api/mis-tiendas', { data: { design } });
-  const { store } = await created.json();
-  expect((await page.request.post(`/api/mis-tiendas/${store.id}/publicar`)).status()).toBe(200);
+  const { id, design } = await publishedStore(page);
+  const product = design.products[0];
 
   const buyer = await browser.newPage();
-  await account(buyer, 'cliente', 'recorrido');
-  await buyer.goto(`/tienda?id=${store.id}`);
+  await stubWhatsapp(buyer);
+  await account(buyer, 'cliente', 'recorrido', 'Compradora Recorrido');
+  await buyer.goto(`/tienda?id=${id}`);
   await expect(buyer.getByRole('heading', { level: 1, name: design.name })).toBeVisible();
   await buyer.getByRole('tab', { name: 'Productos y servicios' }).click();
-  await buyer.getByRole('button', { name: `Agregar ${design.products[0].name}` }).click();
+  await buyer.getByRole('button', { name: `Agregar ${product.name}` }).click();
   const cart = buyer.getByRole('region', { name: 'Tu carrito' });
-  await expect(cart).toContainText('Total a pagar');
-  await cart.getByRole('button', { name: 'Finalizar compra' }).click();
-  await expect(buyer).toHaveURL(/carrito/);
-  await buyer.getByLabel('WhatsApp con código de país').fill('+573001234567');
-  await buyer.getByRole('button', { name: 'Confirmar pedido', exact: true }).click();
-  await expect(buyer).toHaveURL(/pedidos/);
-  await expect(buyer.getByText(design.name, { exact: true })).toBeVisible();
-  const pin = (await buyer.locator('.flow-pin strong').textContent())!.trim();
+  await expect(cart).toContainText(product.name);
+  await cart.getByRole('button', { name: 'Más', exact: true }).click();
+  await expect(cart.locator('.fc-total')).toContainText(currency(product.price * 2));
+  await cart.getByLabel('Nota para el negocio (opcional)').fill('Para el sábado, por favor.');
+  // El pedido se abre en WhatsApp (en otra pestaña) con el detalle listo.
+  const whatsapp = buyer.waitForEvent('popup');
+  await cart.getByRole('button', { name: 'Comprar por WhatsApp' }).click();
+  const chat = await whatsapp;
+  await chat.waitForURL(/wa\.me\/573001234567/);
+  const message = new URL(chat.url()).searchParams.get('text') ?? '';
+  expect(message).toContain(product.name);
+  expect(message).toContain('Para el sábado, por favor.');
+  await chat.close();
+  await expect(cart.getByRole('status')).toContainText(`¡Pedido enviado a ${design.name}!`);
 
-  await page.goto('/panel/pedidos');
-  const card = page.locator('.flow-operation').filter({ hasText: design.name });
-  await card.getByRole('button', { name: 'Tomar y preparar' }).click();
-  await card.getByRole('button', { name: 'Marcar listo' }).click();
-  await card.getByRole('button', { name: 'Confirmar pago recibido' }).click();
-  await card.getByLabel('PIN que te comparte el cliente').fill(pin);
-  await card.getByRole('button', { name: 'Confirmar entrega con PIN' }).click();
-
-  await buyer.getByRole('button', { name: 'Actualizar estado' }).click();
-  await expect(buyer.locator('.flow-operation .tag')).toHaveText('Completado');
-  await buyer.getByLabel('Tu experiencia').fill('Recibí el producto y todo estuvo bien.');
-  await buyer.getByRole('button', { name: 'Publicar reseña' }).click();
-  await expect(buyer.getByRole('status').filter({ hasText: 'Tu reseña' })).toBeVisible();
-
-  // La reseña real aparece en la página del negocio y los puntos en SucrePuntos.
-  await buyer.goto(`/tienda?id=${store.id}`);
-  await expect(buyer.getByRole('tab', { name: 'Reseñas (1)' })).toBeVisible();
-  await buyer.goto('/puntos');
-  // 12 por la compra de $12.000 + 20 por la reseña.
-  await expect(buyer.locator('.pt-balance strong')).toHaveText('32');
+  await buyer.goto('/pedidos');
+  const mine = buyer.locator('.wo > li').filter({ hasText: design.name });
+  await expect(mine).toContainText(`2 × ${product.name}`);
+  await expect(mine).toContainText('Nota: Para el sábado, por favor.');
   expect(await fits(buyer)).toBe(true);
   await buyer.close();
+
+  // El negocio lo ve anotado en su panel.
+  await page.goto('/panel');
+  const received = page.locator('.wo > li').filter({ hasText: 'Compradora Recorrido' });
+  await expect(received).toContainText(`2 × ${product.name}`);
+  await expect(received).toContainText(currency(product.price * 2));
 });
 
-test('cliente activa su negocio conservando la cuenta y lo crea en «Datos del negocio»', async ({
+test('cliente se pasa a emprendedor desde su cuenta y el registro se abre en otra pestaña', async ({
   page,
 }) => {
-  await account(page);
+  await account(page, 'cliente', 'cambio');
   await page.goto('/perfil');
-  await page.getByRole('button', { name: 'Activar mi cuenta de emprendedor' }).click();
-  await page.goto('/panel/perfil');
-  await page.getByLabel('Nombre del negocio').fill('Mi primera tienda');
-  await page.getByRole('button', { name: 'Crear mi negocio' }).click();
-  await expect(page.getByRole('heading', { name: 'Identidad' })).toBeVisible();
-  await expect(page.getByLabel('Nombre del negocio')).toHaveValue('Mi primera tienda');
+  await page.getByRole('link', { name: '¿Quieres montar tu propio emprendimiento? →' }).click();
+  await expect(page).toHaveURL(/emprender/);
+  const change = page.getByRole('button', { name: 'Pasarme a emprendedor y registrar mi negocio' });
+  await expect(change).toBeDisabled();
+  await page.getByLabel('Entiendo y acepto que mi cuenta pasará a ser de emprendedor.').check();
+  const registration = page.waitForEvent('popup');
+  await change.click();
+  const tab = await registration;
+  await expect(tab).toHaveURL(/registro-negocio/);
+  await expect(
+    tab.getByRole('heading', { level: 1, name: 'Registra tu emprendimiento' }),
+  ).toBeVisible();
+  await tab.close();
+  await expect(page).toHaveURL(/\/panel\/?$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Registra tu emprendimiento');
+  await page.goto('/perfil');
+  await expect(page.getByText('Emprendedor', { exact: true })).toBeVisible();
 });
 
 test('las pantallas principales tienen estados vacíos sin desbordar ni inventar actividad', async ({
@@ -73,31 +76,34 @@ test('las pantallas principales tienen estados vacíos sin desbordar ni inventar
 }) => {
   await account(page, 'emprendedor');
   for (const path of [
-    '/inicio',
     '/buscar',
     '/sectores',
     '/mapa',
-    '/puntos',
-    '/logistica',
-    '/escuela',
-    '/recomendaciones',
     '/solicitudes',
     '/pedidos',
     '/favoritos',
     '/notificaciones',
     '/perfil',
+    '/pqrs',
     '/panel',
+    '/panel/negocios',
     '/panel/perfil',
     '/panel/productos',
-    '/domiciliario',
+    '/panel/configurar',
   ]) {
     await page.goto(path);
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeAttached();
+    await expect(page.getByRole('heading', { level: 1 }).first(), path).toBeAttached();
     await expect(page.getByRole('status').filter({ hasText: 'Comprobando' })).toHaveCount(0);
     expect(await fits(page), path).toBe(true);
   }
-  await page.goto('/puntos');
-  await expect(page.locator('.pt-balance strong')).toHaveText('0');
+  await page.goto('/panel');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Registra tu emprendimiento');
+  await page.goto('/panel/negocios');
+  await expect(page.getByRole('heading', { name: 'Aún no tienes negocios' })).toBeVisible();
+  await page.goto('/pedidos');
+  await expect(page.getByRole('heading', { name: 'Todavía no has hecho compras' })).toBeVisible();
+  await page.goto('/solicitudes');
+  await expect(page.getByRole('heading', { name: 'Todavía no tienes reservas' })).toBeVisible();
 });
 
 test('buscar, filtrar por sector y abrir un negocio con su asistente', async ({ page }) => {
@@ -129,25 +135,25 @@ test('referidos: el enlace con código llena el registro y cuenta al invitado', 
   browser,
 }) => {
   await account(page, 'cliente', 'invita');
-  await page.goto('/puntos');
-  const card = page.locator('#referidos');
-  await expect(
-    card.getByRole('img', { name: 'Código QR de tu enlace de invitación' }),
-  ).toBeVisible();
-  const code = (await card.locator('.pt-code').textContent())!.trim();
+  // La página de SucrePuntos se retiró del menú; el código sigue en el estado de la cuenta.
+  const referral = async () =>
+    (
+      (await (await page.request.get('/api/plataforma/estado')).json()) as {
+        referral: { code: string; invited: number };
+      }
+    ).referral;
+  const { code, invited } = await referral();
   expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+  expect(invited).toBe(0);
   const friend = await browser.newPage();
   await friend.goto(`/ingresar?ref=${code}`);
   await expect(friend.getByRole('button', { name: 'Registrarse', exact: true })).toHaveClass(/on/);
   await expect(friend.getByLabel('Código de invitación (opcional)')).toHaveValue(code);
-  await friend.getByLabel('Tu nombre').fill('Amiga invitada');
-  await friend.getByLabel('Correo electrónico').fill(`amiga-${crypto.randomUUID()}@ejemplo.co`);
-  await friend.getByLabel('Contraseña', { exact: true }).fill('clave-segura-1');
   await friend.getByText('Quiero comprar', { exact: true }).click();
+  await friend.getByLabel('Correo electrónico').fill(`amiga-${crypto.randomUUID()}@ejemplo.co`);
+  await friend.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
   await friend.getByRole('button', { name: 'Crear mi cuenta' }).click();
-  await expect(friend).toHaveURL(/inicio/);
+  await expect(friend).toHaveURL(/verificar-correo/);
   await friend.close();
-  await page.reload();
-  await expect(page.locator('#referidos')).toContainText('1 invitados');
-  await expect(page.locator('#retos')).toContainText('Compra en 3 sectores distintos');
+  await expect.poll(async () => (await referral()).invited).toBe(1);
 });

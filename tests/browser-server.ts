@@ -6,13 +6,17 @@ import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
 import { createUser, hashPassword } from '../server/auth.ts';
 const db = await openDb(':memory:');
-// Administración de la base efímera: aprueba domiciliarios en las pruebas de logística.
-await createUser(db, {
-  email: 'admin@pruebas.co',
-  name: 'Administración de pruebas',
-  passwordHash: await hashPassword('clave-segura-1'),
-  role: 'admin',
-});
+// Administración de la base efímera: aprueba los registros de negocios en las pruebas. Una cuenta
+// por proceso de Playwright (admin-0@…, admin-1@…): el ingreso admite 10 intentos por correo cada
+// 15 minutos y cada proceso inicia sesión una sola vez (tests/e2e/helpers.ts).
+const passwordHash = await hashPassword('clave-segura-1');
+for (let i = 0; i < 16; i++)
+  await createUser(db, {
+    email: `admin-${i}@pruebas.co`,
+    name: 'Administración de pruebas',
+    passwordHash,
+    role: 'admin',
+  });
 const imagesDir = mkdtempSync(join(tmpdir(), 'sucreia-browser-'));
 const server = createApp({
   db,

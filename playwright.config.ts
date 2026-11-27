@@ -4,6 +4,9 @@ export default defineConfig({
   fullyParallel: true,
   // En CI se reintenta una vez una prueba intermitente; en local no, para notar regresiones.
   retries: process.env.CI ? 1 : 0,
+  // Casi todos los recorridos crean cuentas, publican un negocio y lo aprueban; en paralelo
+  // pueden pasar de los 30 segundos por defecto.
+  timeout: 60_000,
   use: { baseURL: 'http://127.0.0.1:4173', trace: 'retain-on-failure' },
   // Express con la API y el sitio compilado en .output/public; base y bandeja de correo
   // en memoria, exclusivas para las pruebas. No habilita la bandeja en producción.
