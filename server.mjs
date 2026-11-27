@@ -29384,20 +29384,12 @@ function smtpSender(config) {
 function smtpTransport(config, sender = smtpSender(config)) {
   return {
     async send(to, purpose, token, expiresAt) {
-      const link2 = new URL(purpose === "reset" ? "/recuperar" : "/verificar-correo", config.origin);
-      link2.searchParams.set("token", token);
-      const subject = purpose === "reset" ? "Recupera tu contrase\xF1a de SucreIA" : "Verifica tu correo en SucreIA";
+      const mail2 = accountEmail(config.origin, purpose, token, expiresAt);
       try {
         const result = await sender.sendMail({
           from: config.from,
           to,
-          subject,
-          text: `${subject}
-
-Abre este enlace para continuar:
-${link2.href}
-
-El enlace vence el ${new Date(expiresAt).toISOString()} y solo se puede usar una vez. Si no solicitaste este mensaje, puedes ignorarlo.`,
+          ...mail2,
           disableFileAccess: true,
           disableUrlAccess: true
         });
@@ -29427,27 +29419,86 @@ function resendConfig(env2) {
     throw new Error("MAIL_FROM debe ser una direcci\xF3n de correo (\xABNombre <correo@dominio>\xBB).");
   return { apiKey: env2.RESEND_API_KEY, from, origin: new URL(env2.PUBLIC_URL).origin };
 }
+var accountCopy = {
+  verify: {
+    subject: "Verifica tu correo en SucreIA",
+    badge: "Confirma tu cuenta",
+    title: "Confirma tu correo",
+    intro: "Gracias por unirte a SucreIA. Confirma tu correo para activar tu cuenta y empezar a descubrir, comprar y publicar en los emprendimientos de Sucre.",
+    action: "Confirmar mi correo",
+    extra: "Despu\xE9s de confirmar, ingresa con tu correo y la contrase\xF1a que creaste."
+  },
+  reset: {
+    subject: "Recupera tu contrase\xF1a de SucreIA",
+    badge: "Recupera tu acceso",
+    title: "Crea una contrase\xF1a nueva",
+    intro: "Recibimos una solicitud para cambiar la contrase\xF1a de tu cuenta en SucreIA. Toca el bot\xF3n para crear una nueva.",
+    action: "Crear contrase\xF1a nueva",
+    extra: "Tu nueva contrase\xF1a debe tener m\xEDnimo 8 caracteres, una letra, un n\xFAmero y un car\xE1cter especial. Al guardarla, cerraremos las sesiones abiertas."
+  }
+};
+var esc = (text2) => text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 function accountEmail(origin, purpose, token, expiresAt) {
   const link2 = new URL(purpose === "reset" ? "/recuperar" : "/verificar-correo", origin);
   link2.searchParams.set("token", token);
-  const subject = purpose === "reset" ? "Recupera tu contrase\xF1a de SucreIA" : "Verifica tu correo en SucreIA";
-  const action = purpose === "reset" ? "Crear una contrase\xF1a nueva" : "Verificar mi correo";
-  const until = new Date(expiresAt).toLocaleString("es-CO", { timeZone: "America/Bogota" });
-  const text2 = `${subject}
+  const copy = accountCopy[purpose];
+  const subject = copy.subject;
+  const until = new Date(expiresAt).toLocaleString("es-CO", {
+    timeZone: "America/Bogota",
+    dateStyle: "long",
+    timeStyle: "short"
+  });
+  const href = esc(link2.href);
+  const logo = esc(new URL("/marca/sucreia-icono.png", origin).href);
+  const home = esc(new URL("/", origin).href);
+  const text2 = `${copy.title}
 
-Abre este enlace para continuar:
-${link2.href}
+${copy.intro}
 
-El enlace vence el ${until} y solo se puede usar una vez. Si no solicitaste este mensaje, puedes ignorarlo.`;
-  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#eef4fb;font-family:Arial,sans-serif;color:#0f1f3d">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 12px">
-<table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;padding:28px">
-<tr><td><p style="margin:0 0 6px;font-size:22px;font-weight:bold;color:#0a2357">Sucre<span style="color:#22b14c">IA</span></p>
-<h1 style="font-size:20px;margin:16px 0 8px">${subject}</h1>
-<p style="margin:0 0 20px;line-height:1.5">Toca el bot\xF3n para continuar. El enlace vence el ${until} y solo se puede usar una vez.</p>
-<p style="margin:0 0 24px"><a href="${link2.href}" style="display:inline-block;background:#22b14c;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px">${action}</a></p>
-<p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Si el bot\xF3n no abre, copia este enlace:<br>${link2.href}<br><br>Si no solicitaste este mensaje, puedes ignorarlo.</p>
-</td></tr></table></td></tr></table></body></html>`;
+${copy.action}: ${link2.href}
+
+El enlace vence el ${until} y solo se puede usar una vez. ${copy.extra}
+
+Si no solicitaste este mensaje, puedes ignorarlo: tu cuenta sigue segura.
+
+SucreIA \xB7 El ecosistema digital de emprendimientos de Sucre`;
+  const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#eef4fb;font-family:'Poppins','Segoe UI',Arial,sans-serif;color:#0f1f3d;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(copy.intro)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef4fb"><tr><td align="center" style="padding:32px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 10px 30px rgba(16,42,90,.10)">
+<tr><td style="background:#0a2357;background-image:linear-gradient(120deg,#0a2357,#12408f);padding:26px 32px">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="padding-right:12px"><img src="${logo}" width="44" height="44" alt="" style="display:block;border-radius:12px;background:#ffffff"></td>
+<td><p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-.01em">Sucre<span style="color:#4ade80">IA</span></p>
+<p style="margin:2px 0 0;font-size:12px;color:#c7d7f5">El ecosistema digital de emprendimientos de Sucre</p></td>
+</tr></table></td></tr>
+<tr><td style="padding:32px 32px 8px">
+<p style="margin:0 0 14px"><span style="display:inline-block;background:#e8f8ed;color:#15803d;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px;border-radius:999px">${esc(copy.badge)}</span></p>
+<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;color:#0a2357">${esc(copy.title)}</h1>
+<p style="margin:0 0 26px;font-size:15px;line-height:1.65;color:#334155">${esc(copy.intro)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:14px;background:#15803d">
+<a href="${href}" style="display:inline-block;padding:15px 30px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:14px">${esc(copy.action)} &rarr;</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:22px 32px 6px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;border-radius:14px"><tr><td style="padding:14px 16px;font-size:13.5px;line-height:1.6;color:#334155">
+<strong style="color:#0a2357">El enlace vence el ${esc(until)}</strong> y solo se puede usar una vez. ${esc(copy.extra)}
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:18px 32px 30px;font-size:12.5px;line-height:1.6;color:#64748b">
+Si el bot\xF3n no abre, copia y pega este enlace en tu navegador:<br>
+<a href="${href}" style="color:#1565c0;word-break:break-all">${href}</a><br><br>
+\xBFNo solicitaste este mensaje? Puedes ignorarlo: tu cuenta sigue segura.
+</td></tr>
+<tr><td style="border-top:1px solid #e2e9f3;padding:18px 32px;background:#fbfdff;font-size:12px;line-height:1.6;color:#64748b;text-align:center">
+<a href="${home}" style="color:#0a2357;font-weight:700;text-decoration:none">SucreIA</a> \xB7 Conectamos a Sucre con sus emprendedores<br>
+Este es un mensaje autom\xE1tico, no respondas a este correo.
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
   return { subject, text: text2, html };
 }
 function resendTransport(config, fetchImpl = fetch) {
@@ -29652,10 +29703,11 @@ async function createUser(db2, data) {
     emailVerifiedAt: data.emailVerified ? now3 : null,
     profileComplete: complete,
     verifyChannel: data.verifyChannel ?? "email",
-    phone: data.phone ?? null
+    phone: data.phone ?? null,
+    termsAccepted: !!data.termsVersion
   };
   await db2.prepare(
-    "INSERT INTO users (id, email, name, password_hash, role, created_at, document_number, home_address, emailVerifiedAt, profile_completed_at, verify_channel, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO users (id, email, name, password_hash, role, created_at, document_number, home_address, emailVerifiedAt, profile_completed_at, verify_channel, phone, terms_accepted_at, terms_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(
     user.id,
     user.email,
@@ -29668,17 +29720,20 @@ async function createUser(db2, data) {
     user.emailVerifiedAt,
     complete ? now3 : null,
     user.verifyChannel,
-    user.phone
+    user.phone,
+    data.termsVersion ? now3 : null,
+    data.termsVersion ?? null
   );
   return user;
 }
-var toUser = ({ profile_completed_at, ...row }) => ({
+var toUser = ({ profile_completed_at, terms_accepted_at, ...row }) => ({
   ...row,
-  profileComplete: !!profile_completed_at
+  profileComplete: !!profile_completed_at,
+  termsAccepted: !!terms_accepted_at
 });
 async function findUserByEmail(db2, email) {
   const row = await db2.prepare(
-    "SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone, password_hash FROM users WHERE email = ?"
+    "SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, terms_accepted_at, verify_channel AS verifyChannel, phone, password_hash FROM users WHERE email = ?"
   ).get(email);
   if (!row) return void 0;
   const { password_hash, ...rest } = row;
@@ -29686,7 +29741,7 @@ async function findUserByEmail(db2, email) {
 }
 async function findUserById(db2, id) {
   const row = await db2.prepare(
-    "SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, verify_channel AS verifyChannel, phone FROM users WHERE id = ?"
+    "SELECT id, email, name, role, emailVerifiedAt, profile_completed_at, terms_accepted_at, verify_channel AS verifyChannel, phone FROM users WHERE id = ?"
   ).get(id);
   return row ? toUser(row) : void 0;
 }
@@ -29701,7 +29756,7 @@ async function deleteSession(db2, token) {
 }
 async function sessionUser(db2, token) {
   const row = await db2.prepare(
-    `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt, u.profile_completed_at, u.verify_channel AS verifyChannel, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.id, u.email, u.name, u.role, u.emailVerifiedAt, u.profile_completed_at, u.terms_accepted_at, u.verify_channel AS verifyChannel, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`
   ).get(hashToken(token), (/* @__PURE__ */ new Date()).toISOString());
   return row ? toUser(row) : void 0;
@@ -29812,6 +29867,9 @@ function returnTarget(routePath, routeFullPath, location) {
   return i < 0 ? trim(routeFullPath) : trim(routeFullPath.slice(0, i)) + routeFullPath.slice(i);
 }
 
+// src/domain/terms.ts
+var USER_TERMS_VERSION = "2026-11-27";
+
 // server/google.ts
 function googleConfig(env2) {
   if (!env2.GOOGLE_CLIENT_ID && !env2.GOOGLE_CLIENT_SECRET) return;
@@ -29857,7 +29915,9 @@ function googleRoutes(db2, config, secure, fetchImpl = fetch, mailbox) {
     const id = await saveState(db2, "google-state", {
       state: state2,
       role,
-      back: internalReturn(req.query.volver)
+      back: internalReturn(req.query.volver),
+      // Marcó «Acepto la Política de uso» en el registro antes de elegir Google.
+      terms: req.query.terminos === "1"
     });
     shortCookie(res, STATE_COOKIE, id, secure);
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -29915,7 +29975,9 @@ function googleRoutes(db2, config, secure, fetchImpl = fetch, mailbox) {
       name: (profile.name ?? "").trim().slice(0, 80),
       role: saved.role,
       // Contraseña aleatoria que nadie conoce: se entra con Google (o se crea una con «Recuperar»).
-      passwordHash: await hashPassword(randomUUID3() + randomBytes3(16).toString("hex"))
+      passwordHash: await hashPassword(randomUUID3() + randomBytes3(16).toString("hex")),
+      // Si no aceptó la Política de uso en el registro, se le pide al completar el perfil.
+      termsVersion: saved.terms ? USER_TERMS_VERSION : void 0
     });
     const session = await createSession(db2, user.id);
     setSessionCookie(res, session.token, session.expires, secure);
@@ -30463,7 +30525,11 @@ var migrations = [
   // Archivo adjunto de las PQRS (foto o PDF, máx. 5 MB), solo visible para su autor y la
   // administración.
   `CREATE TABLE pqrs_files (id TEXT PRIMARY KEY, pqrs_id TEXT NOT NULL REFERENCES pqrs(id) ON DELETE CASCADE, message_id TEXT, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
-   CREATE INDEX pqrs_files_case ON pqrs_files(pqrs_id);`
+   CREATE INDEX pqrs_files_case ON pqrs_files(pqrs_id);`,
+  // Política de uso y condiciones generales: cuándo y qué versión aceptó cada cuenta al
+  // registrarse (o al completar su perfil, si entró con Google). Solo agrega columnas.
+  `ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
+   ALTER TABLE users ADD COLUMN terms_version TEXT;`
 ];
 var sqlOf = (m, dialect) => typeof m === "string" ? m : m[dialect];
 async function migrate(db2) {
@@ -30724,8 +30790,7 @@ var principal = {
     { href: "/mapa", label: "Mapa de emprendimientos", icon: "map" },
     { href: "/pedidos", label: "Mis compras", icon: "cart" },
     { href: "/solicitudes", label: "Mis reservas", icon: "calendar" },
-    { href: "/favoritos", label: "Favoritos", icon: "heart" },
-    { href: "/notificaciones", label: "Notificaciones", icon: "bell" }
+    { href: "/favoritos", label: "Favoritos", icon: "heart" }
   ]
 };
 var principalCliente = {
@@ -34214,6 +34279,11 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
     const role = req.body?.role === "emprendedor" ? "emprendedor" : "cliente";
     if (!EMAIL.test(email)) throw new HttpError(400, "Escribe un correo v\xE1lido.");
     checkNewPassword(password);
+    if (req.body?.acceptTerms !== true)
+      throw new HttpError(
+        400,
+        "Para crear tu cuenta, acepta la Pol\xEDtica de uso y condiciones generales de SucreIA."
+      );
     const optional = (key, max) => typeof req.body?.[key] === "string" ? req.body[key].trim().slice(0, max) : "";
     const name = optional("name", 80);
     const documentNumber = optional("documentNumber", 12);
@@ -34240,7 +34310,8 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
       role,
       documentNumber: documentNumber || void 0,
       address: address || void 0,
-      passwordHash: await hashPassword(password)
+      passwordHash: await hashPassword(password),
+      termsVersion: USER_TERMS_VERSION
     });
     await registerReferral(db2, user.id, req.body?.referido);
     let verificationSent = false;
@@ -34296,6 +34367,14 @@ function authRoutes(db2, secureCookies, mailbox, registrationLimit = 60, linkLim
       throw new HttpError(400, "Escribe la c\xE9dula sin puntos ni espacios.");
     await checkDocumentFree(db2, documentNumber, user.id);
     const address = text(req.body, "address", 180, "la direcci\xF3n");
+    if (!user.termsAccepted) {
+      if (req.body?.acceptTerms !== true)
+        throw new HttpError(
+          400,
+          "Para continuar, acepta la Pol\xEDtica de uso y condiciones generales de SucreIA."
+        );
+      await db2.prepare("UPDATE users SET terms_accepted_at=?, terms_version=? WHERE id=?").run((/* @__PURE__ */ new Date()).toISOString(), USER_TERMS_VERSION, user.id);
+    }
     await db2.prepare(
       "UPDATE users SET name=?, document_number=?, home_address=?, profile_completed_at=COALESCE(profile_completed_at, ?) WHERE id=?"
     ).run(name, documentNumber, address, (/* @__PURE__ */ new Date()).toISOString(), user.id);

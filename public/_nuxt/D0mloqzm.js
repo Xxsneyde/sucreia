@@ -1,0 +1,1 @@
+import{g as e}from"#entry";import{N as t,q as n,w as r}from"./DxiUQiCP.js";import{t as i}from"./GuErtR6f.js";var a=t({__name:`favoritos`,setup(t){return e({title:`Favoritos`}),(e,t)=>(n(),r(i,{"favorites-only":``}))}});export{a as default};
