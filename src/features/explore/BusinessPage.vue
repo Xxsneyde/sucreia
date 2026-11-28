@@ -35,7 +35,7 @@ import { canBuyRole } from '@/domain/roles';
 import { socialUrl, thumbnail, type StoreDesign, type StoreProduct } from '@/domain/studio';
 import { rankByRating, weekSummary, type CommerceStore } from '@/domain/platform';
 import { currency, whatsappUrl } from '@/domain/rules';
-import { discounted, discountFor, discountPercent, selectedOnly } from '@/domain/offers';
+import { bestPercent, discounted, discountFor, discountPercent } from '@/domain/offers';
 import { sectorFor, sentenceCase, subregionFor } from '@/domain/sectors';
 import type { BrainContext, Reply } from '@/domain/brain/types';
 import EmptyState from '@/components/EmptyState.vue';
@@ -149,11 +149,14 @@ const featured = computed(() =>
   rankByRating(design.value?.products ?? [], meta.value?.productRatings).slice(0, 4),
 );
 const productRating = (productId: string) => meta.value?.productRatings?.[productId];
-// Descuento para todo el negocio (lo pone el dueño en «Promociones y reseñas»).
+// Descuentos (los pone el dueño en «Promociones y reseñas»): uno para todo el negocio y uno
+// propio por producto; a cada producto se le aplica el mayor.
 const offPercent = computed(() => discountPercent(meta.value?.discount));
-/** Descuento de un producto (el negocio puede tenerlo solo en algunos). */
-const offFor = (productId: string) => discountFor(meta.value?.discount, productId);
-const offSelected = computed(() => selectedOnly(meta.value?.discount));
+const offFor = (productId: string) =>
+  discountFor(meta.value?.discount, meta.value?.productDiscounts, productId);
+const offBest = computed(() => bestPercent(meta.value?.discount, meta.value?.productDiscounts));
+/** ¿Algún producto tiene un descuento propio mayor que el de todo el negocio? */
+const offSelected = computed(() => offBest.value > offPercent.value);
 const offUntil = computed(() =>
   meta.value?.discount?.until
     ? new Date(meta.value.discount.until).toLocaleDateString('es-CO', {
@@ -535,15 +538,15 @@ const assistantBullets = computed(() => [
         >Ver carrito</NuxtLink
       >
     </p>
-    <p v-if="offPercent" class="bp-offer" role="note">
+    <p v-if="offBest" class="bp-offer" role="note">
       <BadgePercent :size="20" aria-hidden="true" />
       <span
-        ><strong
-          >{{ offPercent }} % de descuento
-          {{ offSelected ? 'en productos seleccionados' : 'en todo el negocio' }}</strong
-        >{{ offUntil ? ` hasta el ${offUntil}` : '' }}. Ya está aplicado en los precios{{
-          offSelected ? ' marcados' : ''
-        }}.</span
+        ><strong v-if="offPercent">{{ offPercent }} % de descuento en todo el negocio</strong
+        ><template v-if="offPercent && offUntil"> hasta el {{ offUntil }}</template
+        ><template v-if="offPercent && offSelected"> y </template
+        ><strong v-if="offSelected"
+          >{{ offPercent ? 'hasta' : 'Hasta' }} {{ offBest }} % en productos seleccionados</strong
+        >. Ya está aplicado en los precios.</span
       >
     </p>
     <div class="bp-grid">
@@ -1068,7 +1071,7 @@ const assistantBullets = computed(() => [
       :services="design.products"
       :initial="service"
       :settings="meta?.settings ?? null"
-      :discount="meta?.discount ?? null"
+      :percent-for="offFor"
       :busy="platform.busy.value"
       :error="notice"
       @close="bookingOpen = false"

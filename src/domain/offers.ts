@@ -1,18 +1,26 @@
-// Descuentos del negocio: un descuento para todo el negocio y cupones con código. Lo usan el
-// panel «Promociones y reseñas», la página del negocio, el carrito y el servidor, que es quien
-// calcula el precio final. Un descuento y un cupón no se acumulan: se aplica el mayor.
+// Descuentos del negocio: uno para todo el negocio, uno propio por producto y cupones con código.
+// Lo usan el panel «Promociones y reseñas», la página del negocio, el carrito y el servidor, que
+// es quien calcula el precio final. No se acumulan: a cada producto se le aplica el mayor entre el
+// del negocio y el suyo, y en el pedido gana el cupón solo si descuenta más.
 
 /** Porcentaje máximo de un descuento o cupón. */
 export const MAX_PERCENT = 70;
 
-/** Descuento del negocio (se guarda en su configuración): para todo o para productos elegidos. */
+/** Descuento para todo el negocio (se guarda en su configuración). */
 export interface StoreDiscount {
   percent: number;
   /** Último día de vigencia (ISO, fin del día en Colombia) o null si no vence. */
   until: string | null;
-  /** Productos o servicios con el descuento; vacío o ausente = todo el negocio. */
+  /** Versión anterior: un solo descuento para varios productos. Se lee como descuentos por producto. */
   products?: string[];
 }
+/** Descuento propio de un producto o servicio. */
+export interface ProductDiscount {
+  percent: number;
+  until: string | null;
+}
+/** Descuentos por producto: id del producto → su descuento. */
+export type ProductDiscounts = Record<string, ProductDiscount>;
 
 /** Cupón con código que el cliente escribe en el carrito o al reservar. */
 export interface StoreCoupon {
@@ -56,30 +64,84 @@ export function discountPercent(d: StoreDiscount | null | undefined, now = Date.
   return d.percent;
 }
 
-/** ¿El descuento es solo para algunos productos? */
-export const selectedOnly = (d: StoreDiscount | null | undefined) => !!d?.products?.length;
+/**
+ * Separa el descuento de todo el negocio y los de cada producto. El formato anterior (un descuento
+ * con lista de productos) se convierte en un descuento por cada uno de esos productos.
+ */
+export function splitOffers(
+  store: StoreDiscount | null | undefined,
+  products: ProductDiscounts | null | undefined,
+): { store: StoreDiscount | null; products: ProductDiscounts } {
+  const own: ProductDiscounts = { ...(products ?? {}) };
+  if (store?.products?.length) {
+    for (const id of store.products) own[id] ??= { percent: store.percent, until: store.until };
+    return { store: null, products: own };
+  }
+  return { store: store ?? null, products: own };
+}
 
-/** Porcentaje vigente para un producto: el del negocio si el producto lo tiene. */
+/** Solo los descuentos por producto vigentes (para mostrarlos al público). */
+export function activeProductDiscounts(products: ProductDiscounts, now = Date.now()) {
+  return Object.fromEntries(
+    Object.entries(products).filter(([, d]) => discountPercent(d, now) > 0),
+  ) as ProductDiscounts;
+}
+
+/** Porcentaje vigente para un producto: el mayor entre el del negocio y el suyo propio. */
 export function discountFor(
-  d: StoreDiscount | null | undefined,
+  store: StoreDiscount | null | undefined,
+  products: ProductDiscounts | null | undefined,
   productId: string,
   now = Date.now(),
 ): number {
-  const percent = discountPercent(d, now);
-  return percent && (!selectedOnly(d) || d!.products!.includes(productId)) ? percent : 0;
+  const o = splitOffers(store, products);
+  return Math.max(discountPercent(o.store, now), discountPercent(o.products[productId], now));
 }
 
-/** Valor que descuenta el negocio en un pedido (solo cuentan los productos con descuento). */
-export function storeDiscountAmount(
-  d: StoreDiscount | null | undefined,
-  lines: { productId: string; amount: number }[],
+/** Mayor porcentaje vigente del negocio (para «hasta N %» en listados). */
+export function bestPercent(
+  store: StoreDiscount | null | undefined,
+  products: ProductDiscounts | null | undefined,
   now = Date.now(),
 ): number {
-  const percent = discountPercent(d, now);
-  const base = lines
-    .filter((l) => discountFor(d, l.productId, now) > 0)
-    .reduce((n, l) => n + l.amount, 0);
-  return discountAmount(base, percent);
+  const o = splitOffers(store, products);
+  return Math.max(
+    discountPercent(o.store, now),
+    0,
+    ...Object.values(o.products).map((d) => discountPercent(d, now)),
+  );
+}
+
+/**
+ * Lo que descuenta el negocio en un pedido: cada línea con el porcentaje que le corresponde. El
+ * texto dice si fue el descuento de todo el negocio o el de productos seleccionados.
+ */
+export function storeOffer(
+  store: StoreDiscount | null | undefined,
+  products: ProductDiscounts | null | undefined,
+  lines: { productId: string; amount: number }[],
+  now = Date.now(),
+): { amount: number; percent: number; label: string } {
+  const o = splitOffers(store, products);
+  const storePct = discountPercent(o.store, now);
+  const byPercent = new Map<number, number>();
+  let own = false;
+  for (const l of lines) {
+    const pct = discountFor(o.store, o.products, l.productId, now);
+    if (!pct) continue;
+    if (pct > storePct) own = true;
+    byPercent.set(pct, (byPercent.get(pct) ?? 0) + l.amount);
+  }
+  const amount = [...byPercent].reduce((n, [pct, base]) => n + discountAmount(base, pct), 0);
+  if (!amount) return { amount: 0, percent: 0, label: '' };
+  const percents = [...byPercent.keys()];
+  const percent = Math.max(...percents);
+  const label = !own
+    ? `Descuento del negocio (${storePct} %)`
+    : percents.length === 1
+      ? `Descuento en productos seleccionados (${percent} %)`
+      : 'Descuento en productos seleccionados';
+  return { amount, percent, label };
 }
 
 /** Precio con el descuento aplicado (redondeado al peso). */

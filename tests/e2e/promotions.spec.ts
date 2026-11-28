@@ -6,6 +6,8 @@ test('promociones: descuento en todo el negocio, cupón en el carrito y reseñas
   page,
   browser,
 }) => {
+  // Recorrido largo (descuentos, cupón, compra, reseñas y descuentos por producto).
+  test.slow();
   await account(page, 'emprendedor', 'promos');
   const { id, design } = await publishedStore(page);
   const product = design.products[0];
@@ -90,24 +92,40 @@ test('promociones: descuento en todo el negocio, cupón en el carrito y reseñas
   await expect(page.locator('.pr-avg strong')).toHaveText('3.5');
   expect(await fits(page)).toBe(true);
 
-  // Descuento solo para productos elegidos: se marcan en sus tarjetas.
-  const second = design.products[1];
+  // Descuento propio por producto: se eligen en sus tarjetas y cada uno conserva el suyo.
+  const [first, second] = design.products;
   await page.getByRole('tab', { name: /descuentos/ }).click();
+  await page.getByRole('button', { name: 'Quitar descuento' }).click();
+  await expect(page.locator('.pr-msg')).toContainText('Quitaste el descuento de todo el negocio');
   await page.getByRole('radio', { name: 'Productos seleccionados' }).click();
-  await page.getByRole('button', { name: 'Ninguno' }).click();
-  await page.getByRole('button', { name: 'Actualizar descuento' }).click();
+  await page.getByRole('button', { name: 'Aplicar a los elegidos' }).click();
   await expect(page.getByRole('alert')).toContainText('Elige abajo al menos un producto');
+  const slider = page.getByRole('slider', { name: 'Porcentaje de descuento' });
+  await page.getByLabel(`Incluir ${first.name} en el descuento`).check();
+  await slider.fill('30');
+  await page.getByRole('button', { name: 'Aplicar a 1 producto' }).click();
+  await expect(page.locator('.pr-msg')).toContainText('30 % de descuento en 1 producto');
+  // Elegir otro producto con otro porcentaje no le quita el descuento al primero.
   await page.getByLabel(`Incluir ${second.name} en el descuento`).check();
-  await page.getByRole('button', { name: 'Actualizar descuento' }).click();
-  await expect(page.locator('.pr-msg')).toContainText('20 % de descuento en 1 producto');
+  await slider.fill('10');
+  await page.getByRole('button', { name: 'Aplicar a 1 producto' }).click();
+  await expect(page.locator('.pr-msg')).toContainText('10 % de descuento en 1 producto');
   const cards = page.locator('.pr-card');
-  await expect(cards.nth(0).locator('.pr-off')).toHaveCount(0);
-  await expect(cards.nth(1).locator('.pr-off')).toHaveText('−20%');
+  await expect(cards.nth(0).locator('.pr-off')).toHaveText('−30%');
+  await expect(cards.nth(0).locator('.pr-own')).toContainText('Descuento propio: 30 %');
+  await expect(cards.nth(1).locator('.pr-off')).toHaveText('−10%');
+  await expect(cards.nth(2).locator('.pr-off')).toHaveCount(0);
+  await page.reload();
+  await expect(cards.nth(0).locator('.pr-off')).toHaveText('−30%');
+  await expect(cards.nth(1).locator('.pr-off')).toHaveText('−10%');
   expect(await fits(page)).toBe(true);
   const visitor = await browser.newPage();
   await visitor.goto(`/tienda?id=${id}`);
-  await expect(visitor.locator('.bp-offer')).toContainText(
-    '20 % de descuento en productos seleccionados',
-  );
+  await expect(visitor.locator('.bp-offer')).toContainText('Hasta 30 % en productos seleccionados');
   await visitor.close();
+  // Quitar el de un producto no toca el del otro.
+  await page.getByRole('button', { name: `Quitar el descuento de ${second.name}` }).click();
+  await expect(page.locator('.pr-msg')).toContainText(`Quitaste el descuento de ${second.name}`);
+  await expect(cards.nth(1).locator('.pr-off')).toHaveCount(0);
+  await expect(cards.nth(0).locator('.pr-off')).toHaveText('−30%');
 });

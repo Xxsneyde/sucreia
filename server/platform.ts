@@ -27,7 +27,12 @@ import {
   referralStats,
 } from './rewards.ts';
 import { applyOffers } from './offers.ts';
-import { discountPercent } from '../src/domain/offers.ts';
+import {
+  activeProductDiscounts,
+  bestPercent,
+  discountPercent,
+  splitOffers,
+} from '../src/domain/offers.ts';
 const now = () => new Date().toISOString();
 /** Transacción exclusiva: dentro de `fn` usa siempre `tx`. */
 export function transaction<T>(db: Db, fn: (tx: Db) => Promise<T>): Promise<T> {
@@ -367,6 +372,7 @@ export async function commerceStore(db: Db, storeId: string): Promise<CommerceSt
       )
       .all(storeId),
   ]);
+  const offers = splitOffers(cfg.storeDiscount, cfg.productDiscounts);
   return {
     reviewCount: reviewStats?.n ?? 0,
     settings: cfg,
@@ -380,7 +386,8 @@ export async function commerceStore(db: Db, storeId: string): Promise<CommerceSt
       ]),
     ),
     reviews,
-    discount: discountPercent(cfg.storeDiscount) ? (cfg.storeDiscount ?? null) : null,
+    discount: discountPercent(offers.store) ? offers.store : null,
+    productDiscounts: activeProductDiscounts(offers.products),
     completed365: completed.filter((o) => Date.parse(o.completedAt) > Date.now() - 365 * 86400000)
       .length,
     rating: reviewStats?.rating ?? null,
@@ -428,7 +435,7 @@ export async function storeSummaries(db: Db, ids: string[]) {
         .map((r) => JSON.parse(String(r.payload)) as Promotion)
         .filter((x) => x.active && Date.parse(x.expires) > Date.now())
         .map((x) => x.percent),
-      discountPercent(cfg.storeDiscount),
+      bestPercent(cfg.storeDiscount, cfg.productDiscounts),
     );
     result.set(id, {
       lat: cfg.latitude,

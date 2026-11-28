@@ -8,13 +8,14 @@ import {
   couponState,
   discountAmount,
   discountPercent,
-  selectedOnly,
-  storeDiscountAmount,
+  splitOffers,
+  storeOffer,
   endOfDay,
   MAX_PERCENT,
   normalizeCode,
   validCode,
   type StoreCoupon,
+  type ProductDiscounts,
   type StoreDiscount,
 } from '../src/domain/offers.ts';
 
@@ -117,40 +118,61 @@ export async function setCouponActive(db: Db, storeId: string, id: string, activ
   if (!changes) throw new HttpError(404, 'No encontramos ese cupón.');
 }
 
+/** Descuento de todo el negocio y descuentos por producto guardados (formato actual). */
+export async function storeOffers(db: Db, storeId: string) {
+  const cfg = await settings(db, storeId);
+  return splitOffers(cfg.storeDiscount, cfg.productDiscounts);
+}
+async function saveOffers(
+  db: Db,
+  storeId: string,
+  offers: { store: StoreDiscount | null; products: ProductDiscounts },
+) {
+  await setSettings(db, storeId, {
+    ...(await settings(db, storeId)),
+    storeDiscount: offers.store,
+    productDiscounts: offers.products,
+  });
+}
+
+/** Guarda el descuento para todo el negocio; con 0 % lo quita. No toca los de cada producto. */
+export async function setStoreDiscount(db: Db, storeId: string, body: Record<string, unknown>) {
+  const percent = percentField(body.percent, 0);
+  const discount: StoreDiscount | null = percent
+    ? { percent, until: dateField(body.until, 'la fecha de fin') }
+    : null;
+  const offers = await storeOffers(db, storeId);
+  await saveOffers(db, storeId, { ...offers, store: discount });
+  return discount;
+}
+
 /**
- * Guarda el descuento del negocio; con 0 % lo quita. `products` (ids del catálogo) lo limita a
- * esos productos; vacío o ausente = todo el negocio.
+ * Pone (o con 0 % quita) el descuento de los productos indicados. Los demás productos conservan
+ * el suyo: elegir otro producto no le quita el descuento al anterior.
  */
-export async function setStoreDiscount(
+export async function setProductDiscounts(
   db: Db,
   storeId: string,
   body: Record<string, unknown>,
   catalog: string[],
-) {
+): Promise<ProductDiscounts> {
+  if (!Array.isArray(body.products) || !body.products.length || body.products.length > 200)
+    throw new HttpError(400, 'Elige al menos un producto para el descuento.');
+  const ids = [...new Set(body.products.map(String))];
+  if (ids.some((id) => !catalog.includes(id)))
+    throw new HttpError(400, 'Uno de los productos ya no está en tu catálogo.');
   const percent = percentField(body.percent, 0);
-  let products: string[] = [];
-  if (body.products !== undefined && body.products !== null) {
-    if (!Array.isArray(body.products) || body.products.length > 200)
-      throw new HttpError(400, 'Revisa los productos del descuento.');
-    products = [...new Set(body.products.map(String))];
-    if (products.some((id) => !catalog.includes(id)))
-      throw new HttpError(400, 'Uno de los productos ya no está en tu catálogo.');
-  }
-  const discount: StoreDiscount | null = percent
-    ? {
-        percent,
-        until: dateField(body.until, 'la fecha de fin'),
-        ...(products.length ? { products } : {}),
-      }
-    : null;
-  await setSettings(db, storeId, { ...(await settings(db, storeId)), storeDiscount: discount });
-  return discount;
-}
-
-/** Descuento vigente del negocio para mostrarlo al público (null si no tiene). */
-export async function activeStoreDiscount(db: Db, storeId: string): Promise<StoreDiscount | null> {
-  const d = (await settings(db, storeId)).storeDiscount;
-  return discountPercent(d) ? d! : null;
+  const until = percent ? dateField(body.until, 'la fecha de fin') : null;
+  const offers = await storeOffers(db, storeId);
+  // Se limpian los de productos que ya no están en el catálogo.
+  const products: ProductDiscounts = Object.fromEntries(
+    Object.entries(offers.products).filter(([id]) => catalog.includes(id)),
+  );
+  for (const id of ids)
+    if (percent) products[id] = { percent, until };
+    else delete products[id];
+  await saveOffers(db, storeId, { store: offers.store, products });
+  return products;
 }
 
 /** Cupón vigente con ese código, o error con el motivo. */
@@ -180,8 +202,8 @@ export interface AppliedOffer {
 }
 
 /**
- * Mejor descuento para un pedido: el del negocio (para todo o solo para algunos productos) o el
- * del cupón, que vale para todo el pedido. No se acumulan: se aplica el que descuente más. Si el
+ * Mejor descuento para un pedido: el del negocio (el de todo el negocio o el propio de cada
+ * producto, el mayor) o el del cupón, que vale para todo el pedido. No se acumulan: se aplica el que descuente más. Si el
  * cupón gana, se cuenta su uso; si alcanzó el límite entre tanto, se rechaza.
  */
 export async function applyOffers(
@@ -191,9 +213,9 @@ export async function applyOffers(
   rawCode?: unknown,
 ): Promise<AppliedOffer> {
   const subtotal = lines.reduce((n, l) => n + l.amount, 0);
-  const discount = (await settings(db, storeId)).storeDiscount;
-  const store = discountPercent(discount);
-  const storeAmount = storeDiscountAmount(discount, lines);
+  const offers = await storeOffers(db, storeId);
+  const fromStore = storeOffer(offers.store, offers.products, lines);
+  const storeAmount = fromStore.amount;
   const code = typeof rawCode === 'string' ? rawCode.trim() : '';
   const coupon = code ? await findCoupon(db, storeId, code) : null;
   if (coupon && discountAmount(subtotal, coupon.percent) > storeAmount) {
@@ -213,11 +235,9 @@ export async function applyOffers(
   }
   return storeAmount > 0
     ? {
-        percent: store,
+        percent: fromStore.percent,
         amount: storeAmount,
-        label: selectedOnly(discount)
-          ? `Descuento en productos seleccionados (${store} %)`
-          : `Descuento del negocio (${store} %)`,
+        label: fromStore.label,
         code: '',
         couponId: '',
       }

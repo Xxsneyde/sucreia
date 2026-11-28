@@ -14,6 +14,8 @@ test('registro en siete pasos, revisión de la administración y negocio visible
   page,
   browser,
 }) => {
+  // Recorrido largo (siete pasos, revisión y visita): en CI puede pasar del minuto.
+  test.slow();
   await account(page, 'emprendedor', 'registro');
   const name = `Delicias ${crypto.randomUUID().slice(0, 6)}`;
   const id = await registerBusiness(page, {

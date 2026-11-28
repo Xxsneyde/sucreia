@@ -1,4 +1,4 @@
-import type { StoreDiscount } from './offers.ts';
+import type { ProductDiscounts, StoreDiscount } from './offers.ts';
 import type { BusinessMode, CartLine } from './types.ts';
 import type { ChallengeProgress, SucreEvent } from './rewards.ts';
 export type OperationStatus =
@@ -101,6 +101,8 @@ export interface StoreSettings {
   blocks?: ScheduleBlock[];
   /** Descuento para todo el negocio (src/domain/offers.ts). */
   storeDiscount?: StoreDiscount | null;
+  /** Descuento propio de cada producto (id → descuento). */
+  productDiscounts?: ProductDiscounts;
 }
 export interface DaySchedule {
   closed: boolean;
@@ -203,6 +205,8 @@ export interface CommerceStore {
   productRatings?: Record<string, { rating: number; count: number }>;
   /** Descuento vigente para todo el negocio (null si no tiene). */
   discount?: StoreDiscount | null;
+  /** Descuentos vigentes de cada producto. */
+  productDiscounts?: ProductDiscounts;
 }
 /** Reseña de un producto, con el nombre del producto (panel del negocio). */
 export interface ProductReview {

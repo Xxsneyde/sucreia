@@ -1665,6 +1665,10 @@ p.field-error:before {
   .sx-footer {
     padding-bottom: 96px;
   }
+  /* Al llevar un campo o botón a la vista (foco, enlaces), que no quede debajo de la barra de abajo. */
+  html {
+    scroll-padding-bottom: 96px;
+  }
   .sx-bottom {
     z-index: 35;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));

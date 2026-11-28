@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Ticket, X } from '@lucide/vue';
-import { discountAmount, discountFor, type StoreDiscount } from '@/domain/offers';
+import { discountAmount } from '@/domain/offers';
 import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
 import { normalizePhone } from '@/domain/phone';
@@ -16,8 +16,8 @@ const props = defineProps<{
   services: StoreProduct[];
   initial?: string;
   settings?: StoreSettings | null;
-  /** Descuento vigente del negocio (para todo o para algunos servicios). */
-  discount?: StoreDiscount | null;
+  /** Descuento vigente del negocio para cada servicio (%). */
+  percentFor?: (productId: string) => number;
   busy?: boolean;
   error?: string;
 }>();
@@ -155,7 +155,7 @@ async function applyCoupon() {
   }
 }
 /** Descuento del negocio para el servicio elegido. */
-const storePercent = computed(() => discountFor(props.discount, service.value));
+const storePercent = computed(() => props.percentFor?.(service.value) ?? 0);
 const percent = computed(() => Math.max(storePercent.value, coupon.value?.percent ?? 0));
 const price = computed(() => current.value?.price ?? 0);
 const off = computed(() => discountAmount(price.value, percent.value));

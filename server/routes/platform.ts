@@ -38,14 +38,16 @@ import {
   type Promotion,
   type Review,
 } from '../../src/domain/platform.ts';
-import { discountPercent } from '../../src/domain/offers.ts';
+import { activeProductDiscounts, discountPercent } from '../../src/domain/offers.ts';
 import {
   applyOffers,
   createCoupon,
   findCoupon,
   listCoupons,
   setCouponActive,
+  setProductDiscounts,
   setStoreDiscount,
+  storeOffers,
 } from '../offers.ts';
 import { canBuyRole } from '../../src/domain/roles.ts';
 import { isDesign, publishProject, type StoreDesign } from '../../src/domain/studio.ts';
@@ -553,17 +555,25 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   // código y reseñas del negocio y de sus productos. Solo el dueño.
   r.get('/negocios/:id/promociones-panel', async (req, res) => {
     const store = await owned(db, requireUser(res), req.params.id);
+    const offers = await storeOffers(db, store.id);
     res.json({
-      discount: (await settings(db, store.id)).storeDiscount ?? null,
+      discount: offers.store,
+      productDiscounts: offers.products,
       coupons: await listCoupons(db, store.id),
     });
   });
   r.put('/negocios/:id/descuento', async (req, res) => {
     const store = await owned(db, requireUser(res), req.params.id);
+    res.json({ discount: await setStoreDiscount(db, store.id, req.body ?? {}) });
+  });
+  r.put('/negocios/:id/descuento-productos', async (req, res) => {
+    const store = await owned(db, requireUser(res), req.params.id);
     const catalog = (store.published?.design.products ?? store.draft.products ?? []).map(
       (p) => p.id,
     );
-    res.json({ discount: await setStoreDiscount(db, store.id, req.body ?? {}, catalog) });
+    res.json({
+      productDiscounts: await setProductDiscounts(db, store.id, req.body ?? {}, catalog),
+    });
   });
   r.post('/negocios/:id/cupones', async (req, res) => {
     const store = await owned(db, requireUser(res), req.params.id);
@@ -598,12 +608,13 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     const store = await getStore(db, string(req.body?.storeId, 100, 'el negocio'));
     if (!store?.published) throw new HttpError(404, 'Negocio no encontrado.');
     const coupon = await findCoupon(db, store.id, string(req.body?.code, 40, 'el código'));
-    const storeDiscount = (await settings(db, store.id)).storeDiscount ?? null;
+    const offers = await storeOffers(db, store.id);
     res.json({
       code: coupon.code,
       percent: coupon.percent,
-      storePercent: discountPercent(storeDiscount),
-      storeDiscount: discountPercent(storeDiscount) ? storeDiscount : null,
+      storePercent: discountPercent(offers.store),
+      storeDiscount: discountPercent(offers.store) ? offers.store : null,
+      productDiscounts: activeProductDiscounts(offers.products),
     });
   });
   r.post('/negocios/:id/promociones', savePromotion);
