@@ -8,6 +8,8 @@ export default defineConfig({
   fullyParallel: true,
   // En CI se reintenta una vez una prueba intermitente; en local no, para notar regresiones.
   retries: process.env.CI ? 1 : 0,
+  // En CI, cada falla queda además como anotación del commit (visible sin descargar el log).
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
   // Casi todos los recorridos crean cuentas, publican un negocio y lo aprueban; en paralelo
   // pueden pasar de los 30 segundos por defecto.
   timeout: 60_000,
