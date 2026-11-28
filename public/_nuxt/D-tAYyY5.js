@@ -1,0 +1,1 @@
+import{y as e}from"#entry";import{N as t,j as n,q as r,rt as i,w as a}from"./DxiUQiCP.js";import{t as o}from"./BOGHXxTp.js";import{t as s}from"./CREtnsJj.js";var c=t({__name:`configurar`,setup(t){return e({title:`Registrar emprendimiento`}),(e,t)=>(r(),a(o,null,{default:i(()=>[n(s)]),_:1}))}});export{c as default};

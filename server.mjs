@@ -31842,6 +31842,49 @@ function discountPercent(d, now3 = Date.now()) {
   if (d.until && Date.parse(d.until) < now3) return 0;
   return d.percent;
 }
+function splitOffers(store, products) {
+  const own = { ...products ?? {} };
+  if (store?.products?.length) {
+    for (const id of store.products) own[id] ??= { percent: store.percent, until: store.until };
+    return { store: null, products: own };
+  }
+  return { store: store ?? null, products: own };
+}
+function activeProductDiscounts(products, now3 = Date.now()) {
+  return Object.fromEntries(
+    Object.entries(products).filter(([, d]) => discountPercent(d, now3) > 0)
+  );
+}
+function discountFor(store, products, productId, now3 = Date.now()) {
+  const o = splitOffers(store, products);
+  return Math.max(discountPercent(o.store, now3), discountPercent(o.products[productId], now3));
+}
+function bestPercent(store, products, now3 = Date.now()) {
+  const o = splitOffers(store, products);
+  return Math.max(
+    discountPercent(o.store, now3),
+    0,
+    ...Object.values(o.products).map((d) => discountPercent(d, now3))
+  );
+}
+function storeOffer(store, products, lines, now3 = Date.now()) {
+  const o = splitOffers(store, products);
+  const storePct = discountPercent(o.store, now3);
+  const byPercent = /* @__PURE__ */ new Map();
+  let own = false;
+  for (const l of lines) {
+    const pct = discountFor(o.store, o.products, l.productId, now3);
+    if (!pct) continue;
+    if (pct > storePct) own = true;
+    byPercent.set(pct, (byPercent.get(pct) ?? 0) + l.amount);
+  }
+  const amount = [...byPercent].reduce((n, [pct, base]) => n + discountAmount(base, pct), 0);
+  if (!amount) return { amount: 0, percent: 0, label: "" };
+  const percents = [...byPercent.keys()];
+  const percent = Math.max(...percents);
+  const label = !own ? `Descuento del negocio (${storePct} %)` : percents.length === 1 ? `Descuento en productos seleccionados (${percent} %)` : "Descuento en productos seleccionados";
+  return { amount, percent, label };
+}
 var discountAmount = (subtotal, percent) => percent > 0 ? Math.floor(subtotal * percent / 100) : 0;
 var endOfDay = (date) => (/* @__PURE__ */ new Date(`${date}T23:59:59-05:00`)).toISOString();
 
@@ -31920,11 +31963,41 @@ async function setCouponActive(db2, storeId, id, active) {
   const { changes } = await db2.prepare("UPDATE store_coupons SET active=? WHERE id=? AND store_id=?").run(active ? 1 : 0, id, storeId);
   if (!changes) throw new HttpError(404, "No encontramos ese cup\xF3n.");
 }
+async function storeOffers(db2, storeId) {
+  const cfg = await settings(db2, storeId);
+  return splitOffers(cfg.storeDiscount, cfg.productDiscounts);
+}
+async function saveOffers(db2, storeId, offers) {
+  await setSettings(db2, storeId, {
+    ...await settings(db2, storeId),
+    storeDiscount: offers.store,
+    productDiscounts: offers.products
+  });
+}
 async function setStoreDiscount(db2, storeId, body) {
   const percent = percentField(body.percent, 0);
   const discount = percent ? { percent, until: dateField(body.until, "la fecha de fin") } : null;
-  await setSettings(db2, storeId, { ...await settings(db2, storeId), storeDiscount: discount });
+  const offers = await storeOffers(db2, storeId);
+  await saveOffers(db2, storeId, { ...offers, store: discount });
   return discount;
+}
+async function setProductDiscounts(db2, storeId, body, catalog2) {
+  if (!Array.isArray(body.products) || !body.products.length || body.products.length > 200)
+    throw new HttpError(400, "Elige al menos un producto para el descuento.");
+  const ids = [...new Set(body.products.map(String))];
+  if (ids.some((id) => !catalog2.includes(id)))
+    throw new HttpError(400, "Uno de los productos ya no est\xE1 en tu cat\xE1logo.");
+  const percent = percentField(body.percent, 0);
+  const until = percent ? dateField(body.until, "la fecha de fin") : null;
+  const offers = await storeOffers(db2, storeId);
+  const products = Object.fromEntries(
+    Object.entries(offers.products).filter(([id]) => catalog2.includes(id))
+  );
+  for (const id of ids)
+    if (percent) products[id] = { percent, until };
+    else delete products[id];
+  await saveOffers(db2, storeId, { store: offers.store, products });
+  return products;
 }
 async function findCoupon(db2, storeId, rawCode) {
   const code = normalizeCode(rawCode);
@@ -31937,11 +32010,14 @@ async function findCoupon(db2, storeId, rawCode) {
   if (state2 === "inactive") throw new HttpError(409, "Ese cup\xF3n ya no est\xE1 disponible.");
   return coupon;
 }
-async function applyOffers(db2, storeId, subtotal, rawCode) {
-  const store = discountPercent((await settings(db2, storeId)).storeDiscount);
+async function applyOffers(db2, storeId, lines, rawCode) {
+  const subtotal = lines.reduce((n, l) => n + l.amount, 0);
+  const offers = await storeOffers(db2, storeId);
+  const fromStore = storeOffer(offers.store, offers.products, lines);
+  const storeAmount = fromStore.amount;
   const code = typeof rawCode === "string" ? rawCode.trim() : "";
   const coupon = code ? await findCoupon(db2, storeId, code) : null;
-  if (coupon && coupon.percent > store) {
+  if (coupon && discountAmount(subtotal, coupon.percent) > storeAmount) {
     const { changes } = await db2.prepare(
       "UPDATE store_coupons SET uses=uses+1 WHERE id=? AND active=1 AND (max_uses IS NULL OR uses < max_uses)"
     ).run(coupon.id);
@@ -31954,10 +32030,10 @@ async function applyOffers(db2, storeId, subtotal, rawCode) {
       couponId: coupon.id
     };
   }
-  return store ? {
-    percent: store,
-    amount: discountAmount(subtotal, store),
-    label: `Descuento del negocio (${store} %)`,
+  return storeAmount > 0 ? {
+    percent: fromStore.percent,
+    amount: storeAmount,
+    label: fromStore.label,
     code: "",
     couponId: ""
   } : { percent: 0, amount: 0, label: "", code: "", couponId: "" };
@@ -32201,6 +32277,7 @@ async function commerceStore(db2, storeId) {
       "SELECT product_id, COUNT(*) AS n, AVG(rating) AS rating FROM product_reviews WHERE store_id=? GROUP BY product_id"
     ).all(storeId)
   ]);
+  const offers = splitOffers(cfg.storeDiscount, cfg.productDiscounts);
   return {
     reviewCount: reviewStats?.n ?? 0,
     settings: cfg,
@@ -32214,7 +32291,8 @@ async function commerceStore(db2, storeId) {
       ])
     ),
     reviews,
-    discount: discountPercent(cfg.storeDiscount) ? cfg.storeDiscount ?? null : null,
+    discount: discountPercent(offers.store) ? offers.store : null,
+    productDiscounts: activeProductDiscounts(offers.products),
     completed365: completed.filter((o) => Date.parse(o.completedAt) > Date.now() - 365 * 864e5).length,
     rating: reviewStats?.rating ?? null
   };
@@ -32240,7 +32318,7 @@ async function storeSummaries(db2, ids) {
     const discount = Math.max(
       0,
       ...promos.filter((r) => r.store_id === id).map((r) => JSON.parse(String(r.payload))).filter((x) => x.active && Date.parse(x.expires) > Date.now()).map((x) => x.percent),
-      discountPercent(cfg.storeDiscount)
+      bestPercent(cfg.storeDiscount, cfg.productDiscounts)
     );
     result.set(id, {
       lat: cfg.latitude,
@@ -32432,7 +32510,12 @@ async function createOperation(db2, actor, data) {
         ).toISOString();
         op.subtotal = offer.price;
         op.detail = `${offer.name}: ${op.detail}`;
-        const offerApplied = await applyOffers(db3, store.id, op.subtotal, data.code);
+        const offerApplied = await applyOffers(
+          db3,
+          store.id,
+          [{ productId: offer.id, amount: op.subtotal }],
+          data.code
+        );
         op.discount = offerApplied.amount;
         if (offerApplied.label) op.discountLabel = offerApplied.label;
       }
@@ -33323,7 +33406,7 @@ function publicationErrors(d) {
   const errors = [];
   if (!d.name.trim()) errors.push("Escribe el nombre de tu negocio.");
   if (!d.municipality.trim()) errors.push("Indica tu municipio.");
-  if (d.products.length < 3) errors.push("Agrega al menos tres productos o servicios.");
+  if (d.products.length < 1) errors.push("Agrega al menos un producto o servicio.");
   if (d.products.some((p) => !p.name.trim() || !Number.isSafeInteger(p.price) || p.price < 0))
     errors.push("Revisa los nombres y precios del cat\xE1logo.");
   if (new Set(d.products.map((p) => p.id)).size !== d.products.length)
@@ -33382,13 +33465,13 @@ function registrationErrors(d) {
     errors.push("Falta un WhatsApp v\xE1lido con c\xF3digo de pa\xEDs.");
   if (!real(d.logo)) errors.push("Falta el logo.");
   if (!real(d.content.heroImage)) errors.push("Falta la foto de portada.");
-  if (d.products.length < 3) errors.push("Agrega al menos tres productos o servicios.");
+  if (d.products.length < 1) errors.push("Agrega al menos un producto o servicio.");
   if (d.products.some((p) => !p.description.trim()))
     errors.push("Cada producto o servicio necesita una descripci\xF3n.");
   if (d.products.some((p) => !real(p.image)))
     errors.push("Cada producto o servicio necesita su foto.");
-  if (d.mode !== "quote" && d.products.some((p) => !(p.price > 0)))
-    errors.push("Cada producto o servicio necesita su precio.");
+  if (d.mode === "products" && d.products.some((p) => !(p.price > 0)))
+    errors.push("Cada producto necesita su precio.");
   return errors;
 }
 function businessHref(id) {
@@ -33468,25 +33551,22 @@ var documentKinds = [
   {
     id: "identidad",
     label: "Documento de identidad",
-    hint: "C\xE9dula del titular o del representante legal (ambas caras)."
+    hint: "C\xE9dula del titular o del representante legal, en PDF con ambas caras."
   },
   { id: "rut", label: "RUT", hint: "Registro \xDAnico Tributario actualizado." },
-  {
-    id: "bancario",
-    label: "Certificado bancario",
-    hint: "De la persona natural o jur\xEDdica, con no m\xE1s de 30 d\xEDas."
-  },
   {
     id: "camara",
     label: "C\xE1mara de Comercio",
     hint: "Certificado de existencia y representaci\xF3n legal (jur\xEDdica) o matr\xEDcula mercantil (natural)."
   }
 ];
-function requiredDocuments(type) {
-  return type === "juridica" ? ["identidad", "rut", "bancario", "camara"] : ["identidad", "rut", "bancario"];
+function requiredDocuments(_type) {
+  return ["identidad"];
 }
 var documentMimes = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 var documentMaxBytes = 4 * 1024 * 1024;
+var mimesFor = (kind) => kind === "identidad" ? ["application/pdf"] : documentMimes;
+var formatsFor = (kind) => kind === "identidad" ? "PDF" : "PDF, JPG, PNG o WEBP";
 function missingDocuments(type, docs) {
   const have = new Set(docs.map((d) => d.kind));
   return requiredDocuments(type).filter((k) => !have.has(k));
@@ -33915,14 +33995,25 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
   };
   r.get("/negocios/:id/promociones-panel", async (req, res) => {
     const store = await owned(db2, requireUser(res), req.params.id);
+    const offers = await storeOffers(db2, store.id);
     res.json({
-      discount: (await settings(db2, store.id)).storeDiscount ?? null,
+      discount: offers.store,
+      productDiscounts: offers.products,
       coupons: await listCoupons(db2, store.id)
     });
   });
   r.put("/negocios/:id/descuento", async (req, res) => {
     const store = await owned(db2, requireUser(res), req.params.id);
     res.json({ discount: await setStoreDiscount(db2, store.id, req.body ?? {}) });
+  });
+  r.put("/negocios/:id/descuento-productos", async (req, res) => {
+    const store = await owned(db2, requireUser(res), req.params.id);
+    const catalog2 = (store.published?.design.products ?? store.draft.products ?? []).map(
+      (p) => p.id
+    );
+    res.json({
+      productDiscounts: await setProductDiscounts(db2, store.id, req.body ?? {}, catalog2)
+    });
   });
   r.post("/negocios/:id/cupones", async (req, res) => {
     const store = await owned(db2, requireUser(res), req.params.id);
@@ -33950,8 +34041,14 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     const store = await getStore(db2, string(req.body?.storeId, 100, "el negocio"));
     if (!store?.published) throw new HttpError(404, "Negocio no encontrado.");
     const coupon = await findCoupon(db2, store.id, string(req.body?.code, 40, "el c\xF3digo"));
-    const storePercent = discountPercent((await settings(db2, store.id)).storeDiscount);
-    res.json({ code: coupon.code, percent: coupon.percent, storePercent });
+    const offers = await storeOffers(db2, store.id);
+    res.json({
+      code: coupon.code,
+      percent: coupon.percent,
+      storePercent: discountPercent(offers.store),
+      storeDiscount: discountPercent(offers.store) ? offers.store : null,
+      productDiscounts: activeProductDiscounts(offers.products)
+    });
   });
   r.post("/negocios/:id/promociones", savePromotion);
   r.put("/negocios/:id/promociones/:promo", savePromotion);
@@ -34035,7 +34132,12 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
     const subtotal = lines.reduce((n, l) => n + l.price * l.quantity, 0);
     if (!orderLink(design.whatsapp, ""))
       throw new HttpError(409, "Este negocio no tiene WhatsApp registrado.");
-    const offer = await applyOffers(db2, store.id, subtotal, req.body.code);
+    const offer = await applyOffers(
+      db2,
+      store.id,
+      lines.map((l) => ({ productId: l.productId, amount: l.price * l.quantity })),
+      req.body.code
+    );
     const order2 = {
       id: randomUUID10(),
       storeId: store.id,
@@ -34112,8 +34214,9 @@ Ejercicio: ${lesson.exercise}`, mode = "guia-local";
       throw new HttpError(404, "Documento desconocido.");
     const name = string(req.body.name, 160, "el nombre del archivo");
     const match = /^data:([a-z/+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.data ?? ""));
-    if (!match || !documentMimes.includes(match[1]))
-      throw new HttpError(400, "Sube el documento en PDF, JPG, PNG o WEBP.");
+    const kind = req.params.kind;
+    if (!match || !mimesFor(kind).includes(match[1]))
+      throw new HttpError(400, `Sube el documento en ${formatsFor(kind)}.`);
     if (Buffer.byteLength(match[2], "base64") > documentMaxBytes)
       throw new HttpError(413, "El archivo supera los 4 MB.");
     await db2.prepare("DELETE FROM store_documents WHERE store_id=? AND kind=?").run(store.id, req.params.kind);
@@ -35401,7 +35504,7 @@ var topics = [
     ],
     min: 2,
     answer: {
-      text: "Puedes publicar tu emprendimiento en SucreIA: registras los datos del negocio, el horario, fotos, cat\xE1logo y documentos (c\xE9dula, RUT y certificado bancario). La administraci\xF3n lo revisa y, al aprobarlo, aparece en la plataforma.",
+      text: "Puedes publicar tu emprendimiento en SucreIA: registras los datos del negocio, el horario, fotos, cat\xE1logo y documentos (la c\xE9dula en PDF; el RUT y la C\xE1mara de Comercio son opcionales). La administraci\xF3n lo revisa y, al aprobarlo, aparece en la plataforma.",
       cta: { label: "Montar mi emprendimiento", href: "/emprender" }
     }
   },
@@ -35476,11 +35579,9 @@ var topics = [
   },
   {
     roles: merchant,
-    keys: [
-      ["documento", "rut", "cedula", "camara de comercio", "certificado", "bancario", "legal"]
-    ],
+    keys: [["documento", "rut", "cedula", "camara de comercio", "certificado", "legal"]],
     answer: {
-      text: "Los documentos son: c\xE9dula, RUT y certificado bancario; la C\xE1mara de Comercio es obligatoria para persona jur\xEDdica y opcional para persona natural. Van en PDF, JPG, PNG o WEBP de m\xE1ximo 4 MB, y solo los ve la administraci\xF3n. Se cambian desde el panel del negocio.",
+      text: "Solo la c\xE9dula es obligatoria y va en PDF; el RUT y la C\xE1mara de Comercio son opcionales (PDF, JPG, PNG o WEBP). Cada archivo pesa m\xE1ximo 4 MB, y solo los ve la administraci\xF3n. Se cambian desde el panel del negocio.",
       cta: { label: "Ir a Mis negocios", href: "/panel/negocios" }
     }
   },
