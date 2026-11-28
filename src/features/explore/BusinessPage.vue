@@ -35,7 +35,7 @@ import { canBuyRole } from '@/domain/roles';
 import { socialUrl, thumbnail, type StoreDesign, type StoreProduct } from '@/domain/studio';
 import { rankByRating, weekSummary, type CommerceStore } from '@/domain/platform';
 import { currency, whatsappUrl } from '@/domain/rules';
-import { discounted, discountPercent } from '@/domain/offers';
+import { discounted, discountFor, discountPercent, selectedOnly } from '@/domain/offers';
 import { sectorFor, sentenceCase, subregionFor } from '@/domain/sectors';
 import type { BrainContext, Reply } from '@/domain/brain/types';
 import EmptyState from '@/components/EmptyState.vue';
@@ -151,6 +151,9 @@ const featured = computed(() =>
 const productRating = (productId: string) => meta.value?.productRatings?.[productId];
 // Descuento para todo el negocio (lo pone el dueño en «Promociones y reseñas»).
 const offPercent = computed(() => discountPercent(meta.value?.discount));
+/** Descuento de un producto (el negocio puede tenerlo solo en algunos). */
+const offFor = (productId: string) => discountFor(meta.value?.discount, productId);
+const offSelected = computed(() => selectedOnly(meta.value?.discount));
 const offUntil = computed(() =>
   meta.value?.discount?.until
     ? new Date(meta.value.discount.until).toLocaleDateString('es-CO', {
@@ -535,8 +538,12 @@ const assistantBullets = computed(() => [
     <p v-if="offPercent" class="bp-offer" role="note">
       <BadgePercent :size="20" aria-hidden="true" />
       <span
-        ><strong>{{ offPercent }} % de descuento en todo el negocio</strong
-        >{{ offUntil ? ` hasta el ${offUntil}` : '' }}. Ya está aplicado en los precios.</span
+        ><strong
+          >{{ offPercent }} % de descuento
+          {{ offSelected ? 'en productos seleccionados' : 'en todo el negocio' }}</strong
+        >{{ offUntil ? ` hasta el ${offUntil}` : '' }}. Ya está aplicado en los precios{{
+          offSelected ? ' marcados' : ''
+        }}.</span
       >
     </p>
     <div class="bp-grid">
@@ -658,9 +665,9 @@ const assistantBullets = computed(() => [
                 <div class="bp-mini-foot">
                   <span class="bp-prices"
                     ><strong>{{
-                      p.price ? currency(discounted(p.price, offPercent)) : 'A cotizar'
+                      p.price ? currency(discounted(p.price, offFor(p.id))) : 'A convenir'
                     }}</strong
-                    ><s v-if="offPercent && p.price">{{ currency(p.price) }}</s></span
+                    ><s v-if="offFor(p.id) && p.price">{{ currency(p.price) }}</s></span
                   >
                   <button
                     type="button"
@@ -831,9 +838,9 @@ const assistantBullets = computed(() => [
                 <p v-if="p.description" class="small muted">{{ p.description }}</p>
                 <p class="bp-prices">
                   <strong class="bp-price">{{
-                    p.price ? currency(discounted(p.price, offPercent)) : 'A cotizar'
+                    p.price ? currency(discounted(p.price, offFor(p.id))) : 'A convenir'
                   }}</strong
-                  ><s v-if="offPercent && p.price">{{ currency(p.price) }}</s>
+                  ><s v-if="offFor(p.id) && p.price">{{ currency(p.price) }}</s>
                 </p>
                 <p v-if="stockOf(p) === 0" class="small danger" style="margin: 0">Agotado</p>
                 <div class="bp-buy">
@@ -1061,7 +1068,7 @@ const assistantBullets = computed(() => [
       :services="design.products"
       :initial="service"
       :settings="meta?.settings ?? null"
-      :discount="offPercent"
+      :discount="meta?.discount ?? null"
       :busy="platform.busy.value"
       :error="notice"
       @close="bookingOpen = false"
@@ -1077,7 +1084,8 @@ const assistantBullets = computed(() => [
           >Servicio
           <select v-model="service" required>
             <option v-for="p in design.products" :key="p.id" :value="p.id">
-              {{ p.name }} · {{ design.mode === 'quote' ? 'A cotizar' : currency(p.price)
+              {{ p.name }} ·
+              {{ design.mode === 'quote' ? 'A cotizar' : p.price ? currency(p.price) : 'A convenir'
               }}{{ design.mode === 'booking' && p.duration ? ` · ${p.duration} min` : '' }}
             </option>
           </select></label

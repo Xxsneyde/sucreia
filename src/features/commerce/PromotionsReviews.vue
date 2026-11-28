@@ -24,6 +24,7 @@ import {
   couponStateNames,
   dateInput,
   discounted,
+  discountFor,
   discountPercent,
   MAX_PERCENT,
   normalizeCode,
@@ -33,7 +34,8 @@ import {
 } from '@/domain/offers';
 
 // «Promociones y reseñas»: lista de negocios y, al elegir uno, sus productos en tarjetas, el
-// descuento para todo el negocio, los cupones con código y las reseñas (negocio y productos).
+// descuento (para todo el negocio o para productos elegidos), los cupones con código y las
+// reseñas (negocio y productos).
 const studio = useStudio();
 const route = useRoute();
 const router = useRouter();
@@ -80,7 +82,12 @@ const busy = ref(false);
 const discount = ref<StoreDiscount | null>(null);
 const coupons = ref<StoreCoupon[]>([]);
 const loaded = ref(false);
-const form = ref({ percent: 10, until: '' });
+const form = ref({
+  percent: 10,
+  until: '',
+  scope: 'all' as 'all' | 'selected',
+  products: [] as string[],
+});
 const couponForm = ref({ code: '', percent: 10, expires: '', maxUses: '' as number | '' });
 const creating = ref(false);
 const reviews = ref<{ store: Review[]; products: ProductReview[] } | null>(null);
@@ -104,6 +111,8 @@ async function load(id: string) {
     form.value = {
       percent: panel.discount?.percent || 10,
       until: dateInput(panel.discount?.until ?? null),
+      scope: panel.discount?.products?.length ? 'selected' : 'all',
+      products: [...(panel.discount?.products ?? [])],
     };
     loaded.value = true;
     if (tab.value === 'resenas') await loadReviews();
@@ -114,6 +123,23 @@ async function load(id: string) {
 watch(selectedId, (id) => id && void load(id), { immediate: true });
 
 const activePercent = computed(() => discountPercent(discount.value));
+/** Texto corto de a qué aplica el descuento guardado: «en todo el negocio» o «en 3 productos». */
+const scopeText = (d: StoreDiscount | null | undefined) => {
+  const n = d?.products?.length ?? 0;
+  if (!n) return 'en todo el negocio';
+  const kind = isServices.value ? 'servicio' : 'producto';
+  return `en ${n} ${kind}${n === 1 ? '' : 's'}`;
+};
+const picking = computed(() => form.value.scope === 'selected');
+const isPicked = (id: string) => form.value.products.includes(id);
+function togglePick(id: string) {
+  form.value.products = isPicked(id)
+    ? form.value.products.filter((x) => x !== id)
+    : [...form.value.products, id];
+}
+const pickAll = (on: boolean) => {
+  form.value.products = on ? products.value.map((p) => p.id) : [];
+};
 const products = computed(() => (current.value ? design(current.value).products : []));
 const summary = computed(() => (current.value ? summaries.value[current.value.id] : undefined));
 const isServices = computed(() => !!current.value && design(current.value).mode !== 'products');
@@ -138,21 +164,28 @@ async function run(fn: () => Promise<void>, ok: string) {
     busy.value = false;
   }
 }
-const saveDiscount = (percent: number) =>
-  run(
+async function saveDiscount(percent: number) {
+  const chosen = picking.value ? form.value.products : [];
+  if (percent && picking.value && !chosen.length) {
+    message.value = '';
+    error.value = `Elige abajo al menos ${isServices.value ? 'un servicio' : 'un producto'} para el descuento.`;
+    return;
+  }
+  await run(
     async () => {
       const r = await api<{ discount: StoreDiscount | null }>(
         'PUT',
         `/plataforma/negocios/${selectedId.value}/descuento`,
-        { percent, until: form.value.until || null },
+        { percent, until: form.value.until || null, products: chosen },
       );
       discount.value = r.discount;
       delete summaries.value[selectedId.value];
     },
     percent
-      ? `Listo: ${percent} % de descuento en todo el negocio.`
+      ? `Listo: ${percent} % de descuento ${scopeText({ percent, until: null, products: chosen })}.`
       : 'Quitaste el descuento del negocio.',
   );
+}
 function suggestCode() {
   const name = current.value ? design(current.value).name : 'SUCRE';
   const base =
@@ -305,7 +338,8 @@ const totalReviews = computed(
                 class="pr-chip pr-chip--green"
               >
                 <BadgePercent :size="13" aria-hidden="true" />
-                {{ discountPercent(summaries[p.id]?.discount) }} % en todo
+                {{ discountPercent(summaries[p.id]?.discount) }} %
+                {{ summaries[p.id]?.discount?.products?.length ? 'en algunos' : 'en todo' }}
               </span>
               <span v-if="!p.published" class="pr-chip pr-chip--wait">Aún no publicado</span>
             </span>
@@ -341,7 +375,8 @@ const totalReviews = computed(
           </span>
           <span v-else class="muted">Aún sin reseñas del negocio</span>
           <span v-if="activePercent" class="pr-chip pr-chip--green">
-            <BadgePercent :size="13" aria-hidden="true" /> {{ activePercent }} % en todo el negocio
+            <BadgePercent :size="13" aria-hidden="true" /> {{ activePercent }} %
+            {{ scopeText(discount) }}
           </span>
         </p>
       </div>
@@ -399,19 +434,51 @@ const totalReviews = computed(
               ><BadgePercent :size="20"
             /></span>
             <div>
-              <h2 id="pr-discount-title">Descuento en todo el negocio</h2>
+              <h2 id="pr-discount-title">Descuento del negocio</h2>
               <p class="muted">
-                Se aplica a {{ isServices ? 'todos tus servicios' : 'todos tus productos' }} sin que
-                el cliente escriba nada.
+                Para todo el negocio o solo para los
+                {{ isServices ? 'servicios' : 'productos' }} que elijas. Se aplica sin que el
+                cliente escriba nada.
               </p>
             </div>
           </header>
           <p v-if="activePercent" class="pr-state pr-state--on">
-            Activo: <strong>{{ activePercent }} %</strong>
+            Activo: <strong>{{ activePercent }} %</strong> {{ scopeText(discount) }},
             {{ discount?.until ? `hasta el ${longDate(discount.until)}` : 'sin fecha de fin' }}
           </p>
           <p v-else class="pr-state">Sin descuento activo.</p>
           <form class="pr-form" @submit.prevent="saveDiscount(form.percent)">
+            <div class="pr-seg pr-scope" role="radiogroup" aria-label="A qué aplica el descuento">
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="!picking"
+                :class="{ on: !picking }"
+                @click="form.scope = 'all'"
+              >
+                Todo el negocio
+              </button>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="picking"
+                :class="{ on: picking }"
+                @click="form.scope = 'selected'"
+              >
+                {{ isServices ? 'Servicios' : 'Productos' }} seleccionados
+              </button>
+            </div>
+            <div v-if="picking" class="pr-pick-note">
+              <span
+                ><strong>{{ form.products.length }}</strong> de {{ products.length }}
+                {{ isServices ? 'servicios' : 'productos' }} elegidos. Márcalos abajo, en sus
+                tarjetas.</span
+              >
+              <span class="pr-pick-all">
+                <button type="button" class="pr-link" @click="pickAll(true)">Todos</button>
+                <button type="button" class="pr-link" @click="pickAll(false)">Ninguno</button>
+              </span>
+            </div>
             <label class="pr-range">
               <span
                 >Porcentaje de descuento <b>{{ form.percent }} %</b></span
@@ -565,21 +632,39 @@ const totalReviews = computed(
             <Package :size="20" aria-hidden="true" /> Tus
             {{ isServices ? 'servicios' : 'productos' }}
           </h2>
-          <small class="muted">{{ products.length }} en tu página</small>
+          <small class="muted">{{
+            picking
+              ? 'Marca la casilla de cada tarjeta para incluirla en el descuento'
+              : `${products.length} en tu página`
+          }}</small>
         </div>
         <p v-if="!products.length" class="pr-none">Este negocio aún no tiene productos.</p>
         <ul v-else class="pr-cards">
-          <li v-for="p in products" :key="p.id" class="sx-card pr-card">
+          <li
+            v-for="p in products"
+            :key="p.id"
+            :class="['sx-card', 'pr-card', { 'pr-card--picked': picking && isPicked(p.id) }]"
+          >
             <div class="pr-card-img">
               <img :src="thumbnail(p.image) || '/art/food.svg'" alt="" loading="lazy" />
-              <span v-if="activePercent && p.price" class="pr-off">−{{ activePercent }}%</span>
+              <span v-if="discountFor(discount, p.id) && p.price" class="pr-off"
+                >−{{ discountFor(discount, p.id) }}%</span
+              >
+              <label v-if="picking" class="pr-pick"
+                ><input
+                  type="checkbox"
+                  :checked="isPicked(p.id)"
+                  :aria-label="`Incluir ${p.name} en el descuento`"
+                  @change="togglePick(p.id)"
+                /><span>{{ isPicked(p.id) ? 'Con descuento' : 'Incluir' }}</span></label
+              >
             </div>
             <div class="pr-card-body">
               <h3>{{ p.name }}</h3>
               <p class="pr-price">
-                <template v-if="!p.price">A cotizar</template>
-                <template v-else-if="activePercent">
-                  <strong>{{ currency(discounted(p.price, activePercent)) }}</strong>
+                <template v-if="!p.price">A convenir</template>
+                <template v-else-if="discountFor(discount, p.id)">
+                  <strong>{{ currency(discounted(p.price, discountFor(discount, p.id))) }}</strong>
                   <s>{{ currency(p.price) }}</s>
                 </template>
                 <strong v-else>{{ currency(p.price) }}</strong>
@@ -1142,6 +1227,62 @@ const totalReviews = computed(
 .pr-card {
   overflow: hidden;
   padding: 0;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+.pr-card--picked {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px #15803d;
+}
+/* Casilla para elegir el producto del descuento (arriba a la derecha de la foto). */
+.pr-pick {
+  color: var(--ink);
+  cursor: pointer;
+  background: #fffffff0;
+  border-radius: 999px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  box-shadow: 0 1px 4px #0f172a26;
+}
+.pr-pick input {
+  accent-color: #15803d;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+.pr-scope {
+  grid-template-columns: 1fr 1fr;
+  display: grid;
+}
+.pr-scope button {
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+.pr-pick-note {
+  color: var(--text);
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  display: flex;
+}
+.pr-pick-all {
+  gap: 12px;
+  display: flex;
 }
 .pr-card-img {
   aspect-ratio: 4 / 3;

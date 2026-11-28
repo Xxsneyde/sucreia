@@ -165,7 +165,7 @@ export function publicationErrors(d: StoreDesign): string[] {
   const errors: string[] = [];
   if (!d.name.trim()) errors.push('Escribe el nombre de tu negocio.');
   if (!d.municipality.trim()) errors.push('Indica tu municipio.');
-  if (d.products.length < 3) errors.push('Agrega al menos tres productos o servicios.');
+  if (d.products.length < 1) errors.push('Agrega al menos un producto o servicio.');
   if (d.products.some((p) => !p.name.trim() || !Number.isSafeInteger(p.price) || p.price < 0))
     errors.push('Revisa los nombres y precios del catálogo.');
   if (new Set(d.products.map((p) => p.id)).size !== d.products.length)
@@ -226,13 +226,14 @@ export function registrationErrors(d: StoreDesign): string[] {
     errors.push('Falta un WhatsApp válido con código de país.');
   if (!real(d.logo)) errors.push('Falta el logo.');
   if (!real(d.content.heroImage)) errors.push('Falta la foto de portada.');
-  if (d.products.length < 3) errors.push('Agrega al menos tres productos o servicios.');
+  if (d.products.length < 1) errors.push('Agrega al menos un producto o servicio.');
   if (d.products.some((p) => !p.description.trim()))
     errors.push('Cada producto o servicio necesita una descripción.');
   if (d.products.some((p) => !real(p.image)))
     errors.push('Cada producto o servicio necesita su foto.');
-  if (d.mode !== 'quote' && d.products.some((p) => !(p.price > 0)))
-    errors.push('Cada producto o servicio necesita su precio.');
+  // Los servicios pueden quedar con precio «a convenir» (0); los productos necesitan precio.
+  if (d.mode === 'products' && d.products.some((p) => !(p.price > 0)))
+    errors.push('Cada producto necesita su precio.');
   return errors;
 }
 /** Página pública de un negocio publicado en SucreIA. */

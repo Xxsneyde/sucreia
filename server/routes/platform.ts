@@ -52,7 +52,8 @@ import { isDesign, publishProject, type StoreDesign } from '../../src/domain/stu
 import {
   documentKinds,
   documentMaxBytes,
-  documentMimes,
+  formatsFor,
+  mimesFor,
   missingDocuments,
   type DocumentKind,
   type PersonType,
@@ -559,7 +560,10 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
   });
   r.put('/negocios/:id/descuento', async (req, res) => {
     const store = await owned(db, requireUser(res), req.params.id);
-    res.json({ discount: await setStoreDiscount(db, store.id, req.body ?? {}) });
+    const catalog = (store.published?.design.products ?? store.draft.products ?? []).map(
+      (p) => p.id,
+    );
+    res.json({ discount: await setStoreDiscount(db, store.id, req.body ?? {}, catalog) });
   });
   r.post('/negocios/:id/cupones', async (req, res) => {
     const store = await owned(db, requireUser(res), req.params.id);
@@ -594,8 +598,13 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     const store = await getStore(db, string(req.body?.storeId, 100, 'el negocio'));
     if (!store?.published) throw new HttpError(404, 'Negocio no encontrado.');
     const coupon = await findCoupon(db, store.id, string(req.body?.code, 40, 'el código'));
-    const storePercent = discountPercent((await settings(db, store.id)).storeDiscount);
-    res.json({ code: coupon.code, percent: coupon.percent, storePercent });
+    const storeDiscount = (await settings(db, store.id)).storeDiscount ?? null;
+    res.json({
+      code: coupon.code,
+      percent: coupon.percent,
+      storePercent: discountPercent(storeDiscount),
+      storeDiscount: discountPercent(storeDiscount) ? storeDiscount : null,
+    });
   });
   r.post('/negocios/:id/promociones', savePromotion);
   r.put('/negocios/:id/promociones/:promo', savePromotion);
@@ -685,7 +694,12 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
     if (!orderLink(design.whatsapp, ''))
       throw new HttpError(409, 'Este negocio no tiene WhatsApp registrado.');
     // Descuento del negocio o cupón: el mayor (no se acumulan). Lo calcula el servidor.
-    const offer = await applyOffers(db, store.id, subtotal, req.body.code);
+    const offer = await applyOffers(
+      db,
+      store.id,
+      lines.map((l) => ({ productId: l.productId, amount: l.price * l.quantity })),
+      req.body.code,
+    );
     const order: WhatsappOrderRecord = {
       id: randomUUID(),
       storeId: store.id,
@@ -778,8 +792,9 @@ export function platformRoutes(db: Db, images: ImageStorage, assistant?: Catalog
       throw new HttpError(404, 'Documento desconocido.');
     const name = string(req.body.name, 160, 'el nombre del archivo');
     const match = /^data:([a-z/+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.data ?? ''));
-    if (!match || !(documentMimes as readonly string[]).includes(match[1]))
-      throw new HttpError(400, 'Sube el documento en PDF, JPG, PNG o WEBP.');
+    const kind = req.params.kind as DocumentKind;
+    if (!match || !mimesFor(kind).includes(match[1]))
+      throw new HttpError(400, `Sube el documento en ${formatsFor(kind)}.`);
     if (Buffer.byteLength(match[2], 'base64') > documentMaxBytes)
       throw new HttpError(413, 'El archivo supera los 4 MB.');
     await db

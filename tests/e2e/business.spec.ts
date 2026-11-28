@@ -56,7 +56,7 @@ test('registro en siete pasos, revisión de la administración y negocio visible
   await loaded(reviewer.getByRole('img', { name: `Portada de ${name}` }));
   await loaded(reviewer.getByRole('img', { name: `Logo de ${name}` }));
   const products = reviewer.locator('.adm-products img');
-  await expect(products).toHaveCount(3);
+  await expect(products).toHaveCount(2);
   for (const img of await products.all()) await loaded(img);
   await reviewer
     .getByLabel('Motivo o comentario para el emprendedor')

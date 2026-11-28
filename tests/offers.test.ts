@@ -10,7 +10,13 @@ import { createApp } from '../server/app.ts';
 import { httpClient } from './http.ts';
 import { createDesign } from '../src/domain/studio.ts';
 import type { BusinessMode } from '../src/domain/types.ts';
-import { couponState, discounted, type StoreCoupon } from '../src/domain/offers.ts';
+import {
+  couponState,
+  discounted,
+  discountFor,
+  storeDiscountAmount,
+  type StoreCoupon,
+} from '../src/domain/offers.ts';
 import { approveRegistration, TERMS_VERSION } from './registration.ts';
 
 type Call = (m: string, p: string, b?: unknown) => Promise<{ status: number; json: any }>;
@@ -89,6 +95,18 @@ test('reglas de los descuentos: precio con descuento y estado de cada cupón', (
   assert.equal(couponState({ ...base, uses: 2 }), 'exhausted');
   assert.equal(couponState({ ...base, expires: '2000-01-01T00:00:00Z' }), 'expired');
   assert.equal(couponState({ ...base, active: false }), 'inactive');
+  // Descuento solo para algunos productos.
+  const some = { percent: 20, until: null, products: ['a'] };
+  assert.equal(discountFor(some, 'a'), 20);
+  assert.equal(discountFor(some, 'b'), 0);
+  assert.equal(discountFor({ percent: 20, until: null }, 'b'), 20);
+  assert.equal(
+    storeDiscountAmount(some, [
+      { productId: 'a', amount: 10000 },
+      { productId: 'b', amount: 30000 },
+    ]),
+    2000,
+  );
 });
 
 test('descuento del negocio y cupón: se aplica el mayor, el servidor calcula el total', async () => {
@@ -155,7 +173,10 @@ test('descuento del negocio y cupón: se aplica el mayor, el servidor calcula el
       storeId: id,
       code: 'bienvenida',
     });
-    assert.deepEqual(check.json, { code: 'BIENVENIDA', percent: 25, storePercent: 15 });
+    assert.equal(check.json.code, 'BIENVENIDA');
+    assert.equal(check.json.percent, 25);
+    assert.equal(check.json.storePercent, 15);
+    assert.equal(check.json.storeDiscount.percent, 15);
     assert.equal(
       (await client.call('POST', '/plataforma/cupones/validar', { storeId: id, code: 'NOEXISTE' }))
         .status,
@@ -214,6 +235,58 @@ test('descuento del negocio y cupón: se aplica el mayor, el servidor calcula el
     const full = await buy();
     assert.equal(full.json.order.discount, 0);
     assert.equal(full.json.order.total, 40000);
+
+    // Descuento solo para productos elegidos: los demás quedan a precio normal.
+    const other = design.products[1];
+    assert.equal(
+      (
+        await owner.call('PUT', `/plataforma/negocios/${id}/descuento`, {
+          percent: 30,
+          products: ['no-existe'],
+        })
+      ).status,
+      400,
+    );
+    const picked = await owner.call('PUT', `/plataforma/negocios/${id}/descuento`, {
+      percent: 30,
+      products: [product.id],
+    });
+    assert.equal(picked.status, 200, JSON.stringify(picked.json));
+    assert.deepEqual(picked.json.discount.products, [product.id]);
+    const mixed = await client.call('POST', '/plataforma/compras-whatsapp', {
+      storeId: id,
+      items: [
+        { productId: product.id, quantity: 1 },
+        { productId: other.id, quantity: 1 },
+      ],
+    });
+    assert.equal(mixed.status, 201, JSON.stringify(mixed.json));
+    assert.equal(mixed.json.order.subtotal, 40000);
+    assert.equal(mixed.json.order.discount, 6000, '30 % solo del producto elegido');
+    assert.match(mixed.json.message, /Descuento en productos seleccionados \(30 %\)/);
+    // Un producto sin descuento no recibe nada.
+    const none = await client.call('POST', '/plataforma/compras-whatsapp', {
+      storeId: id,
+      items: [{ productId: other.id, quantity: 1 }],
+    });
+    assert.equal(none.json.order.discount, 0);
+    // Un cupón del 25 % para todo el pedido gana si descuenta más (10.000 > 6.000).
+    await owner.call('POST', `/plataforma/negocios/${id}/cupones`, { code: 'TODO25', percent: 25 });
+    const coupon25 = await client.call('POST', '/plataforma/compras-whatsapp', {
+      storeId: id,
+      items: [
+        { productId: product.id, quantity: 1 },
+        { productId: other.id, quantity: 1 },
+      ],
+      code: 'TODO25',
+    });
+    assert.equal(coupon25.json.order.discount, 10000);
+    // Vacío = todo el negocio otra vez.
+    const all = await owner.call('PUT', `/plataforma/negocios/${id}/descuento`, {
+      percent: 10,
+      products: [],
+    });
+    assert.equal(all.json.discount.products, undefined);
   } finally {
     f.close();
   }

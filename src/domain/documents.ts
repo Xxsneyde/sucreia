@@ -1,20 +1,15 @@
 // Documentos que el emprendedor adjunta al registrar su negocio para la revisión de la administración.
 
 export type PersonType = 'natural' | 'juridica';
-export type DocumentKind = 'identidad' | 'rut' | 'bancario' | 'camara';
+export type DocumentKind = 'identidad' | 'rut' | 'camara';
 
 export const documentKinds: { id: DocumentKind; label: string; hint: string }[] = [
   {
     id: 'identidad',
     label: 'Documento de identidad',
-    hint: 'Cédula del titular o del representante legal (ambas caras).',
+    hint: 'Cédula del titular o del representante legal, en PDF con ambas caras.',
   },
   { id: 'rut', label: 'RUT', hint: 'Registro Único Tributario actualizado.' },
-  {
-    id: 'bancario',
-    label: 'Certificado bancario',
-    hint: 'De la persona natural o jurídica, con no más de 30 días.',
-  },
   {
     id: 'camara',
     label: 'Cámara de Comercio',
@@ -22,13 +17,11 @@ export const documentKinds: { id: DocumentKind; label: string; hint: string }[] 
   },
 ];
 
-/** Obligatorios: la Cámara de Comercio solo para persona jurídica. */
-export function requiredDocuments(type: PersonType): DocumentKind[] {
-  return type === 'juridica'
-    ? ['identidad', 'rut', 'bancario', 'camara']
-    : ['identidad', 'rut', 'bancario'];
+/** Solo la cédula es obligatoria; el RUT y la Cámara de Comercio son opcionales. */
+export function requiredDocuments(_type: PersonType): DocumentKind[] {
+  return ['identidad'];
 }
-/** Todos los documentos que se pueden adjuntar (para persona natural la Cámara es opcional). */
+/** Todos los documentos que se pueden adjuntar. */
 export function allDocuments(_type: PersonType): DocumentKind[] {
   return documentKinds.map((d) => d.id);
 }
@@ -37,6 +30,12 @@ export const optionalDocument = (type: PersonType, kind: DocumentKind) =>
 
 export const documentMimes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'] as const;
 export const documentMaxBytes = 4 * 1024 * 1024;
+/** Formatos que acepta cada documento: la cédula solo en PDF. */
+export const mimesFor = (kind: DocumentKind): readonly string[] =>
+  kind === 'identidad' ? ['application/pdf'] : documentMimes;
+export const acceptFor = (kind: DocumentKind) => mimesFor(kind).join(',');
+export const formatsFor = (kind: DocumentKind) =>
+  kind === 'identidad' ? 'PDF' : 'PDF, JPG, PNG o WEBP';
 
 export function missingDocuments(type: PersonType, docs: { kind: string }[]): DocumentKind[] {
   const have = new Set(docs.map((d) => d.kind));

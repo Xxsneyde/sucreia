@@ -182,7 +182,7 @@ function primary() {
         <p v-if="product.category" class="ps-group">{{ product.category }}</p>
         <h2>{{ sentenceCase(product.name) }}</h2>
         <p class="ps-price">
-          {{ product.price ? currency(product.price) : 'Precio a cotizar' }}
+          {{ product.price ? currency(product.price) : 'Precio a convenir' }}
           <small v-if="mode === 'booking' && product.duration"
             ><Clock :size="14" /> {{ product.duration }} min</small
           >

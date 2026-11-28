@@ -145,7 +145,7 @@ export async function registerBusiness(
     name: string;
     sector: string;
     municipality?: string;
-    mode?: 'Vendo productos' | 'Servicios con reserva' | 'Servicios por cotización';
+    mode?: 'Productos' | 'Servicios';
     whatsapp?: string;
     description?: string;
     /** Paso 5 de un negocio con reservas. */
@@ -177,8 +177,12 @@ export async function registerBusiness(
   await page.getByLabel('WhatsApp', { exact: true }).fill(options.whatsapp ?? '+573001112233');
   await next();
 
-  await step('¿Cómo atiendes a tus clientes?');
-  await page.getByRole('radio', { name: new RegExp(options.mode ?? 'Vendo productos') }).click();
+  await step('¿Qué vendes?');
+  // Solo dos opciones: productos o servicios.
+  await expect(page.getByRole('radiogroup', { name: 'Qué vendes' }).getByRole('radio')).toHaveCount(
+    2,
+  );
+  await page.getByRole('radio', { name: new RegExp(`^${options.mode ?? 'Productos'}`) }).click();
   await next();
 
   await step('Logo y portada');
@@ -201,11 +205,28 @@ export async function registerBusiness(
   await pickFromLibrary(field('Foto de portada'));
   await next();
 
-  // Catálogo: tres ejemplos del sector con nombre, descripción y precio; falta la foto.
-  await step(/^Tus (productos|servicios)$/);
+  // Catálogo: empieza vacío, con un solo producto o servicio en blanco (basta con uno).
+  const services = options.mode === 'Servicios';
+  await step(services ? 'Tus servicios' : 'Tus productos');
   const items = page.locator('.wz-item');
-  await expect(items).toHaveCount(3);
-  for (let i = 0; i < 3; i++) await pickFromLibrary(items.nth(i).locator('.image-field'));
+  await expect(items).toHaveCount(1);
+  await expect(items.first().getByLabel('Nombre')).toHaveValue('');
+  await next();
+  await expect(page.getByRole('alert')).toContainText('Ponle nombre');
+  const fill = async (i: number, name: string, price: number | 'a convenir') => {
+    const item = items.nth(i);
+    await item.getByLabel('Nombre').fill(name);
+    await item.getByLabel('Descripción breve').fill(`${name}, hecho en Sucre.`);
+    if (price === 'a convenir') {
+      await item.getByLabel('Precio a convenir').check();
+      await expect(item.getByLabel('Precio (COP)')).toBeDisabled();
+    } else await item.getByLabel('Precio (COP)').fill(String(price));
+    await pickFromLibrary(item.locator('.image-field'));
+  };
+  await fill(0, services ? 'Servicio principal' : 'Producto estrella', 25000);
+  // Un segundo, opcional; en servicios, con «Precio a convenir».
+  await page.getByRole('button', { name: 'Agregar otro' }).click();
+  await fill(1, services ? 'Asesoría' : 'Producto de temporada', services ? 'a convenir' : 18000);
   await next();
 
   await step(/^(Días, horas y cupos|Ubicación)$/);
@@ -216,11 +237,21 @@ export async function registerBusiness(
   await next();
 
   await step('Documentos para la revisión');
-  for (const label of ['Documento de identidad', 'RUT', 'Certificado bancario'])
-    await page
-      .getByLabel(`Adjuntar ${label}`)
-      .setInputFiles({ name: `${label}.pdf`, mimeType: 'application/pdf', buffer: pdfBytes });
+  await expect(page.getByLabel('Adjuntar Certificado bancario')).toHaveCount(0);
+  // Solo la cédula es obligatoria (en PDF); el RUT y la Cámara de Comercio son opcionales.
   await next();
+  await expect(page.getByRole('alert')).toContainText('Adjunta: Documento de identidad');
+  await page
+    .getByLabel('Adjuntar Documento de identidad')
+    .setInputFiles({ name: 'cedula.pdf', mimeType: 'application/pdf', buffer: pdfBytes });
+  await next();
+
+  // Los pasos de la izquierda permiten volver a uno anterior y regresar.
+  const stepsNav = page.getByRole('navigation', { name: 'Pasos del registro' });
+  await stepsNav.getByRole('button', { name: /Tu negocio/ }).click();
+  await step('Tu negocio');
+  await expect(page.getByLabel('Nombre del negocio')).toHaveValue(options.name);
+  await stepsNav.getByRole('button', { name: /Enviar/ }).click();
 
   await step('Todo listo');
   await page.getByRole('checkbox', { name: /Acepto los/ }).check();
@@ -283,7 +314,7 @@ export async function publishedStore(
   });
   expect(created.status()).toBe(201);
   const { store } = (await created.json()) as { store: { id: string } };
-  for (const kind of ['identidad', 'rut', 'bancario'])
+  for (const kind of ['identidad', 'rut'])
     expect(
       (
         await page.request.put(`/api/plataforma/negocios/${store.id}/documentos/${kind}`, {

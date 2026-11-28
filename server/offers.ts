@@ -8,6 +8,8 @@ import {
   couponState,
   discountAmount,
   discountPercent,
+  selectedOnly,
+  storeDiscountAmount,
   endOfDay,
   MAX_PERCENT,
   normalizeCode,
@@ -115,11 +117,31 @@ export async function setCouponActive(db: Db, storeId: string, id: string, activ
   if (!changes) throw new HttpError(404, 'No encontramos ese cupón.');
 }
 
-/** Guarda el descuento para todo el negocio; con 0 % lo quita. */
-export async function setStoreDiscount(db: Db, storeId: string, body: Record<string, unknown>) {
+/**
+ * Guarda el descuento del negocio; con 0 % lo quita. `products` (ids del catálogo) lo limita a
+ * esos productos; vacío o ausente = todo el negocio.
+ */
+export async function setStoreDiscount(
+  db: Db,
+  storeId: string,
+  body: Record<string, unknown>,
+  catalog: string[],
+) {
   const percent = percentField(body.percent, 0);
+  let products: string[] = [];
+  if (body.products !== undefined && body.products !== null) {
+    if (!Array.isArray(body.products) || body.products.length > 200)
+      throw new HttpError(400, 'Revisa los productos del descuento.');
+    products = [...new Set(body.products.map(String))];
+    if (products.some((id) => !catalog.includes(id)))
+      throw new HttpError(400, 'Uno de los productos ya no está en tu catálogo.');
+  }
   const discount: StoreDiscount | null = percent
-    ? { percent, until: dateField(body.until, 'la fecha de fin') }
+    ? {
+        percent,
+        until: dateField(body.until, 'la fecha de fin'),
+        ...(products.length ? { products } : {}),
+      }
     : null;
   await setSettings(db, storeId, { ...(await settings(db, storeId)), storeDiscount: discount });
   return discount;
@@ -158,19 +180,23 @@ export interface AppliedOffer {
 }
 
 /**
- * Mejor descuento para un subtotal: el del negocio o el del cupón (no se acumulan). Si el cupón
- * gana, se cuenta su uso; si alcanzó el límite entre tanto, se rechaza.
+ * Mejor descuento para un pedido: el del negocio (para todo o solo para algunos productos) o el
+ * del cupón, que vale para todo el pedido. No se acumulan: se aplica el que descuente más. Si el
+ * cupón gana, se cuenta su uso; si alcanzó el límite entre tanto, se rechaza.
  */
 export async function applyOffers(
   db: Db,
   storeId: string,
-  subtotal: number,
+  lines: { productId: string; amount: number }[],
   rawCode?: unknown,
 ): Promise<AppliedOffer> {
-  const store = discountPercent((await settings(db, storeId)).storeDiscount);
+  const subtotal = lines.reduce((n, l) => n + l.amount, 0);
+  const discount = (await settings(db, storeId)).storeDiscount;
+  const store = discountPercent(discount);
+  const storeAmount = storeDiscountAmount(discount, lines);
   const code = typeof rawCode === 'string' ? rawCode.trim() : '';
   const coupon = code ? await findCoupon(db, storeId, code) : null;
-  if (coupon && coupon.percent > store) {
+  if (coupon && discountAmount(subtotal, coupon.percent) > storeAmount) {
     const { changes } = await db
       .prepare(
         'UPDATE store_coupons SET uses=uses+1 WHERE id=? AND active=1 AND (max_uses IS NULL OR uses < max_uses)',
@@ -185,11 +211,13 @@ export async function applyOffers(
       couponId: coupon.id,
     };
   }
-  return store
+  return storeAmount > 0
     ? {
         percent: store,
-        amount: discountAmount(subtotal, store),
-        label: `Descuento del negocio (${store} %)`,
+        amount: storeAmount,
+        label: selectedOnly(discount)
+          ? `Descuento en productos seleccionados (${store} %)`
+          : `Descuento del negocio (${store} %)`,
         code: '',
         couponId: '',
       }

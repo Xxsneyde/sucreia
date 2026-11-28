@@ -684,7 +684,12 @@ export async function createOperation(
         op.subtotal = offer.price;
         op.detail = `${offer.name}: ${op.detail}`;
         // Descuento del negocio o cupón (el mayor; no se acumulan).
-        const offerApplied = await applyOffers(db, store.id, op.subtotal, data.code);
+        const offerApplied = await applyOffers(
+          db,
+          store.id,
+          [{ productId: offer.id, amount: op.subtotal }],
+          data.code,
+        );
         op.discount = offerApplied.amount;
         if (offerApplied.label) op.discountLabel = offerApplied.label;
       }

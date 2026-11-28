@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Ticket, X } from '@lucide/vue';
-import { discountAmount } from '@/domain/offers';
+import { discountAmount, discountFor, type StoreDiscount } from '@/domain/offers';
 import { api } from '@/lib/api';
 import { currency } from '@/domain/rules';
 import { normalizePhone } from '@/domain/phone';
@@ -16,8 +16,8 @@ const props = defineProps<{
   services: StoreProduct[];
   initial?: string;
   settings?: StoreSettings | null;
-  /** Descuento vigente para todo el negocio (%). */
-  discount?: number;
+  /** Descuento vigente del negocio (para todo o para algunos servicios). */
+  discount?: StoreDiscount | null;
   busy?: boolean;
   error?: string;
 }>();
@@ -154,7 +154,9 @@ async function applyCoupon() {
     checking.value = false;
   }
 }
-const percent = computed(() => Math.max(props.discount ?? 0, coupon.value?.percent ?? 0));
+/** Descuento del negocio para el servicio elegido. */
+const storePercent = computed(() => discountFor(props.discount, service.value));
+const percent = computed(() => Math.max(storePercent.value, coupon.value?.percent ?? 0));
 const price = computed(() => current.value?.price ?? 0);
 const off = computed(() => discountAmount(price.value, percent.value));
 function confirm() {
@@ -288,9 +290,7 @@ function confirm() {
       <p v-if="couponError" class="field-error" role="alert">{{ couponError }}</p>
       <p v-else-if="coupon" class="bk-ok" role="status">
         Cupón {{ coupon.code }}: {{ coupon.percent }} % de descuento{{
-          (discount ?? 0) >= coupon.percent
-            ? ' (el negocio ya tiene un descuento igual o mayor)'
-            : ''
+          storePercent >= coupon.percent ? ' (el negocio ya tiene un descuento igual o mayor)' : ''
         }}.
       </p>
       <p v-if="price && percent" class="bk-total">

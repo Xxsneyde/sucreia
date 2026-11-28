@@ -28,10 +28,9 @@ const needs = [
     icon: FileText,
     title: 'Documentos',
     items: [
-      'Documento de identidad del titular o representante legal',
-      'RUT',
-      'Certificado bancario',
-      'Cámara de Comercio (obligatoria para persona jurídica; opcional para persona natural)',
+      'Cédula del titular o representante legal, en PDF (obligatoria)',
+      'RUT (opcional)',
+      'Cámara de Comercio (opcional)',
     ],
   },
   {

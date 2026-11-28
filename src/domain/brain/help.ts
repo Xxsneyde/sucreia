@@ -110,7 +110,7 @@ export const topics: HelpTopic[] = [
     ],
     min: 2,
     answer: {
-      text: 'Puedes publicar tu emprendimiento en SucreIA: registras los datos del negocio, el horario, fotos, catálogo y documentos (cédula, RUT y certificado bancario). La administración lo revisa y, al aprobarlo, aparece en la plataforma.',
+      text: 'Puedes publicar tu emprendimiento en SucreIA: registras los datos del negocio, el horario, fotos, catálogo y documentos (la cédula en PDF; el RUT y la Cámara de Comercio son opcionales). La administración lo revisa y, al aprobarlo, aparece en la plataforma.',
       cta: { label: 'Montar mi emprendimiento', href: '/emprender' },
     },
   },
@@ -185,11 +185,9 @@ export const topics: HelpTopic[] = [
   },
   {
     roles: merchant,
-    keys: [
-      ['documento', 'rut', 'cedula', 'camara de comercio', 'certificado', 'bancario', 'legal'],
-    ],
+    keys: [['documento', 'rut', 'cedula', 'camara de comercio', 'certificado', 'legal']],
     answer: {
-      text: 'Los documentos son: cédula, RUT y certificado bancario; la Cámara de Comercio es obligatoria para persona jurídica y opcional para persona natural. Van en PDF, JPG, PNG o WEBP de máximo 4 MB, y solo los ve la administración. Se cambian desde el panel del negocio.',
+      text: 'Solo la cédula es obligatoria y va en PDF; el RUT y la Cámara de Comercio son opcionales (PDF, JPG, PNG o WEBP). Cada archivo pesa máximo 4 MB, y solo los ve la administración. Se cambian desde el panel del negocio.',
       cta: { label: 'Ir a Mis negocios', href: '/panel/negocios' },
     },
   },

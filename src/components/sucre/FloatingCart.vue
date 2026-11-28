@@ -2,7 +2,13 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ChevronDown, MessageCircle, Minus, Plus, ShoppingCart, Ticket, Trash } from '@lucide/vue';
-import { discountAmount, discountPercent } from '@/domain/offers';
+import {
+  discountAmount,
+  discountPercent,
+  selectedOnly,
+  storeDiscountAmount,
+  type StoreDiscount,
+} from '@/domain/offers';
 import type { CommerceStore } from '@/domain/platform';
 import { thumbnail } from '@/domain/studio';
 import { currency } from '@/domain/rules';
@@ -26,7 +32,8 @@ const count = computed(() => lines.value.reduce((n, l) => n + l.quantity, 0));
 const subtotal = computed(() => lines.value.reduce((n, l) => n + l.price * l.quantity, 0));
 // Descuento del negocio y cupón: se muestra el mayor (no se acumulan). El servidor lo calcula
 // de nuevo al enviar el pedido.
-const storePercent = ref(0);
+const storeDiscount = ref<StoreDiscount | null>(null);
+const storePercent = computed(() => discountPercent(storeDiscount.value));
 const code = ref('');
 const coupon = ref<{ code: string; percent: number } | null>(null);
 const couponError = ref('');
@@ -34,14 +41,13 @@ const checking = ref(false);
 watch(
   () => lines.value[0]?.businessId,
   async (id) => {
-    storePercent.value = 0;
+    storeDiscount.value = null;
     coupon.value = null;
     code.value = couponError.value = '';
     if (!id) return;
     try {
-      storePercent.value = discountPercent(
-        (await api<CommerceStore>('GET', `/plataforma/negocios/${id}`)).discount,
-      );
+      storeDiscount.value =
+        (await api<CommerceStore>('GET', `/plataforma/negocios/${id}`)).discount ?? null;
     } catch {
       // Sin datos del negocio, el servidor aplica el descuento igual al enviar.
     }
@@ -64,9 +70,24 @@ async function applyCoupon() {
     checking.value = false;
   }
 }
-const couponWins = computed(() => !!coupon.value && coupon.value.percent > storePercent.value);
-const percent = computed(() => (couponWins.value ? coupon.value!.percent : storePercent.value));
-const discount = computed(() => discountAmount(subtotal.value, percent.value));
+// El del negocio puede ser solo para algunos productos; el cupón vale para todo el pedido.
+const storeOff = computed(() =>
+  storeDiscountAmount(
+    storeDiscount.value,
+    lines.value.map((l) => ({ productId: l.productId, amount: l.price * l.quantity })),
+  ),
+);
+const couponOff = computed(() =>
+  coupon.value ? discountAmount(subtotal.value, coupon.value.percent) : 0,
+);
+const couponWins = computed(() => !!coupon.value && couponOff.value > storeOff.value);
+const percent = computed(() =>
+  couponWins.value ? coupon.value!.percent : storeOff.value ? storePercent.value : 0,
+);
+const discount = computed(() => (couponWins.value ? couponOff.value : storeOff.value));
+const storeLabel = computed(() =>
+  selectedOnly(storeDiscount.value) ? 'Descuento en productos' : 'Descuento del negocio',
+);
 const total = computed(() => subtotal.value - discount.value);
 const store = computed(() =>
   directory.stores.value.find((s) => s.id === lines.value[0]?.businessId),
@@ -236,18 +257,14 @@ async function buy() {
           {{
             couponWins
               ? `Cupón ${coupon.code} aplicado: ${coupon.percent} %.`
-              : `El negocio ya tiene un descuento igual o mayor (${storePercent} %).`
+              : `El descuento del negocio te conviene más (${storePercent} %).`
           }}
         </p>
         <div v-if="discount" class="fc-sub">
           <span>Subtotal</span><span>{{ currency(subtotal) }}</span>
         </div>
         <div v-if="discount" class="fc-sub fc-sub--off">
-          <span
-            >{{ couponWins ? `Cupón ${coupon!.code}` : 'Descuento del negocio' }} ({{
-              percent
-            }}
-            %)</span
+          <span>{{ couponWins ? `Cupón ${coupon!.code}` : storeLabel }} ({{ percent }} %)</span
           ><span>−{{ currency(discount) }}</span>
         </div>
         <div class="fc-total">

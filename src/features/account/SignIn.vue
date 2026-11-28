@@ -265,12 +265,8 @@ async function submit() {
         </ol>
         <p>Ten a la mano lo que la administración de SucreIA revisará antes de publicarlo:</p>
         <ul>
-          <li>Documento de identidad del titular o representante legal</li>
-          <li>RUT y certificado bancario</li>
-          <li>
-            Cámara de Comercio (obligatoria para persona jurídica; opcional si eres persona natural
-            y la tienes)
-          </li>
+          <li>Cédula del titular o representante legal, en PDF (obligatoria)</li>
+          <li>RUT y Cámara de Comercio, si los tienes (opcionales)</li>
           <li>Logo y foto de portada (mínimo 360 × 360 px)</li>
           <li>Nombre, descripción, precio y foto de cada producto o servicio</li>
           <li>Dirección, horario y WhatsApp donde recibirás los pedidos</li>

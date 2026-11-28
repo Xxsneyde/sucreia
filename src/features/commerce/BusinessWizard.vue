@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { CalendarDays, Check, FileText, Package, Plus, Trash } from '@lucide/vue';
+import { Briefcase, Check, Package, Plus, Trash } from '@lucide/vue';
 import { useStudio } from '@/lib/studio-store';
 import { api } from '@/lib/api';
 import { currentLocation } from '@/lib/location';
@@ -30,7 +30,9 @@ import { currency } from '@/domain/rules';
 import {
   allDocuments,
   documentKinds,
-  documentMimes,
+  acceptFor,
+  formatsFor,
+  mimesFor,
   optionalDocument,
   type DocumentKind,
   type PersonType,
@@ -51,7 +53,7 @@ const studio = useStudio();
 const router = useRouter();
 const steps = [
   'Tu negocio',
-  'Cómo atiendes',
+  'Qué vendes',
   'Logo y portada',
   'Catálogo',
   'Ubicación y cupos',
@@ -74,18 +76,31 @@ const basics = ref({
 const mode = ref<BusinessMode>('products');
 const logo = ref('');
 const cover = ref('');
-const products = ref<StoreProduct[]>([]);
-/** Ejemplos del sector, para que la persona los cambie por los suyos. */
-function sampleProducts() {
-  const sample = createDesign(basics.value.sector, basics.value.name || 'Mi negocio');
-  products.value = sample.products.map((p) => ({
-    ...p,
-    image: '',
-    price: mode.value === 'quote' ? 0 : p.price,
-    ...(mode.value === 'booking' ? { duration: 30 } : {}),
-  }));
+/** El catálogo empieza vacío: un producto o servicio en blanco para llenar. */
+const blankProduct = (): StoreProduct => ({
+  id: crypto.randomUUID(),
+  name: '',
+  description: '',
+  price: 0,
+  image: '',
+  ...(mode.value === 'booking' ? { duration: 30 } : {}),
+});
+const products = ref<StoreProduct[]>([blankProduct()]);
+/** Servicios con «Precio a convenir» (se guardan con precio 0). */
+const toAgree = ref<Record<string, boolean>>({});
+const services = computed(() => mode.value !== 'products');
+function setToAgree(p: StoreProduct, on: boolean) {
+  toAgree.value = { ...toAgree.value, [p.id]: on };
+  if (on) p.price = 0;
 }
-watch([() => basics.value.sector, mode], sampleProducts, { immediate: true });
+// Los servicios con reserva llevan duración; los productos no.
+watch(mode, (m) => {
+  for (const p of products.value) {
+    if (m === 'booking') p.duration ??= 30;
+    else delete p.duration;
+  }
+  if (m === 'products') toAgree.value = {};
+});
 watch(
   () => basics.value.sector,
   () => {
@@ -106,14 +121,7 @@ function setDetail(p: StoreProduct, label: string, value: string) {
     : undefined;
 }
 function addProduct() {
-  products.value.push({
-    id: crypto.randomUUID(),
-    name: '',
-    description: '',
-    price: 0,
-    image: '',
-    ...(mode.value === 'booking' ? { duration: 30 } : {}),
-  });
+  products.value.push(blankProduct());
 }
 const settings = ref<StoreSettings>({
   ...defaultSettings(),
@@ -182,8 +190,8 @@ function attach(kind: DocumentKind, e: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
-  if (!(documentMimes as readonly string[]).includes(file.type)) {
-    error.value = 'Sube el documento en PDF, JPG, PNG o WEBP.';
+  if (!mimesFor(kind).includes(file.type)) {
+    error.value = `Sube ${kind === 'identidad' ? 'la cédula' : 'el documento'} en ${formatsFor(kind)}.`;
     return;
   }
   if (file.size > 4 * 1024 * 1024) {
@@ -252,9 +260,9 @@ const tooSmall = (src: string) => {
   const size = sizes.value[src];
   return !!size && (size[0] < MIN_SIDE || size[1] < MIN_SIDE);
 };
-/** Lo que falta en el paso actual ('' = puede continuar). */
-const stepError = computed(() => {
-  if (step.value === 0) {
+/** Lo que falta en un paso ('' = puede continuar). */
+function errorFor(at: number): string {
+  if (at === 0) {
     if (!basics.value.name.trim()) return 'Escribe el nombre de tu negocio.';
     if (week.value.every((d) => d.closed)) return 'Elige al menos un día de atención.';
     if (week.value.some((d) => !d.closed && d.closes <= d.opens))
@@ -263,12 +271,12 @@ const stepError = computed(() => {
     if (!normalizePhone(basics.value.whatsapp))
       return 'Revisa el WhatsApp: elige el país y escribe el número completo. Por ahí te llegan las compras.';
   }
-  if (step.value === 2 && (!logo.value || !cover.value))
+  if (at === 2 && (!logo.value || !cover.value))
     return 'Sube el logo y la foto de portada (mínimo 360 × 360 px, mejor horizontal).';
-  if (step.value === 2 && (tooSmall(logo.value) || tooSmall(cover.value)))
+  if (at === 2 && (tooSmall(logo.value) || tooSmall(cover.value)))
     return `El logo y la portada deben medir al menos ${MIN_SIDE} × ${MIN_SIDE} px.`;
-  if (step.value === 3) {
-    if (products.value.length < 3) return 'Agrega al menos tres productos o servicios.';
+  if (at === 3) {
+    if (!products.value.length) return 'Agrega al menos un producto o servicio.';
     if (products.value.some((p) => !p.name.trim()))
       return 'Ponle nombre a cada producto o servicio.';
     if (products.value.some((p) => !p.description.trim()))
@@ -277,26 +285,47 @@ const stepError = computed(() => {
     const small = products.value.find((p) => tooSmall(p.image));
     if (small)
       return `La foto de «${small.name}» es muy pequeña: usa una de al menos ${MIN_SIDE} × ${MIN_SIDE} px.`;
-    if (mode.value !== 'quote' && products.value.some((p) => !(p.price > 0)))
-      return 'Ponle precio a cada uno.';
+    if (products.value.some((p) => !(p.price > 0) && !(services.value && toAgree.value[p.id])))
+      return services.value
+        ? 'Ponle precio a cada servicio o marca «Precio a convenir».'
+        : 'Ponle precio a cada producto.';
   }
-  if (step.value === 5) {
+  if (at === 5) {
     const missing = neededDocuments.value.filter(
       (d) => !files.value[d.id] && !optionalDocument(personType.value, d.id),
     );
     if (missing.length) return `Adjunta: ${missing.map((d) => d.label).join(', ')}.`;
   }
   if (
-    step.value === 4 &&
+    at === 4 &&
     (latInput.value !== (point.value ? String(point.value[0]) : '') ||
       lngInput.value !== (point.value ? String(point.value[1]) : ''))
   )
     return 'Confirma la ubicación con «Ubicar coordenadas».';
   return '';
-});
+}
+/** Paso más avanzado al que ha llegado (los anteriores se pueden volver a abrir). */
+const reached = ref(0);
 function next() {
-  error.value = stepError.value;
-  if (!error.value) step.value++;
+  error.value = errorFor(step.value);
+  if (!error.value) {
+    step.value++;
+    reached.value = Math.max(reached.value, step.value);
+  }
+}
+/** Abre un paso desde la lista: hacia atrás siempre; hacia adelante, si los de en medio están completos. */
+function goTo(target: number) {
+  if (target === step.value || target > reached.value) return;
+  for (let at = step.value; at < target; at++) {
+    const problem = errorFor(at);
+    if (problem) {
+      step.value = at;
+      error.value = problem;
+      return;
+    }
+  }
+  error.value = '';
+  step.value = target;
 }
 async function submit() {
   if (!acceptTerms.value) {
@@ -350,21 +379,15 @@ async function submit() {
 const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] = [
   {
     id: 'products',
-    title: 'Vendo productos',
+    title: 'Productos',
     text: 'Comida, ropa, artesanías… con carrito, recogida o domicilio.',
     icon: Package,
   },
   {
     id: 'booking',
-    title: 'Servicios con reserva',
-    text: 'Barberías, estilistas, manicure, spa… el cliente elige día y hora.',
-    icon: CalendarDays,
-  },
-  {
-    id: 'quote',
-    title: 'Servicios por cotización',
-    text: 'Plomería, contabilidad, eventos… el cliente pide y tú das el precio.',
-    icon: FileText,
+    title: 'Servicios',
+    text: 'Barbería, belleza, asesorías, reparaciones… el cliente agenda día y hora. Si no tienes un precio fijo, déjalo «a convenir».',
+    icon: Briefcase,
   },
 ];
 </script>
@@ -410,14 +433,18 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
       <nav class="sx-card wz-side" aria-label="Pasos del registro">
         <p class="wz-side-title">Registro del negocio</p>
         <ol class="wz-steps">
-          <li
-            v-for="(s, i) in steps"
-            :key="s"
-            :class="{ on: i === step, done: i < step }"
-            :aria-current="i === step ? 'step' : undefined"
-          >
-            <span>{{ i < step ? '✓' : i + 1 }}</span
-            ><em>{{ s }}</em>
+          <li v-for="(s, i) in steps" :key="s" :class="{ on: i === step, done: i < reached }">
+            <button
+              type="button"
+              :disabled="i > reached"
+              :aria-label="`Paso ${i + 1}: ${s}`"
+              :aria-current="i === step ? 'step' : undefined"
+              :title="i > reached ? 'Completa los pasos anteriores' : `Ir a «${s}»`"
+              @click="goTo(i)"
+            >
+              <span>{{ i < reached && i !== step ? '✓' : i + 1 }}</span
+              ><em>{{ s }}</em>
+            </button>
           </li>
         </ol>
       </nav>
@@ -490,8 +517,8 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
         </div>
 
         <div v-else-if="step === 1" class="form-stack">
-          <h2>¿Cómo atiendes a tus clientes?</h2>
-          <div class="wz-modes" role="radiogroup" aria-label="Tipo de negocio">
+          <h2>¿Qué vendes?</h2>
+          <div class="wz-modes" role="radiogroup" aria-label="Qué vendes">
             <button
               v-for="m in modes"
               :key="m.id"
@@ -523,18 +550,39 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
         <div v-else-if="step === 3" class="form-stack">
           <h2>{{ mode === 'products' ? 'Tus productos' : 'Tus servicios' }}</h2>
           <p class="muted" style="margin: 0">
-            Te dejamos ejemplos de tu sector: cámbialos por los tuyos (mínimo tres). Cada uno
-            necesita nombre, descripción, precio y una foto de al menos 360 × 360 px.
+            Agrega al menos {{ mode === 'products' ? 'un producto' : 'un servicio' }}. Cada uno
+            necesita nombre, descripción, {{ services ? 'precio (o «a convenir»)' : 'precio' }} y
+            una foto de al menos 360 × 360 px. Luego puedes agregar más.
           </p>
           <article v-for="(p, i) in products" :key="p.id" class="wz-item">
             <h3 class="wz-item-title">
               {{ mode === 'products' ? 'Producto' : 'Servicio' }} {{ i + 1 }}
             </h3>
             <label>Nombre<input v-model="p.name" maxlength="160" /></label>
-            <label
-              >{{ mode === 'quote' ? 'Precio de referencia (0 = a cotizar)' : 'Precio (COP)'
-              }}<input v-model.number="p.price" type="number" min="0" step="500"
-            /></label>
+            <div class="wz-price">
+              <label
+                >Precio (COP)<input
+                  :value="p.price || ''"
+                  type="number"
+                  min="0"
+                  step="500"
+                  :disabled="services && toAgree[p.id]"
+                  :placeholder="services && toAgree[p.id] ? 'A convenir' : 'Ej.: 25000'"
+                  @input="
+                    p.price = Math.max(
+                      0,
+                      Math.round(Number(($event.target as HTMLInputElement).value) || 0),
+                    )
+                  "
+              /></label>
+              <label v-if="services" class="wz-check wz-agree"
+                ><input
+                  type="checkbox"
+                  :checked="!!toAgree[p.id]"
+                  @change="setToAgree(p, ($event.target as HTMLInputElement).checked)"
+                /><span>Precio a convenir</span></label
+              >
+            </div>
             <label
               >{{
                 mode === 'quote'
@@ -570,6 +618,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
               type="button"
               class="sx-btn sx-btn--ghost sx-btn--sm"
               :aria-label="`Quitar ${p.name || 'oferta'}`"
+              :disabled="products.length === 1"
               @click="products.splice(i, 1)"
             >
               <Trash :size="15" />
@@ -643,8 +692,8 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
         <div v-else-if="step === 5" class="form-stack">
           <h2>Documentos para la revisión</h2>
           <p class="muted" style="margin: 0">
-            La administración de SucreIA los revisa antes de publicar tu negocio. Solo los ve la
-            administración. PDF, JPG, PNG o WEBP de máximo 4 MB.
+            Solo la cédula es obligatoria (en PDF); el RUT y la Cámara de Comercio son opcionales.
+            Solo los ve la administración de SucreIA. Máximo 4 MB por archivo.
           </p>
           <fieldset class="wz-legal">
             <legend><strong>Tipo de persona</strong></legend>
@@ -662,7 +711,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
                 <strong
                   >{{ d.label
                   }}<em v-if="optionalDocument(personType, d.id)" class="wz-optional">
-                    Opcional · si la tienes</em
+                    Opcional</em
                   ></strong
                 >
                 <small>{{ d.hint }}</small>
@@ -675,7 +724,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
                 <input
                   class="sr-only"
                   type="file"
-                  accept="application/pdf,image/png,image/jpeg,image/webp"
+                  :accept="acceptFor(d.id)"
                   :aria-label="`Adjuntar ${d.label}`"
                   @change="attach(d.id, $event)"
               /></label>
@@ -717,7 +766,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
               {{ products.length }} {{ mode === 'products' ? 'productos' : 'servicios' }}:
               {{
                 products
-                  .map((p) => `${p.name}${p.price ? ` (${currency(p.price)})` : ''}`)
+                  .map((p) => `${p.name} (${p.price ? currency(p.price) : 'a convenir'})`)
                   .join(', ')
               }}
             </li>
@@ -735,9 +784,8 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
               <Check :size="18" /> Las compras llegan a tu WhatsApp {{ basics.whatsapp }}
             </li>
             <li v-if="mode === 'booking'">
-              <Check :size="18" />
-              Abierto {{ week.filter((d) => !d.closed).length }} días ·
-              {{ settings.capacity ?? 1 }} cita(s) a la vez
+              <Check :size="18" /> Abierto {{ week.filter((d) => !d.closed).length }} días a la
+              semana
             </li>
           </ul>
         </div>
@@ -896,15 +944,28 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
   transition: width 0.3s;
   display: block;
 }
-.wz-steps li {
+.wz-steps button {
   color: #475569;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
   border-radius: 12px;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 9px 10px;
   font-size: 14px;
   font-weight: 500;
   display: flex;
+}
+.wz-steps button:hover:not(:disabled) {
+  background: #f3f6fb;
+}
+.wz-steps button:disabled {
+  cursor: default;
+  opacity: 0.75;
 }
 .wz-steps em {
   font-style: normal;
@@ -927,7 +988,7 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
   font-weight: 600;
   display: grid;
 }
-.wz-steps .on {
+.wz-steps .on button {
   color: #0a2357;
   background: #eef4fd;
   font-weight: 600;
@@ -952,8 +1013,16 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
   gap: 14px;
   display: grid;
 }
+.wz-price {
+  align-content: start;
+  gap: 8px;
+  display: grid;
+}
+.wz-agree {
+  font-size: 14px;
+}
 .wz-modes {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   display: grid;
 }
@@ -1129,9 +1198,11 @@ const modes: { id: BusinessMode; title: string; text: string; icon: unknown }[] 
   }
   .wz-steps li {
     flex: none;
+  }
+  .wz-steps button {
     padding: 4px;
   }
-  .wz-steps li.on {
+  .wz-steps li.on button {
     padding-right: 12px;
   }
 }

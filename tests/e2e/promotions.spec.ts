@@ -89,4 +89,25 @@ test('promociones: descuento en todo el negocio, cupón en el carrito y reseñas
   await expect(reviews.first()).toContainText('Demoraron con el pedido.');
   await expect(page.locator('.pr-avg strong')).toHaveText('3.5');
   expect(await fits(page)).toBe(true);
+
+  // Descuento solo para productos elegidos: se marcan en sus tarjetas.
+  const second = design.products[1];
+  await page.getByRole('tab', { name: /descuentos/ }).click();
+  await page.getByRole('radio', { name: 'Productos seleccionados' }).click();
+  await page.getByRole('button', { name: 'Ninguno' }).click();
+  await page.getByRole('button', { name: 'Actualizar descuento' }).click();
+  await expect(page.getByRole('alert')).toContainText('Elige abajo al menos un producto');
+  await page.getByLabel(`Incluir ${second.name} en el descuento`).check();
+  await page.getByRole('button', { name: 'Actualizar descuento' }).click();
+  await expect(page.locator('.pr-msg')).toContainText('20 % de descuento en 1 producto');
+  const cards = page.locator('.pr-card');
+  await expect(cards.nth(0).locator('.pr-off')).toHaveCount(0);
+  await expect(cards.nth(1).locator('.pr-off')).toHaveText('−20%');
+  expect(await fits(page)).toBe(true);
+  const visitor = await browser.newPage();
+  await visitor.goto(`/tienda?id=${id}`);
+  await expect(visitor.locator('.bp-offer')).toContainText(
+    '20 % de descuento en productos seleccionados',
+  );
+  await visitor.close();
 });

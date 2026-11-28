@@ -35,8 +35,19 @@ watch(
 );
 // Cada oferta se pliega; las incompletas se ven abiertas.
 const toggled = ref<Record<string, boolean>>({});
+// Los servicios pueden quedar con «Precio a convenir» (precio 0); los productos necesitan precio.
+const services = computed(() => !!d.value && d.value.mode !== 'products');
 const incomplete = (p: StoreProduct) =>
-  !p.name.trim() || !p.image || (d.value?.mode !== 'quote' && !(p.price > 0));
+  !p.name.trim() || !p.image || (!services.value && !(p.price > 0));
+/** Servicios a los que se les quitó «a convenir» y aún no tienen precio. */
+const pricing = ref<Record<string, boolean>>({});
+const toAgree = (p: StoreProduct) => services.value && p.price === 0 && !pricing.value[p.id];
+function setToAgree(i: number, p: StoreProduct, on: boolean) {
+  pricing.value = { ...pricing.value, [p.id]: !on };
+  if (on) patch(i, { price: 0 });
+}
+const priceText = (price: number) =>
+  price > 0 ? currency(price) : services.value ? 'A convenir' : 'Precio por definir';
 const isOpen = (p: StoreProduct) => toggled.value[p.id] ?? incomplete(p);
 function toggle(p: StoreProduct) {
   toggled.value = { ...toggled.value, [p.id]: !isOpen(p) };
@@ -139,7 +150,7 @@ const groups = computed(() => [
   <PageTitle
     eyebrow="Mi negocio"
     title="Productos y servicios"
-    description="Agrega al menos tres ofertas con nombre, precio y hasta tres fotos. Completa la ficha para que el cliente sepa de qué está hecho cada uno."
+    description="Agrega al menos una oferta con nombre, precio y hasta tres fotos. Completa la ficha para que el cliente sepa de qué está hecho cada uno."
   >
     <div v-if="d" class="pe-actions">
       <button type="button" class="sx-btn sx-btn--ghost" @click="add">
@@ -192,10 +203,7 @@ const groups = computed(() => [
             <span v-else class="pe-noimg" aria-hidden="true" />
             <span class="pe-summary-main">
               <strong>{{ p.name || 'Oferta sin nombre' }}</strong>
-              <small
-                >{{ p.category || 'Sin grupo' }} ·
-                {{ p.price > 0 ? currency(p.price) : 'Precio por definir' }}</small
-              >
+              <small>{{ p.category || 'Sin grupo' }} · {{ priceText(p.price) }}</small>
             </span>
             <span v-if="incomplete(p)" class="pe-badge">Incompleto</span>
             <ChevronDown :size="20" class="pe-chevron" aria-hidden="true" />
@@ -227,7 +235,7 @@ const groups = computed(() => [
                   <span v-if="p.details?.length" class="pe-preview-chips">
                     <span v-for="x in p.details.slice(0, 3)" :key="x.label">{{ x.value }}</span>
                   </span>
-                  <b>{{ p.price > 0 ? currency(p.price) : 'A cotizar' }}</b>
+                  <b>{{ priceText(p.price) }}</b>
                 </div>
               </div>
             </div>
@@ -259,23 +267,35 @@ const groups = computed(() => [
               />
             </label>
             <div class="pe-two">
-              <label
-                >{{ d.mode === 'quote' ? 'Precio de referencia (0 = a cotizar)' : 'Precio (COP)' }}
-                <input
-                  :value="p.price"
-                  type="number"
-                  min="0"
-                  max="1000000000"
-                  step="100"
-                  @input="
-                    patch(i, {
-                      price: Math.max(
-                        0,
-                        Math.round(Number(($event.target as HTMLInputElement).value) || 0),
-                      ),
-                    })
-                  "
-              /></label>
+              <div class="pe-price">
+                <label
+                  >Precio (COP)
+                  <input
+                    :value="toAgree(p) ? '' : p.price"
+                    :disabled="toAgree(p)"
+                    :placeholder="toAgree(p) ? 'A convenir' : ''"
+                    type="number"
+                    min="0"
+                    max="1000000000"
+                    step="100"
+                    @input="
+                      patch(i, {
+                        price: Math.max(
+                          0,
+                          Math.round(Number(($event.target as HTMLInputElement).value) || 0),
+                        ),
+                      })
+                    "
+                /></label>
+                <label v-if="services" class="pe-agree"
+                  ><input
+                    type="checkbox"
+                    :checked="toAgree(p)"
+                    @change="setToAgree(i, p, ($event.target as HTMLInputElement).checked)"
+                  />
+                  Precio a convenir</label
+                >
+              </div>
               <label v-if="d.mode === 'products'"
                 >Unidades disponibles
                 <input
@@ -585,5 +605,24 @@ const groups = computed(() => [
   .pe-two {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+.pe-price {
+  align-content: start;
+  gap: 6px;
+  display: grid;
+}
+.pe-agree {
+  color: var(--text);
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+}
+.pe-agree input {
+  accent-color: var(--blue);
+  width: 18px;
+  height: 18px;
 }
 </style>

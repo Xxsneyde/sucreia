@@ -126,7 +126,7 @@ test('registro del negocio: términos, documentos, revisión y aprobación que p
     // Sin documentos no se puede enviar.
     const early = await owner.call('POST', `/mis-tiendas/${store.id}/publicar`);
     assert.equal(early.status, 422);
-    assert.match(early.json.error, /Adjunta: Documento de identidad, RUT, Certificado bancario/);
+    assert.match(early.json.error, /Adjunta: Documento de identidad./);
     // Documentos: tipo de persona, formatos y acceso solo del dueño y la administración.
     assert.equal(
       (
@@ -137,7 +137,26 @@ test('registro del negocio: términos, documentos, revisión y aprobación que p
       ).status,
       400,
     );
-    for (const kind of ['identidad', 'rut', 'bancario'])
+    // La cédula solo en PDF; el RUT también puede ir como imagen. El certificado bancario ya no existe.
+    assert.equal(
+      (
+        await owner.call('PUT', `/plataforma/negocios/${store.id}/documentos/identidad`, {
+          name: 'cedula.png',
+          data: await pngData(),
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await owner.call('PUT', `/plataforma/negocios/${store.id}/documentos/bancario`, {
+          name: 'bancario.pdf',
+          data: pdf,
+        })
+      ).status,
+      404,
+    );
+    for (const kind of ['identidad', 'rut'])
       assert.equal(
         (
           await owner.call('PUT', `/plataforma/negocios/${store.id}/documentos/${kind}`, {
@@ -150,7 +169,7 @@ test('registro del negocio: términos, documentos, revisión y aprobación que p
     const juridica = await owner.call('PUT', `/plataforma/negocios/${store.id}/tipo-legal`, {
       legalType: 'juridica',
     });
-    assert.deepEqual(juridica.json.missing, ['camara']);
+    assert.deepEqual(juridica.json.missing, []);
     await owner.call('PUT', `/plataforma/negocios/${store.id}/tipo-legal`, {
       legalType: 'natural',
     });

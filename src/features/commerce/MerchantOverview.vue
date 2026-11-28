@@ -6,7 +6,6 @@ import {
   Clock,
   ExternalLink,
   Eye,
-  Inbox,
   MessageCircle,
   Package,
   Pencil,
@@ -112,7 +111,6 @@ const todayBookings = computed(() =>
     )
     .sort((a, b) => Date.parse(a.slot) - Date.parse(b.slot)),
 );
-const pending = computed(() => sales.value.filter((o) => o.status === 'pending').length);
 const views = computed(() => Object.values(meta.value?.views ?? {}).reduce((n, v) => n + v, 0));
 const time = (iso: string) =>
   new Intl.DateTimeFormat('es-CO', {
@@ -134,9 +132,9 @@ const pageUrl = computed(() =>
     <p class="eyebrow">Paso 2 de 2</p>
     <h1>Registra tu emprendimiento</h1>
     <p>
-      Llena el formulario en «Registra tu emprendimiento». Ten listos tus documentos (identidad,
-      RUT, certificado bancario y Cámara de Comercio si eres persona jurídica), tu logo, una foto de
-      portada y las fotos de tus productos o servicios.
+      Llena el formulario en «Registra tu emprendimiento». Ten lista tu cédula en PDF (el RUT y la
+      Cámara de Comercio son opcionales), tu logo, una foto de portada y las fotos de tus productos
+      o servicios.
     </p>
     <NuxtLink class="sx-btn mo-start-btn" :to="REGISTER_PATH"
       ><Plus :size="18" /> Registra tu emprendimiento</NuxtLink
@@ -201,16 +199,6 @@ const pageUrl = computed(() =>
       <article class="sx-card">
         <Package :size="20" /><strong>{{ design.products.length }}</strong
         ><span>{{ mode === 'products' ? 'Productos' : 'Servicios' }} publicados</span>
-      </article>
-      <article class="sx-card">
-        <Star :size="20" /><strong>{{ meta?.rating ? meta.rating.toFixed(1) : '—' }}</strong
-        ><span>{{ meta?.reviewCount ?? 0 }} reseñas</span>
-      </article>
-      <article v-if="mode !== 'products'" class="sx-card">
-        <Inbox :size="20" /><strong>{{ pending }}</strong
-        ><span>{{
-          mode === 'booking' ? 'Reservas por confirmar' : 'Solicitudes por cotizar'
-        }}</span>
       </article>
     </div>
     <div class="mo-grid">

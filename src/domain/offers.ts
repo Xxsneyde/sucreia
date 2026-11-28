@@ -5,11 +5,13 @@
 /** Porcentaje máximo de un descuento o cupón. */
 export const MAX_PERCENT = 70;
 
-/** Descuento para todo el negocio (se guarda en la configuración del negocio). */
+/** Descuento del negocio (se guarda en su configuración): para todo o para productos elegidos. */
 export interface StoreDiscount {
   percent: number;
   /** Último día de vigencia (ISO, fin del día en Colombia) o null si no vence. */
   until: string | null;
+  /** Productos o servicios con el descuento; vacío o ausente = todo el negocio. */
+  products?: string[];
 }
 
 /** Cupón con código que el cliente escribe en el carrito o al reservar. */
@@ -52,6 +54,32 @@ export function discountPercent(d: StoreDiscount | null | undefined, now = Date.
   if (!d || d.percent <= 0) return 0;
   if (d.until && Date.parse(d.until) < now) return 0;
   return d.percent;
+}
+
+/** ¿El descuento es solo para algunos productos? */
+export const selectedOnly = (d: StoreDiscount | null | undefined) => !!d?.products?.length;
+
+/** Porcentaje vigente para un producto: el del negocio si el producto lo tiene. */
+export function discountFor(
+  d: StoreDiscount | null | undefined,
+  productId: string,
+  now = Date.now(),
+): number {
+  const percent = discountPercent(d, now);
+  return percent && (!selectedOnly(d) || d!.products!.includes(productId)) ? percent : 0;
+}
+
+/** Valor que descuenta el negocio en un pedido (solo cuentan los productos con descuento). */
+export function storeDiscountAmount(
+  d: StoreDiscount | null | undefined,
+  lines: { productId: string; amount: number }[],
+  now = Date.now(),
+): number {
+  const percent = discountPercent(d, now);
+  const base = lines
+    .filter((l) => discountFor(d, l.productId, now) > 0)
+    .reduce((n, l) => n + l.amount, 0);
+  return discountAmount(base, percent);
 }
 
 /** Precio con el descuento aplicado (redondeado al peso). */

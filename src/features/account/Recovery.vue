@@ -61,8 +61,12 @@ async function submit() {
     <template v-if="done">
       <h2>{{ token ? 'Ya puedes volver' : 'Revisa tu correo' }}</h2>
       <p role="status">{{ message }}</p>
-      <NuxtLink class="button" to="/ingresar">Volver a ingresar →</NuxtLink>
-      <button v-if="!token" class="text-button" @click="done = false">Usar otro correo</button>
+      <div class="rc-actions">
+        <NuxtLink class="button" to="/ingresar">Volver a ingresar →</NuxtLink>
+        <button v-if="!token" type="button" class="button secondary" @click="done = false">
+          Usar otro correo
+        </button>
+      </div>
     </template>
     <form v-else class="form-stack" @submit.prevent="submit">
       <template v-if="token">
@@ -122,5 +126,12 @@ async function submit() {
 /* La lista de requisitos va pegada al campo de la contraseña. */
 .rc-rules {
   margin-top: -10px;
+}
+/* Dos botones separados: volver a ingresar o intentar con otro correo. */
+.rc-actions {
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+  display: flex;
 }
 </style>

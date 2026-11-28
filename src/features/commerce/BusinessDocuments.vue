@@ -5,7 +5,9 @@ import { api } from '@/lib/api';
 import {
   allDocuments,
   documentKinds,
-  documentMimes,
+  acceptFor,
+  formatsFor,
+  mimesFor,
   optionalDocument,
   type DocumentKind,
   type PersonType,
@@ -47,8 +49,8 @@ function upload(kind: DocumentKind, e: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
-  if (!(documentMimes as readonly string[]).includes(file.type))
-    return (message.value = 'Sube el documento en PDF, JPG, PNG o WEBP.');
+  if (!mimesFor(kind).includes(file.type))
+    return (message.value = `Sube el documento en ${formatsFor(kind)}.`);
   if (file.size > 4 * 1024 * 1024) return (message.value = 'Máximo 4 MB por documento.');
   const reader = new FileReader();
   reader.onload = async () => {
@@ -72,7 +74,10 @@ function upload(kind: DocumentKind, e: Event) {
 <template>
   <section class="sx-card bd">
     <h2><FileText :size="20" /> Documentos del registro</h2>
-    <p class="muted">Solo los ve la administración de SucreIA. PDF o imagen, máximo 4 MB.</p>
+    <p class="muted">
+      Solo los ve la administración de SucreIA. La cédula va en PDF; los demás, en PDF o imagen.
+      Máximo 4 MB.
+    </p>
     <div v-if="data" class="bd-type" role="radiogroup" aria-label="Tipo de persona">
       <label
         ><input type="radio" :checked="data.legalType === 'natural'" @change="setType('natural')" />
@@ -103,7 +108,7 @@ function upload(kind: DocumentKind, e: Event) {
           <input
             class="sr-only"
             type="file"
-            accept="application/pdf,image/png,image/jpeg,image/webp"
+            :accept="acceptFor(d.id)"
             :aria-label="`Adjuntar ${d.label}`"
             :disabled="!!uploading"
             @change="upload(d.id, $event)"

@@ -9,7 +9,7 @@ test('registro de un negocio con reservas: cupo por hora y agenda tras la aproba
   const id = await registerBusiness(page, {
     name,
     sector: 'Belleza y Bienestar',
-    mode: 'Servicios con reserva',
+    mode: 'Servicios',
     capacity: 2,
   });
   await approve(page, id);
